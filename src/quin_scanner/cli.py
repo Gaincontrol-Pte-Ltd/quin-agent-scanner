@@ -24,29 +24,58 @@ def _output_filename(target: str, fmt: str) -> str:
 _OUTPUT_CHOICES = click.Choice(["json", "yaml"])
 
 
-@click.group()
-@click.version_option()
+@click.group(context_settings={"help_option_names": ["-h", "--help"]})
+@click.version_option(prog_name="quin-scanner")
 def cli() -> None:
-    """Quin Scanner — detect GenAI/Agentic AI applications in repos."""
+    """Quin Scanner — detect GenAI and Agentic AI applications in repositories.
+
+    Scans local directories, GitHub repos, or entire GitHub organizations to
+    identify LLM usage, AI agent frameworks, model configurations, prompt
+    templates, and tool definitions.
+
+    \b
+    Targets accepted by the scan command:
+      - Local path:        /path/to/repo
+      - GitHub URL:        https://github.com/owner/repo
+      - GitHub shorthand:  owner/repo
+
+    \b
+    Examples:
+      quin-scanner scan ./my-project
+      quin-scanner scan owner/repo --no-llm
+      quin-scanner scan https://github.com/owner/repo -o yaml -d reports/
+      quin-scanner scan-batch targets.txt -d reports/
+      quin-scanner scan-org my-org --skip-archived --skip-forks
+
+    \b
+    Environment variables:
+      GITHUB_TOKEN          GitHub personal access token
+      OPENAI_API_KEY        OpenAI API key (for LLM analysis)
+      ANTHROPIC_API_KEY     Anthropic API key (for LLM analysis)
+      GOOGLE_API_KEY        Google GenAI API key (for LLM analysis)
+    """
 
 
 @cli.command()
 @click.argument("target")
-@click.option("--output", "-o", default="json", type=_OUTPUT_CHOICES, show_default=True)
-@click.option("--output-file", "-f", default=None, help="Write output to file instead of stdout")
+@click.option("--output", "-o", default="json", type=_OUTPUT_CHOICES, show_default=True, help="Output format")
+@click.option("--output-file", "-f", default=None, help="Write output to a specific file")
 @click.option("--output-dir", "-d", default=None, help="Write output to this directory (auto-names the file)")
-@click.option("--llm-provider", default=None, help="LLM provider (openai|anthropic|google|ollama)")
-@click.option("--llm-model", default=None, help="Model name")
+@click.option(
+    "--llm-provider", default=None,
+    help="LLM provider for agent intent analysis (openai|anthropic|google|ollama|openai-compatible)",
+)
+@click.option("--llm-model", default=None, help="Override the default model for the provider")
 @click.option("--llm-api-key", default=None, help="API key (overrides env var)")
-@click.option("--config", "-c", default=None, help="Path to scanner-config.yaml")
-@click.option("--branch", default="main", show_default=True, help="Git branch (for GitHub targets)")
-@click.option("--no-llm", is_flag=True, default=False, help="Skip LLM analysis")
+@click.option("--config", "-c", default=None, help="Path to a scanner-config.yaml file")
+@click.option("--branch", default="main", show_default=True, help="Branch to scan (for GitHub targets)")
+@click.option("--no-llm", is_flag=True, default=False, help="Skip LLM analysis entirely (faster, no API key needed)")
 @click.option(
     "--min-confidence", default=0.0, show_default=True, type=float,
-    help="Exclude findings below this confidence threshold (0.0–1.0)"
+    help="Exclude findings below this confidence threshold (0.0–1.0)",
 )
-@click.option("--github-token", default=None, envvar="GITHUB_TOKEN", help="GitHub personal access token")
-@click.option("--openai-compatible-url", default=None, help="Base URL for OpenAI-compatible API endpoint")
+@click.option("--github-token", default=None, envvar="GITHUB_TOKEN", help="GitHub PAT (overrides GITHUB_TOKEN env var)")
+@click.option("--openai-compatible-url", default=None, help="Base URL for OpenAI-compatible endpoints (vLLM, LiteLLM, Azure, etc.)")
 def scan(
     target: str,
     output: str,
@@ -62,9 +91,16 @@ def scan(
     github_token: str | None,
     openai_compatible_url: str | None,
 ) -> None:
-    """Scan a repo for GenAI/Agentic AI indicators.
+    """Scan a single repository for GenAI/Agentic AI indicators.
 
-    TARGET can be a local path, GitHub URL, or owner/repo shorthand.
+    TARGET can be a local path, a GitHub URL, or owner/repo shorthand.
+
+    \b
+    Examples:
+      quin-scanner scan ./my-project
+      quin-scanner scan owner/repo --no-llm -o yaml
+      quin-scanner scan owner/repo --min-confidence 0.7 -d reports/
+      quin-scanner scan owner/repo --llm-provider anthropic --llm-model claude-sonnet-4-20250514
     """
     # Build config
     if config:
@@ -120,15 +156,18 @@ def scan(
 
 @cli.command("scan-batch")
 @click.argument("targets_file", type=click.Path(exists=True))
-@click.option("--output", "-o", default="json", type=_OUTPUT_CHOICES, show_default=True)
+@click.option("--output", "-o", default="json", type=_OUTPUT_CHOICES, show_default=True, help="Output format")
 @click.option("--output-dir", "-d", default=None, help="Directory for per-repo output files")
-@click.option("--llm-provider", default=None)
-@click.option("--llm-model", default=None)
-@click.option("--llm-api-key", default=None)
-@click.option("--config", "-c", default=None)
-@click.option("--no-llm", is_flag=True, default=False)
-@click.option("--github-token", default=None, envvar="GITHUB_TOKEN")
-@click.option("--openai-compatible-url", default=None)
+@click.option(
+    "--llm-provider", default=None,
+    help="LLM provider for agent intent analysis (openai|anthropic|google|ollama|openai-compatible)",
+)
+@click.option("--llm-model", default=None, help="Override the default model for the provider")
+@click.option("--llm-api-key", default=None, help="API key (overrides env var)")
+@click.option("--config", "-c", default=None, help="Path to a scanner-config.yaml file")
+@click.option("--no-llm", is_flag=True, default=False, help="Skip LLM analysis entirely (faster, no API key needed)")
+@click.option("--github-token", default=None, envvar="GITHUB_TOKEN", help="GitHub PAT (overrides GITHUB_TOKEN env var)")
+@click.option("--openai-compatible-url", default=None, help="Base URL for OpenAI-compatible endpoints (vLLM, LiteLLM, Azure, etc.)")
 def scan_batch(
     targets_file: str,
     output: str,
@@ -141,7 +180,17 @@ def scan_batch(
     github_token: str | None,
     openai_compatible_url: str | None,
 ) -> None:
-    """Scan multiple repos listed in TARGETS_FILE (one target per line)."""
+    """Scan multiple repositories listed in a file.
+
+    TARGETS_FILE should contain one target per line (local paths, GitHub URLs,
+    or owner/repo shorthand). Lines starting with # are ignored.
+
+    \b
+    Examples:
+      quin-scanner scan-batch targets.txt
+      quin-scanner scan-batch targets.txt -d reports/ -o yaml
+      quin-scanner scan-batch targets.txt --no-llm
+    """
     targets = [
         line.strip()
         for line in Path(targets_file).read_text().splitlines()
@@ -190,14 +239,14 @@ def scan_batch(
 
 @cli.command("scan-org")
 @click.argument("org_name")
-@click.option("--output", "-o", type=click.Choice(["json", "yaml"]), default="json")
-@click.option("--output-dir", default=".", type=click.Path())
-@click.option("--github-token", envvar="GITHUB_TOKEN", default=None)
-@click.option("--skip-archived", is_flag=True, default=False)
-@click.option("--skip-forks", is_flag=True, default=False)
-@click.option("--no-llm", is_flag=True, default=False)
-@click.option("--config", "-c", type=click.Path(exists=True), default=None)
-@click.option("--openai-compatible-url", default=None)
+@click.option("--output", "-o", type=click.Choice(["json", "yaml"]), default="json", show_default=True, help="Output format")
+@click.option("--output-dir", default=".", type=click.Path(), show_default=True, help="Directory for per-repo output files")
+@click.option("--github-token", envvar="GITHUB_TOKEN", default=None, help="GitHub PAT (overrides GITHUB_TOKEN env var)")
+@click.option("--skip-archived", is_flag=True, default=False, help="Skip archived repositories")
+@click.option("--skip-forks", is_flag=True, default=False, help="Skip forked repositories")
+@click.option("--no-llm", is_flag=True, default=False, help="Skip LLM analysis entirely (faster, no API key needed)")
+@click.option("--config", "-c", type=click.Path(exists=True), default=None, help="Path to a scanner-config.yaml file")
+@click.option("--openai-compatible-url", default=None, help="Base URL for OpenAI-compatible endpoints (vLLM, LiteLLM, Azure, etc.)")
 @click.pass_context
 def scan_org(
     ctx: click.Context,
@@ -211,7 +260,18 @@ def scan_org(
     config: str | None,
     openai_compatible_url: str | None,
 ) -> None:
-    """Scan all repositories in a GitHub organization."""
+    """Scan all repositories in a GitHub organization or user account.
+
+    ORG_NAME is a GitHub organization or user account name (auto-detected).
+    Discovers all repos via the GitHub API, then scans each one.
+    Requires a GITHUB_TOKEN with org/user read access.
+
+    \b
+    Examples:
+      quin-scanner scan-org my-org --skip-archived --skip-forks
+      quin-scanner scan-org my-org -d reports/ -o yaml --no-llm
+      quin-scanner scan-org my-username --github-token $GITHUB_TOKEN
+    """
     from quin_scanner.github_client import GitHubClient
 
     client = GitHubClient(token=github_token)
