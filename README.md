@@ -13,51 +13,111 @@ Learn more at [gaincontrol.ai/quin](https://gaincontrol.ai/quin).
 
 ---
 
-## Table of Contents
+## Quick Start
 
-- [Installation](#installation)
-- [What It Does](#what-it-does)
-- [Supported Frameworks](#supported-frameworks)
-- [Tech Stack](#tech-stack)
-- [Prerequisites](#prerequisites)
-- [Getting Started](#getting-started)
-- [Architecture](#architecture)
-- [Environment Variables](#environment-variables)
-- [Commands Reference](#commands-reference)
-- [Configuration File](#configuration-file)
-- [LLM Providers](#llm-providers)
-- [Output Format](#output-format)
-- [Scanners](#scanners)
-- [Capability Tags](#capability-tags)
-- [Troubleshooting](#troubleshooting)
-- [Contributing](#contributing)
-- [Roadmap](#roadmap)
-- [Comparison](#comparison)
-- [License](#license)
+Get scanning in under 2 minutes.
 
----
-
-## Installation
-
-### From PyPI (recommended)
+### 1. Install
 
 ```bash
 pip install quin-scanner
 ```
 
-Or with uv:
+Or with [uv](https://docs.astral.sh/uv/):
 
 ```bash
 uv tool install quin-scanner
 ```
 
-Then run:
+### 2. Configure your environment
+
+Create a `.env` file in your working directory with your LLM API key and (optionally) a GitHub token:
 
 ```bash
-quin-scanner --help
+# Pick one LLM provider:
+ANTHROPIC_API_KEY=sk-ant-...
+# OPENAI_API_KEY=sk-...
+# GOOGLE_API_KEY=...
+
+# For scanning GitHub repos or orgs:
+GITHUB_TOKEN=ghp_...
 ```
 
-> For development setup (contributing to the project), see [Getting Started](#getting-started) below.
+### 3. Configure the scanner
+
+Copy and edit the config file to set your preferred LLM provider and model:
+
+```bash
+# Download the example config
+curl -O https://raw.githubusercontent.com/Gaincontrol-Pte-Ltd/quin-agent-scanner/main/scanner-config.yaml
+```
+
+Edit `scanner-config.yaml` to match your provider:
+
+```yaml
+llm:
+  provider: anthropic                  # openai | anthropic | google | ollama
+  model: claude-haiku-4-5-20251001     # see LLM Providers for options
+  api_key_env: ANTHROPIC_API_KEY       # reads from your .env file
+```
+
+### 4. Run your first scan
+
+```bash
+# Scan a local repository
+quin-scanner scan ./path/to/repo --config scanner-config.yaml --output json
+
+# Scan a GitHub repository
+quin-scanner scan https://github.com/org/repo --config scanner-config.yaml --output json
+
+# Scan all repos in a GitHub organization
+quin-scanner scan-org my-github-org --config scanner-config.yaml --output-dir ./reports/
+```
+
+### Alternative: Run from source
+
+If you prefer not to install via pip, you can clone the repo and run directly:
+
+```bash
+git clone https://github.com/Gaincontrol-Pte-Ltd/quin-agent-scanner
+cd quin-agent-scanner
+
+# Install uv if you don't have it
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Install dependencies
+uv sync --all-extras
+
+# Set up your .env file
+cp .env.example .env
+# Edit .env with your API keys
+
+# Run scans with uv run
+uv run quin-scanner scan ./path/to/repo --config scanner-config.yaml --output json
+```
+
+> When running from source, prefix all commands with `uv run` (e.g. `uv run quin-scanner scan ...`).
+
+---
+
+## Table of Contents
+
+- [Quick Start](#quick-start)
+- [What It Does](#what-it-does)
+- [Supported Frameworks](#supported-frameworks)
+- [Installation](#installation)
+- [Configuration](#configuration)
+- [Commands Reference](#commands-reference)
+- [LLM Providers](#llm-providers)
+- [Output Format](#output-format)
+- [Scanners & Capability Tags](#scanners)
+- [Architecture](#architecture)
+- [Troubleshooting](#troubleshooting)
+- [Development Setup](#development-setup)
+- [Contributing](#contributing)
+- [Roadmap & Comparison](#roadmap)
+- [License](#license)
+- [About Gaincontrol](#about-gaincontrol)
 
 ---
 
@@ -102,134 +162,116 @@ quin-scanner --help
 
 ---
 
-## Tech Stack
+## Installation
 
-- **Language**: Python 3.11+
-- **CLI framework**: [click](https://click.palletsprojects.com/) 8.1+
-- **Package manager**: [uv](https://docs.astral.sh/uv/) (fast, PEP 517 compliant)
-- **Build backend**: [hatchling](https://hatch.pypa.io/)
-- **Configuration parsing**: PyYAML 6.0+
-- **Environment variables**: python-dotenv 1.2.2+
-- **HTTP client**: httpx 0.27+
-- **LLM SDKs**: openai 1.0+, anthropic 0.20+, google-genai 1.0+
-- **Testing**: pytest 8.0+, pytest-cov 5.0+, pytest-asyncio 0.23+, respx 0.21+
-- **Detection rules**: YAML data files in `src/quin_scanner/rules/`
+### From PyPI (recommended)
 
----
+```bash
+pip install quin-scanner
+```
 
-## Prerequisites
+Or with [uv](https://docs.astral.sh/uv/):
 
-Before you begin, ensure you have the following installed on your machine:
+```bash
+uv tool install quin-scanner
+```
+
+### Prerequisites
 
 - **Python 3.11 or higher** — [download here](https://www.python.org/downloads/)
-- **uv** — the package manager used for this project:
-
-```bash
-# macOS / Linux
-curl -LsSf https://astral.sh/uv/install.sh | sh
-
-# Or via pipx
-pipx install uv
-
-# Or via Homebrew (macOS)
-brew install uv
-
-# Windows (PowerShell)
-powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
-```
-
+- **An LLM API key** — for agent intent analysis (OpenAI, Anthropic, Google, or a local Ollama model)
 - **git** — for cloning and scanning GitHub repositories
-- **An LLM API key** _(optional)_ — for agent intent analysis (`--no-llm` works without any key)
+- **A GitHub token** _(optional)_ — for scanning private repos or GitHub orgs
 
 ---
 
-## Getting Started
+## Configuration
 
-### 1. Clone the Repository
+Quin requires two configuration files to run at full capability: a **`.env` file** for API keys and a **`scanner-config.yaml`** for scanner settings.
 
-```bash
-git clone https://github.com/Gaincontrol-Pte-Ltd/quin-agent-scanner
-cd quin-agent-scanner
-```
+### Step 1: Set up your `.env` file
 
-### 2. Initialize the Environment
-
-Install all dependencies:
+Create a `.env` file in the directory where you run `quin-scanner`:
 
 ```bash
-uv sync --all-extras
-```
-
-### 3. Configure Environment Variables
-
-Copy the example env file and fill in the values you need:
-
-```bash
-cp .env.example .env
-```
-
-At minimum, you only need to set variables for the services you intend to use. Open `.env` in your editor:
-
-```bash
-# For LLM-powered agent intent analysis (pick one):
-OPENAI_API_KEY=sk-...
-# ANTHROPIC_API_KEY=sk-ant-...
+# Pick one LLM provider and set its API key:
+ANTHROPIC_API_KEY=sk-ant-...
+# OPENAI_API_KEY=sk-...
 # GOOGLE_API_KEY=...
 
 # For scanning GitHub repos or orgs:
 GITHUB_TOKEN=ghp_...
 ```
 
-> **Tip:** You can skip this step entirely and pass API keys as CLI flags (`--llm-api-key`, `--github-token`), or use `--no-llm` to skip LLM analysis completely.
+API keys can also be passed as CLI flags (`--llm-api-key`, `--github-token`), but a `.env` file is recommended for repeated use.
 
-### 4. Run Your First Scan
+### Step 2: Set up your `scanner-config.yaml`
 
-Scan a local repository without LLM analysis (no API key needed):
-
-```bash
-uv run quin-scanner scan ./path/to/my-repo --no-llm --output json
-```
-
-Scan a public GitHub repo:
+Download or create a config file:
 
 ```bash
-uv run quin-scanner scan https://github.com/anthropics/anthropic-sdk-python --no-llm
+curl -O https://raw.githubusercontent.com/Gaincontrol-Pte-Ltd/quin-agent-scanner/main/scanner-config.yaml
 ```
 
-Scan with LLM-powered agent intent analysis:
+Edit it to match your LLM provider:
+
+```yaml
+llm:
+  provider: anthropic                  # openai | anthropic | google | ollama | openai-compatible
+  model: claude-haiku-4-5-20251001     # see LLM Providers section for options
+  api_key_env: ANTHROPIC_API_KEY       # reads the key from your .env file
+
+output:
+  format: json                         # json | yaml
+
+scanners:
+  enabled:
+    - dependency
+    - config
+    - code_pattern
+    - file_structure
+    - framework
+    - prompt_discovery
+    - dockerfile
+    - jupyter
+    - iac
+    - ci
+    - mcp
+```
+
+Pass it to any command with `--config scanner-config.yaml`.
+
+**Config priority** (highest to lowest): CLI flags -> config file -> environment variables -> defaults.
+
+### Step 3: Run a scan
 
 ```bash
-uv run quin-scanner scan ./my-repo --llm-provider openai --llm-model gpt-4o-mini
+# Scan a local repository
+quin-scanner scan ./my-repo --config scanner-config.yaml
+
+# Scan a GitHub repository
+quin-scanner scan https://github.com/org/repo --config scanner-config.yaml
+
+# Scan with YAML output to a file
+quin-scanner scan ./my-repo --config scanner-config.yaml --output yaml --output-file report.yaml
 ```
 
-### 5. Choose Your Run Method
+### GitHub Token Scopes
 
-You have four options for invoking the `quin-scanner` command:
+For scanning public repos: `public_repo` scope is sufficient.
+For scanning private repos or org membership: `repo` + `read:org` scopes are required.
 
-**Option A — `uv run` (no activation needed, recommended for development):**
-```bash
-uv run quin-scanner scan ./my-repo --no-llm
-```
+Create a token at [github.com/settings/tokens](https://github.com/settings/tokens).
 
-**Option B — activate the virtual environment:**
-```bash
-source .venv/bin/activate
-quin-scanner scan ./my-repo --no-llm
-```
+### Environment Variables Reference
 
-**Option C — install as a global tool:**
-```bash
-uv tool install .
-quin-scanner scan ./my-repo --no-llm
-```
-
-**Option D — editable install into an existing venv:**
-```bash
-pip install -e .
-quin-scanner scan ./my-repo --no-llm
-```
-
-> All examples in this README use `uv run quin-scanner`. Drop the `uv run` prefix if you used Option B, C, or D.
+| Variable | Description | Required For |
+|---|---|---|
+| `ANTHROPIC_API_KEY` | Anthropic API key (`sk-ant-...`) | `provider: anthropic` |
+| `OPENAI_API_KEY` | OpenAI API key (`sk-...`) | `provider: openai` |
+| `GOOGLE_API_KEY` | Google AI API key | `provider: google` |
+| `GITHUB_TOKEN` | GitHub Personal Access Token | Scanning GitHub repos or orgs |
+| `OPENAI_COMPATIBLE_URL` | Base URL for OpenAI-compatible endpoints | `provider: openai-compatible` |
 
 ---
 
@@ -410,54 +452,6 @@ All scanner output is merged into a `ScanReport` by `ScanOrchestrator`:
 
 ---
 
-## Environment Variables
-
-### API Keys
-
-| Variable | Description | Required For |
-|---|---|---|
-| `OPENAI_API_KEY` | OpenAI API key (`sk-...`) | `--llm-provider openai` |
-| `ANTHROPIC_API_KEY` | Anthropic API key (`sk-ant-...`) | `--llm-provider anthropic` |
-| `GOOGLE_API_KEY` | Google AI API key | `--llm-provider google` |
-| `GITHUB_TOKEN` | GitHub Personal Access Token | Scanning GitHub repos or orgs |
-
-### Optional Configuration
-
-| Variable | Description | Default |
-|---|---|---|
-| `OPENAI_COMPATIBLE_URL` | Base URL for OpenAI-compatible endpoints | `http://localhost:11434/v1` |
-
-### Setting Variables
-
-**Via `.env` file (recommended):**
-
-```bash
-cp .env.example .env
-# Edit .env with your values — it is gitignored
-```
-
-**Via shell export:**
-
-```bash
-export OPENAI_API_KEY=sk-...
-export GITHUB_TOKEN=ghp_...
-```
-
-**Via CLI flags (override env vars):**
-
-```bash
-uv run quin-scanner scan ./repo --llm-api-key sk-... --github-token ghp_...
-```
-
-### GitHub Token Scopes
-
-For scanning public repos: `public_repo` scope is sufficient.
-For scanning private repos or org membership: `repo` + `read:org` scopes are required.
-
-Create a token at [github.com/settings/tokens](https://github.com/settings/tokens).
-
----
-
 ## Commands Reference
 
 ### `scan` — Scan a Single Repository
@@ -487,33 +481,39 @@ Options:
 **Examples:**
 
 ```bash
-# Fast scan, no LLM, JSON output to stdout
-uv run quin-scanner scan ./my-repo --no-llm
+# Scan a local repo using your config file
+quin-scanner scan ./my-repo --config scanner-config.yaml
 
-# Full scan with OpenAI analysis, YAML output to file
-uv run quin-scanner scan ./my-repo \
-  --llm-provider openai \
-  --llm-model gpt-4o \
+# Scan with YAML output to a file
+quin-scanner scan ./my-repo \
+  --config scanner-config.yaml \
   --output yaml \
   --output-file report.yaml
 
 # Scan a GitHub repo on a specific branch
-uv run quin-scanner scan https://github.com/org/repo \
-  --branch develop \
-  --no-llm \
-  --output json
+quin-scanner scan https://github.com/org/repo \
+  --config scanner-config.yaml \
+  --branch develop
 
-# Use a local Ollama model
-uv run quin-scanner scan ./my-repo \
+# Override LLM provider via CLI flags
+quin-scanner scan ./my-repo \
+  --llm-provider openai \
+  --llm-model gpt-4o
+
+# Use a local Ollama model (no API key needed)
+quin-scanner scan ./my-repo \
   --llm-provider ollama \
   --llm-model llama3.2
 
 # Use any OpenAI-compatible endpoint (vLLM, LiteLLM, Azure, etc.)
-uv run quin-scanner scan ./my-repo \
+quin-scanner scan ./my-repo \
   --llm-provider openai-compatible \
   --openai-compatible-url http://localhost:8000/v1 \
   --llm-model my-fine-tuned-model \
   --llm-api-key dummy
+
+# Static-only scan (skips LLM agent intent analysis)
+quin-scanner scan ./my-repo --no-llm
 ```
 
 ### `scan-org` — Scan All Repos in a GitHub Organization or User Account
@@ -537,12 +537,11 @@ Options:
 **Example:**
 
 ```bash
-# Scan all non-archived, non-forked repos in an org or user account, save JSON reports to ./reports/
-uv run quin-scanner scan-org my-github-org \
-  --github-token $GITHUB_TOKEN \
+# Scan all non-archived, non-forked repos in an org, save JSON reports to ./reports/
+quin-scanner scan-org my-github-org \
+  --config scanner-config.yaml \
   --skip-archived \
   --skip-forks \
-  --no-llm \
   --output-dir ./reports/
 ```
 
@@ -570,87 +569,17 @@ https://github.com/org/repo-b
 ```
 
 ```bash
-uv run quin-scanner scan-batch targets.txt --no-llm --output-dir ./reports/
+quin-scanner scan-batch targets.txt --config scanner-config.yaml --output-dir ./reports/
 ```
 
-### Available Scripts Summary
+### Commands Summary
 
 | Command | Description |
 |---|---|
-| `uv sync --all-extras` | Install all runtime + dev dependencies |
-| `uv run quin-scanner scan TARGET --no-llm` | Scan a repo (no LLM) |
-| `uv run quin-scanner scan TARGET --llm-provider openai` | Scan with OpenAI analysis |
-| `uv run quin-scanner scan-org ORG_OR_USER --github-token TOKEN` | Scan entire GitHub org or user account |
-| `uv run quin-scanner scan-batch targets.txt` | Batch scan from a file |
-| `uv run quin-scanner --help` | Show all commands and options |
-| `uv run pytest tests/ -v` | Run full test suite |
-| `uv run pytest tests/ -v --cov=quin_scanner` | Run tests with coverage report |
-| `uv add <package>` | Add a runtime dependency |
-| `uv add --dev <package>` | Add a dev dependency |
-
----
-
-## Configuration File
-
-For repeated use or team workflows, use a configuration file instead of CLI flags on every invocation.
-
-Copy and customize the bundled example:
-
-```bash
-cp scanner-config.yaml my-scanner-config.yaml
-```
-
-Pass it to any command:
-
-```bash
-uv run quin-scanner scan <target> --config my-scanner-config.yaml
-uv run quin-scanner scan-org <org> --config my-scanner-config.yaml
-```
-
-**Full config reference (`scanner-config.yaml`):**
-
-```yaml
-# ── LLM provider ─────────────────────────────────────────────────────────────
-llm:
-  # Provider: openai | anthropic | google | ollama | openai-compatible
-  provider: anthropic
-
-  # Model name for the chosen provider:
-  #   openai:             gpt-4o-mini, gpt-4o, o3-mini, o4-mini, ...
-  #   anthropic:          claude-haiku-4-5-20251001, claude-sonnet-4-6, claude-opus-4-6
-  #   google:             gemini-2.0-flash, gemini-1.5-pro, gemini-1.5-flash, ...
-  #   ollama:             llama3.2, mistral, phi3, codellama, ...
-  #   openai-compatible:  depends on your endpoint
-  model: claude-haiku-4-5-20251001
-
-  # API key — prefer setting via environment variable.
-  api_key_env: ANTHROPIC_API_KEY    # read key from this env var (recommended)
-  # api_key: sk-ant-...             # or inline (not recommended for shared configs)
-
-  # Base URL for OpenAI-compatible endpoints (vLLM, LiteLLM, Azure, Ollama, etc.)
-  # openai_compatible_url: http://localhost:11434/v1
-
-# ── Output ───────────────────────────────────────────────────────────────────
-output:
-  format: json                      # json | yaml
-
-# ── Scanners ─────────────────────────────────────────────────────────────────
-scanners:
-  enabled:
-    - dependency       # AI packages in requirements.txt, pyproject.toml, go.mod, etc.
-    - config           # AI API keys in .env files
-    - code_pattern     # AI import statements in source code
-    - file_structure   # AI-related directory names (agents/, prompts/, ...)
-    - framework        # Framework config files (crew.yaml, langgraph.json, ...)
-    - prompt_discovery # System prompts in Python, YAML, Jinja2, Mustache
-    - dockerfile       # AI base images / pip installs in Dockerfile
-    - jupyter          # AI usage in Jupyter notebooks (.ipynb)
-    - iac              # AI services in Terraform and Kubernetes YAML
-    - ci               # AI keys / installs in GitHub Actions, GitLab CI, etc.
-    - mcp              # MCP server configurations
-```
-
-**Config priority** (highest to lowest): CLI flags → config file → environment variables → defaults.
+| `quin-scanner scan TARGET --config scanner-config.yaml` | Scan a repo with LLM analysis |
+| `quin-scanner scan-org ORG --config scanner-config.yaml` | Scan entire GitHub org or user account |
+| `quin-scanner scan-batch targets.txt --config scanner-config.yaml` | Batch scan from a file |
+| `quin-scanner --help` | Show all commands and options |
 
 ---
 
@@ -658,19 +587,15 @@ scanners:
 
 Quin Scanner uses a **single LLM synthesis call** after all 11 scanners complete. The prompt includes pre-summarised evidence from every scanner and asks the LLM to return: the detected framework, per-agent profiles (name, type, goal, capabilities, tools, risk signals), and a plain-English narrative summary.
 
-Configure the LLM provider with `--llm-provider`:
+Configure the LLM provider in your `scanner-config.yaml` or with `--llm-provider`:
 
-| Provider | Flag | Default Model | API Key Env Var | Notes |
+| Provider | Config value | Default Model | API Key Env Var | Notes |
 |---|---|---|---|---|
-| OpenAI | `openai` | `gpt-4o-mini` | `OPENAI_API_KEY` | Fast and cost-effective |
 | Anthropic | `anthropic` | `claude-haiku-4-5-20251001` | `ANTHROPIC_API_KEY` | Recommended for most teams |
+| OpenAI | `openai` | `gpt-4o-mini` | `OPENAI_API_KEY` | Fast and cost-effective |
 | Google | `google` | `gemini-2.0-flash` | `GOOGLE_API_KEY` | Good for high-volume scans |
 | Ollama (local) | `ollama` | `llama3.2` | — | No API key, runs locally |
 | OpenAI-compatible | `openai-compatible` | _(specify with `--llm-model`)_ | `OPENAI_API_KEY` or `--llm-api-key` | vLLM, LiteLLM, Azure, Bedrock |
-
-**Run without any LLM** using `--no-llm`:
-
-All 11 scanners still run. MCP servers, infrastructure, and model usage are still detected. Only the synthesis step (agent profiles, framework detection, narrative summary) is skipped — `framework` will be `"unknown"`, `summary` will be `""`, and `agents` / `tool_usages` will be empty lists.
 
 **Ollama setup** (local inference, no API key needed):
 
@@ -678,10 +603,10 @@ All 11 scanners still run. MCP servers, infrastructure, and model usage are stil
 # Install Ollama: https://ollama.ai
 ollama pull llama3.2
 
-uv run quin-scanner scan ./my-repo \
-  --llm-provider ollama \
-  --llm-model llama3.2
+quin-scanner scan ./my-repo --llm-provider ollama --llm-model llama3.2
 ```
+
+> **Static-only mode:** You can pass `--no-llm` to skip LLM analysis entirely. All 13 scanners still run and detect dependencies, prompts, MCP servers, infrastructure, and model usage. Only the synthesis step (agent profiles, framework detection, narrative summary) is skipped.
 
 ---
 
@@ -848,11 +773,11 @@ The virtual environment is not activated and you're not using `uv run`. Either:
 
 ```bash
 # Option A: Use uv run (no activation needed)
-uv run quin-scanner scan ./repo --no-llm
+uv run quin-scanner scan ./repo --config scanner-config.yaml
 
 # Option B: Activate the venv first
 source .venv/bin/activate
-quin-scanner scan ./repo --no-llm
+quin-scanner scan ./repo --config scanner-config.yaml
 ```
 
 ### `uv sync` fails with Python version error
@@ -891,14 +816,14 @@ echo $OPENAI_API_KEY
 uv run quin-scanner scan ./repo --llm-provider openai --llm-api-key sk-...
 ```
 
-**`RateLimitError`** — you've exceeded your LLM provider's rate limit. Use `--no-llm` or switch to a less-loaded model:
+**`RateLimitError`** — you've exceeded your LLM provider's rate limit. Switch to a smaller or less-loaded model:
 
 ```bash
 # Switch to a smaller model
-uv run quin-scanner scan ./repo --llm-provider openai --llm-model gpt-4o-mini
+quin-scanner scan ./repo --llm-provider openai --llm-model gpt-4o-mini
 
-# Or skip LLM entirely
-uv run quin-scanner scan ./repo --no-llm
+# Or switch provider
+quin-scanner scan ./repo --llm-provider google --llm-model gemini-2.0-flash
 ```
 
 ### Ollama connection refused
@@ -918,25 +843,60 @@ uv run quin-scanner scan ./repo --llm-provider ollama --llm-model llama3.2
 ### Empty or unexpected scan results
 
 1. **Check the target path**: Ensure the local path exists and is a directory.
-2. **Try `--no-llm`**: Isolate whether the issue is in static scanning or LLM analysis.
-3. **Check exclusions**: `src/quin_scanner/rules/exclusions.yaml` lists paths that are skipped. A very deep or unusual directory structure might be matched.
-4. **Check the file count**: The `metadata.file_count` in the output tells you how many files were indexed. A count of 0 suggests the accessor failed to enumerate files.
+2. **Check exclusions**: `src/quin_scanner/rules/exclusions.yaml` lists paths that are skipped. A very deep or unusual directory structure might be matched.
+3. **Check the file count**: The `metadata.file_count` in the output tells you how many files were indexed. A count of 0 suggests the accessor failed to enumerate files.
+4. **Isolate the issue**: Run with `--no-llm` to check if the issue is in static scanning or LLM analysis.
 
 ### Scan is slow on large repos
 
 Static scanning is fast (typically under 5 seconds for repos up to 10,000 files). The LLM synthesis call is the bottleneck — use a fast/cheap model:
 
 ```bash
-uv run quin-scanner scan ./repo --llm-provider openai --llm-model gpt-4o-mini
-uv run quin-scanner scan ./repo --llm-provider anthropic --llm-model claude-haiku-4-5-20251001
-uv run quin-scanner scan ./repo --llm-provider google --llm-model gemini-2.0-flash
+quin-scanner scan ./repo --llm-provider openai --llm-model gpt-4o-mini
+quin-scanner scan ./repo --llm-provider anthropic --llm-model claude-haiku-4-5-20251001
+quin-scanner scan ./repo --llm-provider google --llm-model gemini-2.0-flash
 ```
 
-Or skip LLM analysis:
+---
+
+## Development Setup
+
+For contributing to Quin or running from source:
 
 ```bash
-uv run quin-scanner scan ./repo --no-llm
+# 1. Clone the repository
+git clone https://github.com/Gaincontrol-Pte-Ltd/quin-agent-scanner
+cd quin-agent-scanner
+
+# 2. Install uv (if not installed)
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# 3. Install all dependencies
+uv sync --all-extras
+
+# 4. Set up your environment
+cp .env.example .env
+# Edit .env with your API keys
+
+# 5. Run a scan (via uv run)
+uv run quin-scanner scan ./path/to/repo --config scanner-config.yaml
+
+# 6. Run tests
+uv run pytest tests/ -v
 ```
+
+### Tech Stack
+
+- **Language**: Python 3.11+
+- **CLI framework**: [click](https://click.palletsprojects.com/) 8.1+
+- **Package manager**: [uv](https://docs.astral.sh/uv/) (fast, PEP 517 compliant)
+- **Build backend**: [hatchling](https://hatch.pypa.io/)
+- **Configuration parsing**: PyYAML 6.0+
+- **Environment variables**: python-dotenv 1.2.2+
+- **HTTP client**: httpx 0.27+
+- **LLM SDKs**: openai 1.0+, anthropic 0.20+, google-genai 1.0+
+- **Testing**: pytest 8.0+, pytest-cov 5.0+, pytest-asyncio 0.23+, respx 0.21+
+- **Detection rules**: YAML data files in `src/quin_scanner/rules/`
 
 ---
 
@@ -944,26 +904,14 @@ uv run quin-scanner scan ./repo --no-llm
 
 Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for the full guide.
 
-**Quick contributor workflow:**
-
 ```bash
-# 1. Fork and clone
-git clone https://github.com/Gaincontrol-Pte-Ltd/quin-agent-scanner
-cd quin-agent-scanner
-
-# 2. Set up environment
-uv sync --all-extras
-
-# 3. Create a branch
+# Create a branch
 git checkout -b feat/my-new-scanner
 
-# 4. Make changes and write tests
-# ...
-
-# 5. Verify all tests pass
+# Make changes, write tests, verify
 uv run pytest tests/ -v
 
-# 6. Open a PR against main
+# Open a PR against main
 ```
 
 **Adding a new scanner plugin:**
