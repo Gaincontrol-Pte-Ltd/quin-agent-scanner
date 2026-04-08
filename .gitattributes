@@ -1,0 +1,24 @@
+# Normalize line endings
+* text=auto
+
+# Python
+*.py text diff=python
+*.pyx text diff=python
+
+# YAML
+*.yaml text
+*.yml text
+
+# JSON
+*.json text
+
+# Markdown
+*.md text diff=markdown
+
+# Shell
+*.sh text eol=lf
+
+# Templates
+*.jinja2 text
+*.j2 text
+*.mustache text
