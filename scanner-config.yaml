@@ -1,0 +1,45 @@
+# scanner-config.example.yaml
+# Copy to scanner-config.yaml and adjust as needed.
+# Pass to the CLI with: quin-scanner scan <target> --config scanner-config.yaml
+
+# ── LLM provider ─────────────────────────────────────────────────────────────
+llm:
+  # Provider: openai | anthropic | google | ollama | openai-compatible
+  provider: anthropic
+
+  # Model name for the chosen provider.
+  # openai:             gpt-4o-mini, gpt-4o, o3-mini, ...
+  # anthropic:          claude-haiku-4-5-20251001, claude-sonnet-4-6, claude-opus-4-6
+  # google:             gemini-2.0-flash, gemini-1.5-pro, ...
+  # ollama:             llama3.2, mistral, phi3, ...
+  # openai-compatible:  depends on your endpoint
+  model: claude-haiku-4-5-20251001
+
+  # API key — prefer setting via environment variable in .env instead.
+  # api_key_env: ANTHROPIC_API_KEY   # read key from this env var (recommended)
+  # api_key: sk-ant-...              # or inline (not recommended for shared configs)
+
+  # Base URL for OpenAI-compatible endpoints (vLLM, LiteLLM, Azure, Ollama, etc.)
+  # openai_compatible_url: http://localhost:11434/v1
+
+# ── Output ───────────────────────────────────────────────────────────────────
+output:
+  # Format: json | yaml
+  format: json
+
+# ── Scanners ─────────────────────────────────────────────────────────────────
+scanners:
+  # List only the scanners you want to run.
+  # Remove or comment out any you want to skip.
+  enabled:
+    - dependency       # requirements.txt, pyproject.toml, go.mod, Cargo.toml, pom.xml, build.gradle
+    - config           # .env files with AI API keys
+    - code_pattern     # import statements for AI libraries
+    - file_structure   # directory names (agents/, prompts/, tools/)
+    - framework        # framework config files (crew.yaml, langgraph.json, etc.)
+    - prompt_discovery # system prompts in Python, YAML, Jinja2, Mustache
+    - dockerfile       # Dockerfile and docker-compose.yml
+    - jupyter          # .ipynb notebooks
+    - iac              # Terraform and Kubernetes manifests
+    - ci               # GitHub Actions / CI pipelines
+    - mcp              # MCP server configurations

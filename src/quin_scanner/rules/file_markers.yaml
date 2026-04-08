@@ -1,0 +1,41 @@
+# File and directory markers that suggest an AI/agent application
+
+directories:
+  - name: prompts
+    capability_tag: prompt-templates
+  - name: agents
+    capability_tags: [multi-agent, orchestration]
+  - name: chains
+    capability_tag: orchestration
+  - name: vector_store
+    capability_tag: rag
+  - name: vectorstore
+    capability_tag: rag
+  - name: embeddings
+    capability_tag: embeddings
+  - name: tools
+    capability_tag: tool-use
+  - name: memory
+    capability_tag: memory
+  - name: workflows
+    capability_tag: orchestration
+
+extensions:
+  - ext: ".prompt"
+    capability_tag: prompt-templates
+  - ext: ".chain"
+    capability_tag: orchestration
+  - ext: ".agent"
+    capability_tag: multi-agent
+
+file_names:
+  - name: system_prompt.txt
+    capability_tag: prompt-templates
+  - name: system_prompt.md
+    capability_tag: prompt-templates
+  - name: system.prompt
+    capability_tag: prompt-templates
+  - name: agent.yaml
+    capability_tag: multi-agent
+  - name: agents.yaml
+    capability_tag: multi-agent

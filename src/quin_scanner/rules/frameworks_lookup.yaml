@@ -1,0 +1,50 @@
+# Hybrid framework detection lookup table
+# Maps known package names and file markers to canonical framework names.
+# Rule-based detection runs before synthesis; result is passed as a candidate.
+#
+# Priority: file_markers > packages (first match wins within each group).
+
+# Dependency package name → framework
+# Checked against DependencyScanner findings
+packages:
+  # More specific entries first — iteration is in YAML order (highest priority wins).
+  # Do NOT add generic SDK packages (anthropic, openai, google-generativeai) here —
+  # they are too broad and cause false framework assignments.
+  autogen-agentchat: "AutoGen"
+  autogen_agentchat: "AutoGen"
+  pyautogen: "AutoGen"
+  autogen-core: "AutoGen"
+  autogen-ext: "AutoGen"
+  openai-agents: "OpenAI Agents SDK"
+  anthropic-agents: "Anthropic Agent SDK"
+  google-adk: "Google ADK"
+  llama-index: "LlamaIndex"
+  llama_index: "LlamaIndex"
+  llama-index-core: "LlamaIndex"
+  haystack-ai: "Haystack"
+  farm-haystack: "Haystack"
+  semantic-kernel: "Semantic Kernel"
+  promptflow: "PromptFlow"
+  promptflow-core: "PromptFlow"
+  mcp: "MCP"
+  modelcontextprotocol: "MCP"
+  crewai: "CrewAI"
+  ai: "Vercel AI SDK"
+  "@ai-sdk/openai": "Vercel AI SDK"
+  "@ai-sdk/anthropic": "Vercel AI SDK"
+  "@ai-sdk/google": "Vercel AI SDK"
+  langgraph: "LangGraph"
+  flowise: "Flowise"
+  langchain: "LangChain"
+  langchain-core: "LangChain"
+  langchain-community: "LangChain"
+
+# File marker name → framework
+# Checked against FrameworkMarkerScanner findings (file names)
+file_markers:
+  crew.yaml: "CrewAI"
+  flow.dag.yaml: "PromptFlow"
+  adk.json: "Google ADK"
+  mcp.json: "MCP"
+  .mcp.json: "MCP"
+  langgraph.json: "LangGraph"

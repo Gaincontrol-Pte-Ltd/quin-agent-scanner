@@ -1,0 +1,283 @@
+# Regex patterns for detecting AI/ML imports and API usage in source code
+# Each entry: pattern (regex), language (or "any"), capability_tag
+
+patterns:
+  # Python imports
+  - pattern: "from\\s+langchain"
+    language: python
+    capability_tag: llm-api
+  - pattern: "import\\s+langchain"
+    language: python
+    capability_tag: llm-api
+  - pattern: "from\\s+langgraph"
+    language: python
+    capability_tag: multi-agent
+  - pattern: "import\\s+langgraph"
+    language: python
+    capability_tag: multi-agent
+  - pattern: "from\\s+openai"
+    language: python
+    capability_tag: llm-api
+  - pattern: "import\\s+openai"
+    language: python
+    capability_tag: llm-api
+  - pattern: "from\\s+anthropic"
+    language: python
+    capability_tag: llm-api
+  - pattern: "import\\s+anthropic"
+    language: python
+    capability_tag: llm-api
+  - pattern: "from\\s+google\\.generativeai"
+    language: python
+    capability_tag: llm-api
+  - pattern: "import\\s+google\\.generativeai"
+    language: python
+    capability_tag: llm-api
+  - pattern: "from\\s+crewai"
+    language: python
+    capability_tag: multi-agent
+  - pattern: "import\\s+crewai"
+    language: python
+    capability_tag: multi-agent
+  - pattern: "from\\s+autogen"
+    language: python
+    capability_tag: multi-agent
+  - pattern: "import\\s+autogen"
+    language: python
+    capability_tag: multi-agent
+  # AutoGen v0.4+ package structure (underscore namespace)
+  - pattern: "from\\s+autogen_agentchat"
+    language: python
+    capability_tag: multi-agent
+  - pattern: "from\\s+autogen_ext"
+    language: python
+    capability_tag: multi-agent
+  - pattern: "from\\s+autogen_core"
+    language: python
+    capability_tag: multi-agent
+  - pattern: "OpenAIChatCompletionClient"
+    language: python
+    capability_tag: llm-api
+  - pattern: "AzureOpenAIChatCompletionClient"
+    language: python
+    capability_tag: llm-api
+  - pattern: "from\\s+llama_index"
+    language: python
+    capability_tag: rag
+  - pattern: "import\\s+llama_index"
+    language: python
+    capability_tag: rag
+  - pattern: "from\\s+haystack"
+    language: python
+    capability_tag: rag
+  - pattern: "import\\s+haystack"
+    language: python
+    capability_tag: rag
+  - pattern: "from\\s+transformers"
+    language: python
+    capability_tag: llm-api
+  - pattern: "import\\s+transformers"
+    language: python
+    capability_tag: llm-api
+  - pattern: "from\\s+sentence_transformers"
+    language: python
+    capability_tag: embeddings
+  - pattern: "import\\s+chromadb"
+    language: python
+    capability_tag: rag
+  - pattern: "import\\s+pinecone"
+    language: python
+    capability_tag: rag
+  - pattern: "from\\s+pinecone"
+    language: python
+    capability_tag: rag
+  - pattern: "import\\s+weaviate"
+    language: python
+    capability_tag: rag
+  - pattern: "import\\s+qdrant_client"
+    language: python
+    capability_tag: rag
+  - pattern: "import\\s+faiss"
+    language: python
+    capability_tag: rag
+  - pattern: "from\\s+pydantic_ai"
+    language: python
+    capability_tag: llm-api
+  # Anthropic Agent SDK — agent-specific patterns
+  - pattern: "from\\s+anthropic\\.agents"
+    language: python
+    capability_tag: orchestration
+  - pattern: "from\\s+anthropic\\s+import\\s+[^\\n]*Agent"
+    language: python
+    capability_tag: orchestration
+  - pattern: "from\\s+anthropic\\s+import\\s+[^\\n]*Tool"
+    language: python
+    capability_tag: tool-use
+  - pattern: "client\\.agents\\."
+    language: python
+    capability_tag: orchestration
+  - pattern: "anthropic\\.agents\\."
+    language: python
+    capability_tag: orchestration
+  - pattern: "\\bAgent\\s*\\(\\s*(?:client|model|tools|name)\\s*="
+    language: python
+    capability_tag: orchestration
+  - pattern: "from claude_agent_sdk"
+    language: python
+    capability_tag: orchestration
+  - pattern: "import claude_agent_sdk"
+    language: python
+    capability_tag: orchestration
+  - pattern: "from google\\.adk"
+    language: python
+    capability_tag: llm-api
+  - pattern: "import google\\.adk"
+    language: python
+    capability_tag: llm-api
+  - pattern: "from databricks\\.agents"
+    language: python
+    capability_tag: llm-api
+  - pattern: "import databricks\\.agents"
+    language: python
+    capability_tag: llm-api
+
+  # Python class/function usage
+  - pattern: "ChatOpenAI\\s*\\("
+    language: python
+    capability_tag: llm-api
+  - pattern: "ChatAnthropic\\s*\\("
+    language: python
+    capability_tag: llm-api
+  - pattern: "ChatGoogleGenerativeAI\\s*\\("
+    language: python
+    capability_tag: llm-api
+  - pattern: "OpenAI\\s*\\("
+    language: python
+    capability_tag: llm-api
+  - pattern: "Anthropic\\s*\\("
+    language: python
+    capability_tag: llm-api
+  - pattern: "client\\.chat\\.completions\\.create"
+    language: python
+    capability_tag: llm-api
+  - pattern: "ChatCompletion\\.create"
+    language: python
+    capability_tag: llm-api
+  - pattern: "client\\.messages\\.create"
+    language: python
+    capability_tag: llm-api
+  - pattern: "SystemMessage\\s*\\("
+    language: python
+    capability_tag: prompt-templates
+  - pattern: "HumanMessage\\s*\\("
+    language: python
+    capability_tag: prompt-templates
+  - pattern: "PromptTemplate\\s*\\("
+    language: python
+    capability_tag: prompt-templates
+  - pattern: "ChatPromptTemplate"
+    language: python
+    capability_tag: prompt-templates
+  - pattern: "AgentExecutor\\s*\\("
+    language: python
+    capability_tag: tool-use
+  - pattern: "create_react_agent"
+    language: python
+    capability_tag: tool-use
+  - pattern: "StateGraph\\s*\\("
+    language: python
+    capability_tag: multi-agent
+  - pattern: "RetrievalQA"
+    language: python
+    capability_tag: rag
+  - pattern: "VectorStoreRetriever"
+    language: python
+    capability_tag: rag
+  - pattern: "ConversationBufferMemory"
+    language: python
+    capability_tag: memory
+  - pattern: "Agent\\s*\\("
+    language: python
+    capability_tag: multi-agent
+  - pattern: "Task\\s*\\("
+    language: python
+    capability_tag: orchestration
+  - pattern: "Crew\\s*\\("
+    language: python
+    capability_tag: multi-agent
+
+  # JavaScript/TypeScript
+  - pattern: "from\\s+['\"]openai['\"]"
+    language: javascript
+    capability_tag: llm-api
+  - pattern: "require\\s*\\(['\"]openai['\"]"
+    language: javascript
+    capability_tag: llm-api
+  - pattern: "from\\s+['\"]@anthropic-ai/sdk['\"]"
+    language: javascript
+    capability_tag: llm-api
+  - pattern: "from\\s+['\"]@langchain"
+    language: javascript
+    capability_tag: llm-api
+  - pattern: "from\\s+['\"]langchain"
+    language: javascript
+    capability_tag: llm-api
+  - pattern: "from\\s+['\"]@google/generative-ai['\"]"
+    language: javascript
+    capability_tag: llm-api
+  - pattern: "new\\s+OpenAI\\s*\\("
+    language: javascript
+    capability_tag: llm-api
+  - pattern: "new\\s+Anthropic\\s*\\("
+    language: javascript
+    capability_tag: llm-api
+  - pattern: "chat\\.completions\\.create"
+    language: javascript
+    capability_tag: llm-api
+  # Vercel AI SDK
+  - pattern: "from\\s+['\"]ai['\"]"
+    language: javascript
+    capability_tag: llm-api
+  - pattern: "from\\s+['\"]@ai-sdk/"
+    language: javascript
+    capability_tag: llm-api
+  - pattern: "streamText\\s*\\("
+    language: javascript
+    capability_tag: llm-api
+  - pattern: "generateText\\s*\\("
+    language: javascript
+    capability_tag: llm-api
+  - pattern: "generateObject\\s*\\("
+    language: javascript
+    capability_tag: llm-api
+  # TypeScript provider function calls: openai('model'), anthropic('model')
+  - pattern: "(?:openai|anthropic|google|mistral|groq|cohere)\\s*\\(['\"][a-z0-9._:-]"
+    language: javascript
+    capability_tag: llm-api
+
+  # Go
+  - pattern: "openai\\.NewClient"
+    language: go
+    capability_tag: llm-api
+  - pattern: "\"github\\.com/sashabaranov/go-openai\""
+    language: go
+    capability_tag: llm-api
+  - pattern: "\"github\\.com/tmc/langchaingo"
+    language: go
+    capability_tag: llm-api
+
+  # Rust
+  - pattern: "async_openai"
+    language: rust
+    capability_tag: llm-api
+  - pattern: "openai_api_rs"
+    language: rust
+    capability_tag: llm-api
+
+  # Java
+  - pattern: "import\\s+dev\\.langchain4j"
+    language: java
+    capability_tag: llm-api
+  - pattern: "OpenAiChatModel"
+    language: java
+    capability_tag: llm-api

@@ -1,0 +1,16 @@
+# Phrases that signal agent persona / system prompt content in Markdown files.
+# Matched case-insensitively against the first 2000 characters of each .md file.
+md_prompt_signals:
+  - "you are a"
+  - "you are an"
+  - "your role is"
+  - "your task is"
+  - "act as"
+  - "## system prompt"
+  - "## instructions"
+  - "## persona"
+  - "## role"
+  - "## objective"
+  - "## agent"
+  - "as an ai"
+  - "as a helpful"

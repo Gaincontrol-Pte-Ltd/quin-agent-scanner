@@ -1,0 +1,160 @@
+# AI/ML package detection rules by ecosystem
+# Each entry: package, ecosystem, capability_tags (list)
+
+python:
+  - package: langchain
+    capability_tags: [llm-api, orchestration]
+  - package: langchain-core
+    capability_tags: [llm-api, orchestration]
+  - package: langchain-community
+    capability_tags: [llm-api, orchestration]
+  - package: langchain-openai
+    capability_tags: [llm-api]
+  - package: langchain-anthropic
+    capability_tags: [llm-api]
+  - package: langchain-google-genai
+    capability_tags: [llm-api]
+  - package: langgraph
+    capability_tags: [multi-agent, orchestration]
+  - package: openai
+    capability_tags: [llm-api]
+  - package: anthropic
+    capability_tags: [llm-api]
+  - package: anthropic-agents
+    capability_tags: [llm-api, orchestration, tool-use, multi-agent]
+  - package: google-generativeai
+    capability_tags: [llm-api]
+  - package: google-genai
+    capability_tags: [llm-api]
+  - package: crewai
+    capability_tags: [multi-agent, orchestration]
+  - package: autogen
+    capability_tags: [multi-agent, orchestration]
+  - package: pyautogen
+    capability_tags: [multi-agent, orchestration]
+  - package: autogen-agentchat
+    capability_tags: [multi-agent]
+  - package: semantic-kernel
+    capability_tags: [llm-api, orchestration]
+  - package: llama-index
+    capability_tags: [rag, embeddings]
+  - package: llama_index
+    capability_tags: [rag, embeddings]
+  - package: llama-index-core
+    capability_tags: [rag, embeddings]
+  - package: haystack-ai
+    capability_tags: [rag, orchestration]
+  - package: farm-haystack
+    capability_tags: [rag, orchestration]
+  - package: transformers
+    capability_tags: [llm-api, embeddings]
+  - package: sentence-transformers
+    capability_tags: [embeddings]
+  - package: chromadb
+    capability_tags: [rag, embeddings]
+  - package: pinecone-client
+    capability_tags: [rag, embeddings]
+  - package: pinecone
+    capability_tags: [rag, embeddings]
+  - package: weaviate-client
+    capability_tags: [rag, embeddings]
+  - package: qdrant-client
+    capability_tags: [rag, embeddings]
+  - package: faiss-cpu
+    capability_tags: [rag, embeddings]
+  - package: faiss-gpu
+    capability_tags: [rag, embeddings]
+  - package: tiktoken
+    capability_tags: [llm-api]
+  - package: instructor
+    capability_tags: [llm-api]
+  - package: dspy-ai
+    capability_tags: [llm-api, prompt-templates]
+  - package: guidance
+    capability_tags: [llm-api, prompt-templates]
+  - package: outlines
+    capability_tags: [llm-api, prompt-templates]
+  - package: openai-agents
+    capability_tags: [multi-agent, tool-use]
+  - package: pydantic-ai
+    capability_tags: [llm-api, tool-use]
+  - package: cohere
+    capability_tags: [llm-api, embeddings]
+  - package: together
+    capability_tags: [llm-api]
+  - package: mistralai
+    capability_tags: [llm-api]
+  - package: groq
+    capability_tags: [llm-api]
+  - package: ollama
+    capability_tags: [llm-api]
+  - package: huggingface-hub
+    capability_tags: [llm-api, embeddings]
+  - package: diffusers
+    capability_tags: [image-gen]
+  - package: stable-diffusion
+    capability_tags: [image-gen]
+  - package: openai-whisper
+    capability_tags: [voice-ai]
+  - package: whisper
+    capability_tags: [voice-ai]
+  - package: elevenlabs
+    capability_tags: [voice-ai]
+  - package: claude-agent-sdk
+    capability_tags: [llm-api, orchestration, tool-use, multi-agent]
+  - package: google-adk
+    capability_tags: [llm-api, orchestration, tool-use, multi-agent]
+  - package: databricks-agents
+    capability_tags: [llm-api, orchestration, fine-tuning]
+  - package: databricks-sdk
+    capability_tags: [llm-api, fine-tuning]
+
+nodejs:
+  - package: "@langchain/core"
+    capability_tags: [llm-api, orchestration]
+  - package: "@langchain/openai"
+    capability_tags: [llm-api]
+  - package: "@langchain/anthropic"
+    capability_tags: [llm-api]
+  - package: "@langchain/google-genai"
+    capability_tags: [llm-api]
+  - package: langchain
+    capability_tags: [llm-api, orchestration]
+  - package: openai
+    capability_tags: [llm-api]
+  - package: "@anthropic-ai/sdk"
+    capability_tags: [llm-api]
+  - package: "@google/generative-ai"
+    capability_tags: [llm-api]
+  - package: "@microsoft/semantickernel"
+    capability_tags: [llm-api, orchestration]
+  - package: ai
+    capability_tags: [llm-api]
+  - package: "@ai-sdk/openai"
+    capability_tags: [llm-api]
+  - package: "@ai-sdk/anthropic"
+    capability_tags: [llm-api]
+  - package: llamaindex
+    capability_tags: [rag, embeddings]
+
+go:
+  - package: github.com/sashabaranov/go-openai
+    capability_tags: [llm-api]
+  - package: github.com/tmc/langchaingo
+    capability_tags: [llm-api, orchestration]
+  - package: github.com/anthropics/anthropic-sdk-go
+    capability_tags: [llm-api]
+
+rust:
+  - package: async-openai
+    capability_tags: [llm-api]
+  - package: openai-api-rs
+    capability_tags: [llm-api]
+
+java:
+  - package: dev.langchain4j
+    capability_tags: [llm-api, orchestration]
+  - package: com.openai
+    capability_tags: [llm-api]
+  - package: io.github.sashirestela.openai
+    capability_tags: [llm-api]

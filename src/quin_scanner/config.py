@@ -1,0 +1,111 @@
+from __future__ import annotations
+
+import os
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any
+
+import yaml
+
+from quin_scanner.llm.base import BaseLLMProvider
+
+_ALL_SCANNERS = [
+    "dependency",
+    "config",
+    "code_pattern",
+    "file_structure",
+    "framework",
+    "prompt_discovery",
+    "dockerfile",
+    "jupyter",
+    "iac",
+    "ci",
+    "mcp",
+    "agent_instance",
+    "tool_definition",
+]
+
+
+@dataclass
+class ScannerConfig:
+    llm_provider: str = "openai"
+    llm_model: str = "gpt-4o-mini"
+    llm_api_key: str | None = None
+    output_format: str = "json"
+    enabled_scanners: list[str] = field(default_factory=lambda: list(_ALL_SCANNERS))
+    no_llm: bool = False
+    github_token: str | None = None
+    openai_compatible_url: str | None = None
+
+    @classmethod
+    def load_from_file(cls, path: str) -> "ScannerConfig":
+        data = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
+        llm_cfg = data.get("llm", {})
+        out_cfg = data.get("output", {})
+        scan_cfg = data.get("scanners", {})
+
+        api_key = None
+        if "api_key_env" in llm_cfg:
+            api_key = os.environ.get(llm_cfg["api_key_env"])
+        elif "api_key" in llm_cfg:
+            api_key = llm_cfg["api_key"]
+
+        return cls(
+            llm_provider=llm_cfg.get("provider", "openai"),
+            llm_model=llm_cfg.get("model", "gpt-4o-mini"),
+            llm_api_key=api_key,
+            output_format=out_cfg.get("format", "json"),
+            enabled_scanners=scan_cfg.get("enabled", list(_ALL_SCANNERS)),
+        )
+
+    _BOOL_FIELDS: frozenset[str] = frozenset({"no_llm"})
+
+    @classmethod
+    def load_from_args(cls, **kwargs: Any) -> "ScannerConfig":
+        cfg = cls()
+        for key, value in kwargs.items():
+            if value is not None and hasattr(cfg, key):
+                if key in cls._BOOL_FIELDS:
+                    if isinstance(value, str):
+                        value = value.lower() in ("1", "true", "yes")
+                    else:
+                        value = bool(value)
+                setattr(cfg, key, value)
+        # Resolve API key: CLI flag > env var > None
+        if cfg.llm_api_key is None:
+            cfg.llm_api_key = _resolve_api_key(cfg.llm_provider)
+        return cfg
+
+    def provider_factory(self) -> BaseLLMProvider:
+        """Return the configured LLM provider instance."""
+        if self.openai_compatible_url:
+            from quin_scanner.llm.openai_compatible import OpenAICompatibleProvider
+            return OpenAICompatibleProvider(
+                base_url=self.openai_compatible_url,
+                api_key=self.llm_api_key or "none",
+                model=self.llm_model,
+            )
+        if self.llm_provider == "openai":
+            from quin_scanner.llm.openai_provider import OpenAIProvider
+            return OpenAIProvider(api_key=self.llm_api_key, model=self.llm_model)
+        if self.llm_provider == "anthropic":
+            from quin_scanner.llm.anthropic_provider import AnthropicProvider
+            return AnthropicProvider(api_key=self.llm_api_key, model=self.llm_model or "claude-haiku-4-5-20251001")
+        if self.llm_provider == "google":
+            from quin_scanner.llm.google_provider import GoogleProvider
+            return GoogleProvider(api_key=self.llm_api_key, model=self.llm_model or "gemini-2.0-flash")
+        if self.llm_provider == "ollama":
+            from quin_scanner.llm.ollama_provider import OllamaProvider
+            return OllamaProvider(model=self.llm_model or "llama3.2")
+        raise ValueError(f"Unknown LLM provider: {self.llm_provider!r}")
+
+
+def _resolve_api_key(provider: str) -> str | None:
+    env_vars = {
+        "openai": "OPENAI_API_KEY",
+        "anthropic": "ANTHROPIC_API_KEY",
+        "google": "GOOGLE_API_KEY",
+        "ollama": None,
+    }
+    env_var = env_vars.get(provider)
+    return os.environ.get(env_var) if env_var else None

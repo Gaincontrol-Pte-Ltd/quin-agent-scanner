@@ -1,0 +1,112 @@
+# LLM Model Registry
+# Used by the model_identifier to classify detected model names to providers
+
+providers:
+  openai:
+    prefixes:
+      - gpt-
+      - o1-
+      - o3-
+      - o4-
+      - text-embedding-
+      - dall-e-
+      - whisper-
+      - tts-
+    exact:
+      - o1
+      - o3
+      - o4-mini
+      - gpt-4o
+      - gpt-4o-mini
+      - gpt-4
+      - gpt-3.5-turbo
+      - text-embedding-ada-002
+      - text-embedding-3-small
+      - text-embedding-3-large
+      - dall-e-3
+      - dall-e-2
+      - whisper-1
+      - tts-1
+
+  anthropic:
+    prefixes:
+      - claude-
+    exact:
+      - claude-opus-4-6
+      - claude-sonnet-4-6
+      - claude-haiku-4-5-20251001
+      - claude-haiku-4-6
+      - claude-3-opus-20240229
+      - claude-3-sonnet-20240229
+      - claude-3-haiku-20240307
+      - claude-3-5-sonnet-20241022
+
+  google:
+    prefixes:
+      - gemini-
+      - palm-
+    exact:
+      - gemini-2.0-flash
+      - gemini-1.5-pro
+      - gemini-1.5-flash
+      - gemini-pro
+      - gemini-ultra
+
+  meta:
+    prefixes:
+      - llama
+      - codellama
+    exact:
+      - llama3.2
+      - llama3.1
+      - llama3
+      - llama2
+      - codellama
+
+  mistral:
+    prefixes:
+      - mistral-
+      - mixtral-
+      - codestral-
+    exact:
+      - mistral-large
+      - mistral-medium
+      - mistral-small
+      - mixtral-8x7b
+      - codestral
+
+  cohere:
+    prefixes:
+      - command-
+    exact:
+      - command-r
+      - command-r-plus
+
+  databricks:
+    prefixes:
+      - amazon.
+      - dbrx
+      - databricks-
+    exact:
+      - dbrx-instruct
+
+routing_indicators:
+  # YAML/JSON keys that indicate routing patterns
+  primary_keys:
+    - primary
+    - primary_model
+  fallback_keys:
+    - fallback
+    - fallback_model
+    - backup_model
+    - secondary_model
+  embedding_keys:
+    - embedding_model
+    - embeddings_model
+    - embed_model
+
+  # Structure patterns for model arrays (first = primary, rest = fallback)
+  list_patterns:
+    - models
+    - model_list
+    - fallback_models

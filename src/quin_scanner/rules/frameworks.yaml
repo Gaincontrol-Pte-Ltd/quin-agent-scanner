@@ -1,0 +1,65 @@
+# Framework-specific config file markers
+# Each entry: filename or glob, capability_tags, confidence
+
+frameworks:
+  - file: langgraph.json
+    capability_tags: [multi-agent, orchestration]
+    confidence: 0.95
+  - file: crew.yaml
+    capability_tags: [multi-agent, orchestration]
+    confidence: 0.9
+  - file: crewai.yaml
+    capability_tags: [multi-agent, orchestration]
+    confidence: 0.9
+  - file: .mcp.json
+    capability_tags: [tool-use, orchestration]
+    confidence: 0.9
+  - file: mcp.json
+    capability_tags: [tool-use, orchestration]
+    confidence: 0.85
+  - file: dify.yaml
+    capability_tags: [llm-api, orchestration]
+    confidence: 0.9
+  - file: dify.json
+    capability_tags: [llm-api, orchestration]
+    confidence: 0.9
+  - file: flowise.json
+    capability_tags: [llm-api, orchestration]
+    confidence: 0.9
+  - file: agent.json
+    capability_tags: [multi-agent]
+    confidence: 0.7
+  - file: openai-agents.yaml
+    capability_tags: [multi-agent, tool-use]
+    confidence: 0.9
+  - file: .agentrc
+    capability_tags: [multi-agent]
+    confidence: 0.8
+  - file: autogen_config.yaml
+    capability_tags: [multi-agent, orchestration]
+    confidence: 0.9
+  - file: autogen_config.json
+    capability_tags: [multi-agent, orchestration]
+    confidence: 0.9
+  - file: promptflow.yaml
+    capability_tags: [llm-api, orchestration]
+    confidence: 0.9
+  - file: flow.dag.yaml
+    capability_tags: [orchestration]
+    confidence: 0.85
+  - file: claude_agent.yaml
+    framework: anthropic-agent-sdk
+    capability_tags: [llm-api, orchestration, tool-use]
+    confidence: 0.9
+  - file: claude_agent.json
+    framework: anthropic-agent-sdk
+    capability_tags: [llm-api, orchestration, tool-use]
+    confidence: 0.9
+  - file: adk_config.yaml
+    framework: google-adk
+    capability_tags: [llm-api, orchestration, tool-use]
+    confidence: 0.9
+  - file: databricks_agent.yaml
+    framework: databricks-agent-framework
+    capability_tags: [llm-api, orchestration]
+    confidence: 0.9

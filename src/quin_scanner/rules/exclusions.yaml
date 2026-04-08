@@ -1,0 +1,16 @@
+# Paths and filenames excluded from prompt scanning.
+
+# Files whose path starts with any of these prefixes are skipped.
+excluded_path_prefixes:
+  - ".github/"
+  - ".azure/"
+  - ".circleci/"
+  - "node_modules/"
+  - ".venv/"
+  - "vendor/"
+
+# Files whose basename matches any of these names are skipped.
+excluded_file_names:
+  - "CHANGELOG.md"
+  - "CONTRIBUTING.md"
+  - "LICENSE.md"
