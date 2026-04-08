@@ -1,11 +1,15 @@
 # Quin Agent Scanner
 
-> Scan repositories to detect GenAI and Agentic AI applications, identify which LLMs they use, and analyze agent intent from system prompts.
+> Nothing in your codebase is hidden from Quin.
 
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 
-Quin Agent Scanner is an open-source CLI tool that occupies a unique position in the security and governance tooling landscape: **AI-specific static analysis**. No other open-source tool combines AI dependency detection, system prompt discovery, LLM-powered agent intent analysis, and model usage identification in a single scan.
+Named after [Bao Qingtian](https://gaincontrol.ai/about) -- the incorruptible judge of the Song Dynasty who saw through every deception -- **Quin** is an open-source CLI tool by [Gaincontrol](https://gaincontrol.ai/) that scans any codebase to detect AI agents, extract system prompts, analyze intent, and produce compliance-ready reports.
+
+Point Quin at any repository, local or remote, and get a structured map of every AI agent, what it's instructed to do, and what risks it carries. No other open-source tool combines AI dependency detection, system prompt discovery, LLM-powered agent intent analysis, and model usage identification in a single scan.
+
+Learn more at [gaincontrol.ai/quin](https://gaincontrol.ai/quin).
 
 ---
 
@@ -144,7 +148,7 @@ powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | ie
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/quin-scanner/quin-agent-scanner
+git clone https://github.com/Gaincontrol-Pte-Ltd/quin-agent-scanner
 cd quin-agent-scanner
 ```
 
@@ -944,7 +948,7 @@ Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for the full g
 
 ```bash
 # 1. Fork and clone
-git clone https://github.com/YOUR_USERNAME/quin-agent-scanner
+git clone https://github.com/Gaincontrol-Pte-Ltd/quin-agent-scanner
 cd quin-agent-scanner
 
 # 2. Set up environment
@@ -1025,3 +1029,21 @@ See [`docs/plans/2026-03-31-quin-agent-scanner-drop-plan.md`](docs/plans/2026-03
 ## License
 
 Apache-2.0 — see [LICENSE](LICENSE).
+
+---
+
+## About Gaincontrol
+
+Quin is built by [Gaincontrol](https://gaincontrol.ai/), headquartered in Singapore. We build the infrastructure enterprises need to run AI agents safely.
+
+Quin is one of three products in the Gaincontrol platform:
+
+| Product | What it does |
+|---|---|
+| **[Quin](https://gaincontrol.ai/quin)** | AI Agent Scanner -- see every agent, trust nothing blindly |
+| **[Aegis](https://gaincontrol.ai/)** | AI Identity Governance -- every agent operates only within its granted authority |
+| **[Drona](https://gaincontrol.ai/)** | Safe Execution Fabric -- deterministic execution for probabilistic AI |
+
+- **Website:** [gaincontrol.ai](https://gaincontrol.ai/)
+- **About:** [gaincontrol.ai/about](https://gaincontrol.ai/about)
+- **Contact:** [pixiedust@gaincontrol.ai](mailto:pixiedust@gaincontrol.ai)

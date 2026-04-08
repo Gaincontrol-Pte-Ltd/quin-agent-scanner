@@ -6,7 +6,7 @@ readme = "README.md"
 license = "Apache-2.0"
 requires-python = ">=3.11"
 authors = [
-    { name = "Quin Agent Scanner Contributors" },
+    { name = "Gaincontrol", email = "pixiedust@gaincontrol.ai" },
 ]
 keywords = ["ai", "scanner", "security", "agent", "llm", "genai", "compliance", "governance"]
 classifiers = [
