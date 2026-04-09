@@ -21,13 +21,6 @@ uv sync --all-extras
 
 This installs all dependencies into a local `.venv`.
 
-### Run Tests
-
-```bash
-uv run pytest tests/ -v
-uv run pytest tests/ -v --cov=quin_scanner   # with coverage
-```
-
 ---
 
 ## Ways to Contribute
@@ -53,11 +46,9 @@ Check the [drop plan](docs/plans/2026-03-31-quin-agent-scanner-drop-plan.md) fir
 ### Pull Requests
 
 1. **Fork** the repo and create a branch from `main`
-2. **Write tests** for any new behaviour
-3. **Run the full test suite** — all 289+ tests must pass
-4. **Keep scope tight** — one feature or fix per PR
-5. **Update CHANGELOG.md** under `[Unreleased]`
-6. Open the PR with a clear description of what and why
+2. **Keep scope tight** — one feature or fix per PR
+3. **Update CHANGELOG.md** under `[Unreleased]`
+4. Open the PR with a clear description of what and why
 
 ---
 
@@ -67,8 +58,6 @@ Check the [drop plan](docs/plans/2026-03-31-quin-agent-scanner-drop-plan.md) fir
 2. Implement `name() -> str` and `scan(accessor, file_index) -> list[ScanFinding]`
 3. Register it in `orchestrator.py` `_SCANNER_REGISTRY`
 4. Add detection rules to the appropriate `rules/*.yaml` file if needed
-5. Create a test fixture in `tests/fixtures/`
-6. Write tests in `tests/test_scanners/test_my_scanner.py`
 
 ```python
 from quin_scanner.scanners.base import BaseScanner
@@ -107,7 +96,6 @@ No code changes needed for most new frameworks — just YAML.
 - Dataclasses for data models (not Pydantic)
 - `pathlib.Path` for all filesystem operations
 - No hardcoded detection rules — use YAML rule files
-- `pytest` for all tests (not unittest)
 - No docstrings on internal helpers — only on public APIs
 - Keep functions small and focused; prefer composition over inheritance
 
@@ -120,7 +108,6 @@ Use the imperative mood and keep the subject under 72 characters:
 ```
 feat: add support for Bedrock runtime scanner
 fix: handle empty notebook cells in jupyter scanner
-test: add fixtures for google-adk detection
 docs: update framework list in README
 ```
 

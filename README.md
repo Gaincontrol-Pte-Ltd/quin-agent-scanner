@@ -880,9 +880,6 @@ cp .env.example .env
 
 # 5. Run a scan (via uv run)
 uv run quin-scanner scan ./path/to/repo --config scanner-config.yaml
-
-# 6. Run tests
-uv run pytest tests/ -v
 ```
 
 ### Tech Stack
@@ -895,7 +892,6 @@ uv run pytest tests/ -v
 - **Environment variables**: python-dotenv 1.2.2+
 - **HTTP client**: httpx 0.27+
 - **LLM SDKs**: openai 1.0+, anthropic 0.20+, google-genai 1.0+
-- **Testing**: pytest 8.0+, pytest-cov 5.0+, pytest-asyncio 0.23+, respx 0.21+
 - **Detection rules**: YAML data files in `src/quin_scanner/rules/`
 
 ---
@@ -908,10 +904,7 @@ Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for the full g
 # Create a branch
 git checkout -b feat/my-new-scanner
 
-# Make changes, write tests, verify
-uv run pytest tests/ -v
-
-# Open a PR against main
+# Make changes and open a PR against main
 ```
 
 **Adding a new scanner plugin:**
@@ -920,7 +913,6 @@ uv run pytest tests/ -v
 2. Implement `name() -> str` and `scan(accessor, file_index) -> list[ScanFinding]`
 3. Register it in `orchestrator.py` → `_SCANNER_REGISTRY`
 4. Add detection rules to `rules/*.yaml` if needed
-5. Write tests in `tests/test_scanners/test_my_scanner.py`
 
 **Adding framework detection rules:**
 

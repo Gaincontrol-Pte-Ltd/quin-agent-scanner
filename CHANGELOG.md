@@ -80,10 +80,6 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 #### 12 Capability Tags
 `llm-api` · `embeddings` · `rag` · `tool-use` · `multi-agent` · `memory` · `prompt-templates` · `fine-tuning` · `image-gen` · `voice-ai` · `code-gen` · `orchestration`
 
-#### Tests
-- 289 tests across 21 test modules
-- 18 test fixtures covering Python, Node.js, Go, Rust, Java, Jupyter, Docker, Terraform, K8s, CI/CD, MCP, and 4 new framework fixtures
-
 ---
 
 [Unreleased]: https://github.com/quin-scanner/quin-agent-scanner/compare/v0.1.0...HEAD
