@@ -16,7 +16,7 @@ llm:
   model: claude-haiku-4-5-20251001
 
   # API key — prefer setting via environment variable in .env instead.
-  # api_key_env: ANTHROPIC_API_KEY   # read key from this env var (recommended)
+  api_key_env: ANTHROPIC_API_KEY   # read key from this env var (recommended)
   # api_key: sk-ant-...              # or inline (not recommended for shared configs)
 
   # Base URL for OpenAI-compatible endpoints (vLLM, LiteLLM, Azure, Ollama, etc.)
