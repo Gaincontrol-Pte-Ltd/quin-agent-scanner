@@ -107,6 +107,16 @@ quin-scanner scan ./path/to/repo --config scanner-config.yaml --no-llm
 
 ---
 
+## Demo
+
+![Quin Scanner Demo](docs/quin-demo.gif)
+
+**Sample Report Walkthrough:**
+
+![Report Walkthrough](docs/report-walkthrough.gif)
+
+---
+
 ## Scan an Entire GitHub Org
 
 ```bash
