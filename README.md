@@ -11,6 +11,8 @@ Point Quin at a repo and get back: every AI agent, what it does, what tools it h
 
 Learn more at [gaincontrol.ai/quin](https://gaincontrol.ai/quin).
 
+> **Note:** Quin is an open-source community project under active development. Scan results may contain bugs or inaccuracies. If you encounter any issues, please [open an issue](https://github.com/Gaincontrol-Pte-Ltd/quin-agent-scanner/issues) or email us at [pixiedust@gaincontrol.ai](mailto:pixiedust@gaincontrol.ai) -- your feedback helps us improve the scanner.
+
 ---
 
 ## About Gaincontrol
