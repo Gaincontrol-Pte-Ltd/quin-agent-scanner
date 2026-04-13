@@ -24,5 +24,6 @@ class OpenAICompatibleProvider(BaseLLMProvider):
             model=self.model,
             messages=[{"role": "user", "content": prompt}],
             temperature=0.1,
+            max_tokens=16384,
         )
         return response.choices[0].message.content or ""

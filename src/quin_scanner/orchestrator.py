@@ -10,8 +10,10 @@ from datetime import datetime, timezone
 
 from quin_scanner.config import ScannerConfig
 from quin_scanner.file_index import FileIndex
+from quin_scanner.llm.classification_agent import ClassificationAgent
 from quin_scanner.llm.synthesis_agent import SynthesisAgent
 from quin_scanner.models import (
+    ClassificationResult,
     InfraProfile,
     MCPServer,
     ScanFinding,
@@ -128,8 +130,8 @@ def _pre_summarise(findings: list[ScanFinding]) -> list[dict]:
         top = sorted_findings[:cap]
         summaries.append({
             "scanner": scanner_name,
-            "finding_count": len(scanner_findings),
-            "top_findings": [
+            "artifact_count": len(scanner_findings),
+            "top_artifacts": [
                 {
                     "file": f.file_path,
                     "line": f.line_number,
@@ -187,6 +189,247 @@ def _extract_infra(findings: list[ScanFinding]) -> InfraProfile | None:
     return InfraProfile(platform=platform, details=details, source_files=source_files)
 
 
+def _load_signal_groups() -> list[dict]:
+    """Load signal_groups.yaml once."""
+    import yaml
+    rules_dir = Path(__file__).parent / "rules"
+    path = rules_dir / "signal_groups.yaml"
+    data = yaml.safe_load(path.read_text(encoding="utf-8"))
+    return data.get("signal_groups", [])
+
+
+_SIGNAL_GROUPS: list[dict] | None = None
+
+
+def _get_signal_groups() -> list[dict]:
+    """Return cached signal groups."""
+    global _SIGNAL_GROUPS
+    if _SIGNAL_GROUPS is None:
+        _SIGNAL_GROUPS = _load_signal_groups()
+    return _SIGNAL_GROUPS
+
+
+def _apply_signal_group_boost(findings: list[ScanFinding]) -> list[ScanFinding]:
+    """Match findings against signal groups and emit synthetic boosted findings.
+
+    For each signal group, count how many of its defined signals have matching
+    findings. If the count meets the group's min_signals threshold, append a
+    synthetic finding with boosted confidence and the union of matched capability
+    tags. Original findings are not removed.
+    """
+    groups = _get_signal_groups()
+    if not groups:
+        return findings
+
+    # Build lookup structures from existing findings
+    filenames_found: dict[str, ScanFinding] = {}
+    dep_packages_found: dict[str, ScanFinding] = {}
+    for f in findings:
+        fname = Path(f.file_path).name
+        filenames_found.setdefault(fname, f)
+        if f.scanner_name == "DependencyScanner":
+            pkg = re.split(r"[=><~!\[;,\s]", f.match_text.strip().lower(), maxsplit=1)[0]
+            if pkg:
+                dep_packages_found.setdefault(pkg, f)
+
+    synthetic: list[ScanFinding] = []
+
+    for group in groups:
+        framework = group.get("framework", "unknown")
+        signals = group.get("signals", [])
+        boost = group.get("boost", {})
+        min_signals = boost.get("min_signals", 2)
+        boosted_confidence = boost.get("boosted_confidence", 0.9)
+        max_confidence = boost.get("max_confidence", 0.95)
+
+        matched_signals: list[dict] = []
+        matched_findings: list[ScanFinding] = []
+
+        for signal in signals:
+            sig_type = signal.get("type")
+            pattern = signal.get("pattern", "")
+
+            if sig_type == "file" and pattern in filenames_found:
+                matched_signals.append(signal)
+                matched_findings.append(filenames_found[pattern])
+            elif sig_type == "dependency" and pattern.lower() in dep_packages_found:
+                matched_signals.append(signal)
+                matched_findings.append(dep_packages_found[pattern.lower()])
+
+        if len(matched_signals) >= min_signals:
+            # Compute confidence: boosted_confidence for min_signals, max_confidence for more
+            if len(matched_signals) > min_signals:
+                confidence = max_confidence
+            else:
+                confidence = boosted_confidence
+
+            # Union of all matched signals' capability tags
+            all_tags: set[str] = set()
+            for sig in matched_signals:
+                for tag in sig.get("capability_tags", []):
+                    all_tags.add(tag)
+
+            # Use the first matched finding's file_path as representative
+            rep_path = matched_findings[0].file_path if matched_findings else ""
+            signal_names = [s.get("pattern", "") for s in matched_signals]
+
+            synthetic.append(ScanFinding(
+                scanner_name="SignalGroupDetector",
+                category="framework_detection",
+                file_path=rep_path,
+                line_number=None,
+                match_text=f"{framework} framework detected ({len(matched_signals)} corroborating signals: {', '.join(signal_names)})",
+                capability_tag=sorted(all_tags)[0] if all_tags else "llm-api",
+                confidence=confidence,
+            ))
+
+    findings.extend(synthetic)
+    return findings
+
+
+def _load_tool_services() -> dict[str, list[str]]:
+    """Load tool_services.yaml once — maps service categories to package names."""
+    import yaml
+    rules_dir = Path(__file__).parent / "rules"
+    path = rules_dir / "tool_services.yaml"
+    return yaml.safe_load(path.read_text(encoding="utf-8"))
+
+
+_TOOL_SERVICES: dict[str, list[str]] | None = None
+_TOOL_SERVICE_LOOKUP: dict[str, str] | None = None
+
+
+def _build_service_lookup() -> dict[str, str]:
+    """Build a reverse lookup: package_name -> service_category (cached)."""
+    global _TOOL_SERVICES, _TOOL_SERVICE_LOOKUP
+    if _TOOL_SERVICE_LOOKUP is not None:
+        return _TOOL_SERVICE_LOOKUP
+    if _TOOL_SERVICES is None:
+        _TOOL_SERVICES = _load_tool_services()
+    lookup: dict[str, str] = {}
+    for category, packages in _TOOL_SERVICES.items():
+        for pkg in packages:
+            lookup[pkg.lower()] = category
+    _TOOL_SERVICE_LOOKUP = lookup
+    return lookup
+
+
+def _extract_tool_services(findings: list[ScanFinding]) -> list:
+    """Match DependencyScanner findings against tool_services.yaml to identify external services."""
+    from quin_scanner.models import ToolUsage
+
+    lookup = _build_service_lookup()
+    services: list[ToolUsage] = []
+    seen: set[str] = set()
+
+    for f in findings:
+        if f.scanner_name != "DependencyScanner":
+            continue
+        # Normalise: "faiss-cpu==1.7.4" → "faiss-cpu"
+        raw = f.match_text.strip().lower()
+        pkg_name = re.split(r"[=><~!\[;,\s]", raw, maxsplit=1)[0]
+        if not pkg_name:
+            continue
+        category = lookup.get(pkg_name)
+        if category and pkg_name not in seen:
+            seen.add(pkg_name)
+            services.append(ToolUsage(
+                tool_name=pkg_name,
+                tool_type="external_service",
+                service_category=category,
+                source_file=f.file_path,
+                line_number=f.line_number,
+            ))
+    return services
+
+
+# Model name patterns for the hallucination filter.
+# Only include prefixes specific enough to avoid false positives on tool names.
+_MODEL_NAME_PREFIXES = (
+    "gpt-", "gpt4",
+    "claude-", "claude3", "claude4",
+    "dall-e", "dalle",
+    "llama-", "llama2", "llama3", "llama4",
+    "gemini-", "gemma-",
+    "mistral-", "mixtral-",
+    "command-r",  # Cohere (not generic "command-")
+    "text-embedding-", "text-davinci-",
+    "whisper-",
+    "stable-diffusion",
+    "qwen-", "deepseek-",
+)
+
+
+def _looks_like_model_name(name: str) -> bool:
+    """Return True if the name looks like an LLM model identifier."""
+    lower = name.lower().strip()
+    return any(lower.startswith(p) for p in _MODEL_NAME_PREFIXES)
+
+
+def _filter_hallucinated_tools(
+    tool_usages: list,
+    model_usages: list,
+    dep_findings: list[ScanFinding],
+) -> list:
+    """Remove tool_usages that are actually model names or raw dependency package names."""
+    model_names = {m.model_name.lower() for m in model_usages}
+    # Collect raw dependency package names (normalised)
+    dep_names: set[str] = set()
+    for f in dep_findings:
+        raw = f.match_text.strip().lower()
+        pkg = re.split(r"[=><~!\[;,\s]", raw, maxsplit=1)[0]
+        if pkg:
+            dep_names.add(pkg)
+
+    filtered = []
+    for t in tool_usages:
+        name_lower = t.tool_name.lower().strip()
+        # Skip model names
+        if name_lower in model_names:
+            continue
+        if _looks_like_model_name(name_lower):
+            continue
+        # Skip raw dependency names unless they're already typed as external_service
+        if name_lower in dep_names and t.tool_type != "external_service":
+            continue
+        filtered.append(t)
+    return filtered
+
+
+# Directories that indicate a file is a skill / playbook / instruction set
+_SKILL_DIR_NAMES = frozenset({"skills", "playbooks", "recipes", "instructions", "agents"})
+
+
+def _classify_tool_usages(
+    tool_usages: list,
+    mcp_servers: list,
+) -> None:
+    """Classify tool_usages in-place as skill / mcp_tool based on heuristics.
+
+    - Skill: source_file is a .md file inside a skill-like directory
+    - MCP tool: tool_name matches an MCP server name
+    - Everything else keeps its existing tool_type
+    """
+    mcp_names = {s.name.lower() for s in mcp_servers}
+
+    for t in tool_usages:
+        # Don't reclassify external_service entries
+        if t.tool_type == "external_service":
+            continue
+
+        # Skill heuristic: markdown file in a skill-like directory
+        if t.source_file and t.source_file.lower().endswith(".md"):
+            path_parts = {p.lower() for p in Path(t.source_file).parts[:-1]}
+            if path_parts & _SKILL_DIR_NAMES:
+                t.tool_type = "skill"
+                continue
+
+        # MCP heuristic: tool_name matches an MCP server name
+        if t.tool_name.lower() in mcp_names:
+            t.tool_type = "mcp_tool"
+            continue
+
+
 def _load_frameworks_lookup() -> dict:
     """Load frameworks_lookup.yaml once."""
     import yaml
@@ -201,7 +444,10 @@ _FRAMEWORKS_LOOKUP: dict | None = None
 def _detect_framework(findings: list) -> str:
     """Rule-based framework detection from scanner findings.
 
-    Priority: file markers > package names. Returns 'unknown' if no match.
+    Priority: file markers > code pattern imports > package names.
+    Code pattern imports rank above packages because internal imports (e.g.
+    ``from metagpt.xxx``) reveal what the repo IS, while dependency listings
+    may include other frameworks used as optional integrations.
     """
     global _FRAMEWORKS_LOOKUP
     if _FRAMEWORKS_LOOKUP is None:
@@ -225,7 +471,31 @@ def _detect_framework(findings: list) -> str:
                 if fname == marker.lower():
                     return framework
 
-    # Pass 2: package names from DependencyScanner — iterate packages in YAML priority
+    # Pass 2: code pattern imports — internal imports reveal what the repo IS
+    # (e.g. a MetaGPT repo has hundreds of `from metagpt.xxx` imports)
+    _CODE_PATTERN_FRAMEWORK_MAP = [
+        # MetaGPT — self-imports (from metagpt.xxx)
+        (re.compile(r"from\s+metagpt\b", re.IGNORECASE), "MetaGPT"),
+        (re.compile(r"import\s+metagpt\b", re.IGNORECASE), "MetaGPT"),
+        # Vercel AI SDK — high-signal imports that uniquely identify the framework
+        (re.compile(r"from\s+['\"]@ai-sdk/", re.IGNORECASE), "Vercel AI SDK"),
+        (re.compile(r"from\s+['\"]ai['\"]", re.IGNORECASE), "Vercel AI SDK"),
+        # AutoGen — fallback if dependency names weren't in requirements.txt
+        (re.compile(r"from\s+autogen_agentchat", re.IGNORECASE), "AutoGen"),
+        (re.compile(r"from\s+autogen_ext", re.IGNORECASE), "AutoGen"),
+        (re.compile(r"from\s+autogen_core", re.IGNORECASE), "AutoGen"),
+    ]
+    code_texts = [
+        f.match_text
+        for f in findings
+        if f.scanner_name == "CodePatternScanner"
+    ]
+    for pattern, framework in _CODE_PATTERN_FRAMEWORK_MAP:
+        for text in code_texts:
+            if pattern.search(text):
+                return framework
+
+    # Pass 3: package names from DependencyScanner — iterate packages in YAML priority
     # order (most specific first), then search all dep findings for each package.
     # This ensures higher-priority entries win regardless of findings order.
     dep_texts = [
@@ -244,27 +514,6 @@ def _detect_framework(findings: list) -> str:
                 or text.startswith(pkg_lower + "~")
                 or text.startswith(pkg_lower + "[")
             ):
-                return framework
-
-    # Pass 3: code pattern imports — fallback for frameworks not detectable via deps/files
-    # (e.g. Vercel AI SDK repos that use `ai` / `@ai-sdk/*` imports)
-    _CODE_PATTERN_FRAMEWORK_MAP = [
-        # Vercel AI SDK — high-signal imports that uniquely identify the framework
-        (re.compile(r"from\s+['\"]@ai-sdk/", re.IGNORECASE), "Vercel AI SDK"),
-        (re.compile(r"from\s+['\"]ai['\"]", re.IGNORECASE), "Vercel AI SDK"),
-        # AutoGen — fallback if dependency names weren't in requirements.txt
-        (re.compile(r"from\s+autogen_agentchat", re.IGNORECASE), "AutoGen"),
-        (re.compile(r"from\s+autogen_ext", re.IGNORECASE), "AutoGen"),
-        (re.compile(r"from\s+autogen_core", re.IGNORECASE), "AutoGen"),
-    ]
-    code_texts = [
-        f.match_text
-        for f in findings
-        if f.scanner_name == "CodePatternScanner"
-    ]
-    for pattern, framework in _CODE_PATTERN_FRAMEWORK_MAP:
-        for text in code_texts:
-            if pattern.search(text):
                 return framework
 
     return "unknown"
@@ -351,12 +600,15 @@ class ScanOrchestrator:
         if verbose:
             for name, findings in completed_results:
                 n = len(findings)
-                label = "finding" if n == 1 else "findings"
+                label = "artifact" if n == 1 else "artifacts"
                 _log(f"  [ ✓ ] {name:<30} {n} {label}")
             _log("")
 
         # 2b. Deduplicate findings by (file_path, line_number, capability_tag)
         all_findings = self._deduplicate(all_findings)
+
+        # 2c. Apply signal group corroboration boost
+        all_findings = _apply_signal_group_boost(all_findings)
 
         # 3. Compute aggregate metrics
         is_ai = any(f.confidence >= _CONFIDENCE_THRESHOLD for f in all_findings)
@@ -368,6 +620,7 @@ class ScanOrchestrator:
         # 4. Direct extraction — no LLM needed
         mcp_servers = _extract_mcp_servers(all_findings)
         infra = _extract_infra(all_findings)
+        tool_services = _extract_tool_services(all_findings)
 
         # 5. Identify model usage
         if verbose:
@@ -387,15 +640,38 @@ class ScanOrchestrator:
         if verbose and test_model_count:
             _log(f"  {test_model_count} test-file model reference{'s' if test_model_count != 1 else ''} excluded")
 
-        # 6. LLM synthesis
+        # 6. LLM synthesis (two-pass: classification → synthesis)
         synthesis: SynthesisResult | None = None
+        classification: ClassificationResult | None = None
         llm_errors: list[str] = []
         if not config.no_llm:
             summaries = _pre_summarise(all_findings)
             provider = config.provider_factory()
+            if verbose:
+                _log("\nRunning risk classification (pass 1)...")
+
+            # Pass 1: Classification — system type + relevant threats
+            classification_agent = ClassificationAgent(provider)
+            try:
+                classification = classification_agent.classify(
+                    scanner_summaries=summaries,
+                    capability_tags=capability_tags,
+                    on_progress=lambda msg: _log(f"  {msg}") if verbose else None,
+                )
+                if verbose:
+                    types_str = ", ".join(classification.system_types)
+                    n_threats = len(classification.relevant_threats)
+                    _log(f"  system types: {types_str}  |  {n_threats} threat{'s' if n_threats != 1 else ''} relevant")
+            except Exception as e:
+                err = f"ClassificationAgent: {type(e).__name__}: {e}"
+                llm_errors.append(err)
+                if verbose:
+                    _log(f"  [!] Classification failed: {e} — continuing without threat filtering")
+
+            # Pass 2: Synthesis — full report with filtered KRIs
             agent = SynthesisAgent(provider)
             if verbose:
-                _log("\nRunning synthesis analysis...")
+                _log("\nRunning synthesis analysis (pass 2)...")
 
             # Extract structured hints from new scanners for the evidence bundle.
             # Cap at 30 each — large repos (199+ tools) cause synthesis JSON truncation.
@@ -426,6 +702,17 @@ class ScanOrchestrator:
                 _synthesis_step[0] += 1
                 _progress_bar("Synthesis  ", _synthesis_step[0], _SYNTHESIS_STEPS)
 
+            # Build external services evidence for the synthesis prompt
+            external_services = [
+                {
+                    "name": t.tool_name,
+                    "category": t.service_category,
+                    "source_file": t.source_file,
+                    "line": t.line_number,
+                }
+                for t in tool_services
+            ][:_EVIDENCE_CAP]
+
             try:
                 synthesis = agent.synthesize(
                     scanner_summaries=summaries,
@@ -435,6 +722,8 @@ class ScanOrchestrator:
                     framework_candidate=framework_candidate,
                     agent_instances=agent_instances or None,
                     tool_definitions=tool_definitions or None,
+                    external_services=external_services or None,
+                    classification=classification,
                 )
                 # Apply LLM confidence adjustment
                 if synthesis.confidence_adjustment:
@@ -446,7 +735,10 @@ class ScanOrchestrator:
                     is_ai = True
                 if verbose:
                     n_agents = len(synthesis.agents)
+                    n_risks = len(synthesis.risk_signals)
+                    agent_risks = sum(len(a.risk_signals) for a in synthesis.agents)
                     _log(f"  framework: {synthesis.framework}  |  {n_agents} agent{'s' if n_agents != 1 else ''} identified")
+                    _log(f"  risks: {n_risks} system-wide, {agent_risks} agent-specific")
             except Exception as e:
                 err = f"SynthesisAgent: {type(e).__name__}: {e}"
                 llm_errors.append(err)
@@ -458,13 +750,13 @@ class ScanOrchestrator:
 
         if verbose:
             status = "AI application detected" if is_ai else "No AI application detected"
-            _log(f"\n{status}  |  confidence: {confidence}  |  {len(all_findings)} findings  |  {scan_duration}s\n")
+            _log(f"\n{status}  |  confidence: {confidence}  |  {len(all_findings)} artifacts  |  {scan_duration}s\n")
 
         metadata: dict = {
             "scan_duration_seconds": scan_duration,
             "file_count": len(file_index.all_files()),
-            "finding_count": len(all_findings),
-            "findings_by_scanner": findings_by_scanner,
+            "artifact_count": len(all_findings),
+            "artifacts_by_scanner": findings_by_scanner,
             "test_model_usages_count": test_model_count,
         }
         if llm_errors:
@@ -516,11 +808,69 @@ class ScanOrchestrator:
                     for f in all_tool_defs[:100]
                 ]
 
-        # Rule 4: deduplicate tool_usages by (name, source_file, line_number)
+        # Rule 3a: classify tool_usages as skill / mcp_tool / tool_definition
+        _classify_tool_usages(pp_tool_usages, mcp_servers)
+
+        # Rule 3a-ii: cross-check AgentProfile tools[] / skills[] against classification
+        _classified_skills = {t.tool_name.lower() for t in pp_tool_usages if t.tool_type == "skill"}
+        _classified_tools = {t.tool_name.lower() for t in pp_tool_usages if t.tool_type in ("tool_definition", "external_service")}
+        for _agent in pp_agents:
+            _new_tools: list[str] = []
+            for t in _agent.tools:
+                if t.lower() in _classified_skills:
+                    if t not in _agent.skills:
+                        _agent.skills.append(t)
+                else:
+                    _new_tools.append(t)
+            _agent.tools = _new_tools
+            _new_skills: list[str] = []
+            for s in _agent.skills:
+                if s.lower() in _classified_tools:
+                    if s not in _agent.tools:
+                        _agent.tools.append(s)
+                else:
+                    _new_skills.append(s)
+            _agent.skills = _new_skills
+
+        # Rule 3b: filter hallucinated tools — remove model names and raw deps
+        dep_findings = [f for f in all_findings if f.scanner_name == "DependencyScanner"]
+        pp_tool_usages = _filter_hallucinated_tools(pp_tool_usages, model_usages, dep_findings)
+
+        # Rule 3b-ii: filter agent-level tools[] for the same hallucinated names
+        model_names_lower = {m.model_name.lower() for m in model_usages}
+        dep_names_lower: set[str] = set()
+        for _f in dep_findings:
+            _raw = _f.match_text.strip().lower()
+            _pkg = re.split(r"[=><~!\[;,\s]", _raw, maxsplit=1)[0]
+            if _pkg:
+                dep_names_lower.add(_pkg)
+        for _agent in pp_agents:
+            _agent.tools = [
+                t for t in _agent.tools
+                if t.lower() not in model_names_lower
+                and not _looks_like_model_name(t)
+                and t.lower() not in dep_names_lower
+            ]
+
+        # Rule 3c: merge external service tools (from tool_services.yaml)
+        pp_tool_usages.extend(tool_services)
+
+        # Rule 4: deduplicate tool_usages
+        # First pass: by tool_name — prefer external_service over tool_definition
+        # (avoids duplicates when synthesis returns a tool that's also a service dep)
+        _best_by_name: dict[str, object] = {}
+        for _t in pp_tool_usages:
+            _name_key = _t.tool_name.lower()
+            _existing = _best_by_name.get(_name_key)
+            if _existing is None:
+                _best_by_name[_name_key] = _t
+            elif _t.tool_type == "external_service" and _existing.tool_type != "external_service":
+                _best_by_name[_name_key] = _t
+        # Second pass: by (name, source_file, line_number) for remaining dups
         _seen_tools: set[tuple] = set()
         _deduped_tools: list = []
-        for _t in pp_tool_usages:
-            _key = (_t.tool_name, _t.source_file, _t.line_number)
+        for _t in _best_by_name.values():
+            _key = (_t.tool_name.lower(), _t.source_file, _t.line_number)
             if _key not in _seen_tools:
                 _seen_tools.add(_key)
                 _deduped_tools.append(_t)
@@ -539,6 +889,9 @@ class ScanOrchestrator:
                 pp_summary = f"AI application with detected capabilities: {tags_str}."
         # ── End post-processing ────────────────────────────────────────────────
 
+        # Repo-level risk signals from synthesis
+        pp_risk_signals = synthesis.risk_signals if synthesis else []
+
         return ScanReport(
             repo_path=accessor.repo_identifier(),
             scan_timestamp=datetime.now(timezone.utc).isoformat(),
@@ -549,9 +902,10 @@ class ScanOrchestrator:
             summary=pp_summary,
             agents=pp_agents,
             tool_usages=pp_tool_usages,
+            risk_signals=pp_risk_signals,
             mcp_servers=mcp_servers,
             infra=infra,
-            findings=all_findings,
+            artifacts=all_findings,
             model_usages=model_usages,
             metadata=metadata,
         )

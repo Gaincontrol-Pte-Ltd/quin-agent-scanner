@@ -4,7 +4,15 @@ import json
 from collections.abc import Callable
 
 from quin_scanner.llm.base import BaseLLMProvider
-from quin_scanner.models import AgentProfile, ModelUsage, SynthesisResult, ToolUsage
+from quin_scanner.models import (
+    AgentProfile,
+    ClassificationResult,
+    ModelUsage,
+    RiskIndicator,
+    SynthesisResult,
+    ToolUsage,
+)
+from quin_scanner.risk_taxonomy import build_threat_reference, filter_threats
 
 _SYSTEM_PROMPT = """\
 You are an AI application analyst. Given scanner evidence from a repository, produce a \
@@ -15,21 +23,34 @@ Output schema:
   "is_ai_application": <bool>,
   "framework": "<primary AI framework name, or 'unknown'>",
   "summary": "<2-3 sentence narrative suitable for a developer report>",
+  "risk_signals": [
+    {
+      "signal": "<Key Risk Indicator text from the THREAT REFERENCE>",
+      "recommended_controls": ["<control ID: control name>"]
+    }
+  ],
   "agents": [
     {
       "name": "<agent name>",
       "agent_type": "<supervisor|utility|worker|unknown>",
       "goal": "<one sentence>",
       "capabilities": ["<capability>"],
-      "risk_signals": ["<risk>"],
-      "skills": ["<skill reference>"],
-      "tools": ["<tool name>"],
+      "risk_signals": [
+        {
+          "signal": "<Key Risk Indicator text from the THREAT REFERENCE>",
+          "recommended_controls": ["<control ID: control name>"]
+        }
+      ],
+      "skills": ["<skill/playbook name — instructional workflows only>"],
+      "tools": ["<tool name — executable functions only>"],
       "source_file": "<file path>"
     }
   ],
   "tool_usages": [
     {
       "tool_name": "<tool name>",
+      "tool_type": "<tool_definition|skill|mcp_tool>",
+      "service_category": "<category from the list below>",
       "source_file": "<file path>",
       "line_number": <int or null>
     }
@@ -57,15 +78,75 @@ Rules:
   a summary that mentions the scanner itself. Do not write "insufficient evidence" —
   always produce a best-effort description.
 
+- risk_signals (repo-level): System-wide risks that do NOT belong to any single agent —
+  supply chain, observability, infrastructure, governance-level risks.
+  Use ONLY Key Risk Indicators from the THREAT REFERENCE below.
+  Do NOT invent indicators outside the reference.
+  Only flag a KRI when there is supporting evidence in the scanner findings.
+  For each KRI, include the recommended_controls listed for its threat in the reference.
+
+- risk_signals (per-agent): Agent-specific risks based on that agent's capabilities,
+  tools, and permissions. Use ONLY Key Risk Indicators from the THREAT REFERENCE below.
+  Do NOT invent indicators outside the reference.
+  Only flag a KRI when there is supporting evidence for THAT SPECIFIC agent.
+  For each KRI, include the recommended_controls listed for its threat in the reference.
+
 - agents: Populate using AGENT INSTANCES (rule-based) in the evidence as the PRIMARY source.
   For each instance, set name from the instance name, description/goal from surrounding
   comments or config description field if present. If AGENT INSTANCES is empty, infer agents
   from class names in code pattern findings (e.g. AssistantAgent, UserProxyAgent, Agent
   class instantiations). Return [] only if there is truly no agent evidence whatsoever.
 
-- tool_usages: Populate using TOOL DEFINITIONS (rule-based) in the evidence as the PRIMARY
-  source. If empty, infer from 'tool-use' capability evidence and code patterns referencing
-  tool functions. Return [] only if there is truly no tool evidence.
+- tools vs skills vs MCP — three distinct layers of agent capability:
+  * Tools (tool_type="tool_definition"): Executable functions that agents invoke — API calls,
+    code execution, file operations, database queries. Decorated functions (@tool,
+    @function_tool), class-based tools (BaseTool subclasses), registered tool calls.
+  * Skills (tool_type="skill"): Packaged instructional workflows — markdown or text files
+    that teach an agent HOW to perform a task. Found in skills/, playbooks/, recipes/,
+    instructions/ directories. These are NOT executable code — they are playbooks/recipes.
+  * MCP tools (tool_type="mcp_tool"): References to MCP (Model Context Protocol) server
+    connections. Configured in mcp.json, claude_desktop_config.json, etc. These represent
+    the protocol connection layer, not executable tools.
+  Set tool_type for each tool_usage entry accordingly. When uncertain, default to
+  "tool_definition".
+
+- agents[].tools: ONLY list executable tool/function names. Do NOT include skill/playbook
+  references or MCP server names.
+- agents[].skills: ONLY list skill/playbook references — instructional markdown files or
+  packaged workflow names. Do NOT include executable tool names or MCP server names.
+
+- tool_usages: Populate using TOOL DEFINITIONS (rule-based) and EXTERNAL SERVICES
+  (rule-based) in the evidence as the PRIMARY source. You may add additional tools
+  discovered from code analysis, but NEVER add model names or package names.
+  Return [] only if there is truly no tool evidence.
+
+- tool_usages MUST NOT contain LLM model names (e.g. gpt-4, gpt-4o, claude-3-sonnet,
+  dall-e-3, llama-3, gemini-1.5-pro, text-embedding-ada-002). Those belong in model_usages
+  only. tool_usages MUST NOT contain raw dependency/package names (e.g. faiss-cpu,
+  qdrant-client, chromadb) unless they are explicitly registered as named tools in the code.
+  Tools are functions, classes, or plugins that agents INVOKE to perform actions — not the
+  models they call or the libraries they import.
+
+- service_category: Classify EVERY tool_usage entry into one of these categories based on
+  what the tool DOES (infer from its name, context, and surrounding code):
+  * "web_search" — search engines, SERP queries (e.g. google_search, tavily_search)
+  * "web_browsing" — page fetching, scraping, crawling (e.g. browse_url, scrape_page)
+  * "code_execution" — running code, sandboxes, REPLs (e.g. execute_code, run_python)
+  * "vector_database" — vector store operations (e.g. query_vectors, upsert_embeddings)
+  * "database" — SQL/NoSQL/graph DB operations (e.g. run_query, neo4j_search)
+  * "communication" — messaging, email, notifications (e.g. send_slack, send_email)
+  * "document_processing" — PDF/DOCX parsing, OCR (e.g. parse_pdf, extract_text)
+  * "image_generation" — image creation/editing (e.g. text_to_image, generate_image)
+  * "voice_audio" — TTS, STT, audio processing (e.g. text_to_speech, transcribe)
+  * "embeddings" — text-to-embedding operations (e.g. text_to_embedding, embed_text)
+  * "data_processing" — data transformation, feature engineering, analytics
+  * "file_operations" — file read/write/management (e.g. read_file, write_file)
+  * "api_integration" — external HTTP/REST API calls (e.g. http_request, call_api)
+  * "orchestration" — planning, routing, delegation (e.g. plan, delegate_task)
+  * "tool_management" — tool registration, schema management (e.g. register_tool)
+  * "testing" — test helpers, validation tools (e.g. validate, run_test)
+  * "other" — only if none of the above categories fit
+  Every tool_usage MUST have a non-empty service_category. NEVER leave it blank.
 
 - tool_usages: repo-wide tool/function references not already captured per agent
 
@@ -94,6 +175,8 @@ def _build_evidence_block(
     framework_candidate: str = "unknown",
     agent_instances: list[dict] | None = None,
     tool_definitions: list[dict] | None = None,
+    external_services: list[dict] | None = None,
+    threat_reference: str = "",
 ) -> str:
     lines: list[str] = []
 
@@ -119,17 +202,40 @@ def _build_evidence_block(
         for t in tool_definitions:
             lines.append(f"  - \"{t['name']}\" ({t['decorator']} at {t['source_file']}:{t.get('line', '')})")
 
+    if external_services:
+        lines.append("\n--- EXTERNAL SERVICES (rule-based) ---")
+        for s in external_services:
+            lines.append(f"  - {s['name']} ({s['category']}) at {s['source_file']}:{s.get('line', '')}")
+
     lines.append("\nScanner summaries:")
     for s in scanner_summaries:
-        lines.append(f"\n  [{s['scanner']}] — {s['finding_count']} finding(s)")
-        for f in s.get("top_findings", []):
+        lines.append(f"\n  [{s['scanner']}] — {s['artifact_count']} artifact(s)")
+        for f in s.get("top_artifacts", []):
             tag = f.get("tag", "")
             conf = f.get("confidence", 0.0)
             text = f.get("text", "")
             loc = f"{f.get('file', '')}:{f.get('line', '')}"
             lines.append(f"    • [{tag}] {loc} (conf {conf:.2f}): {text}")
 
+    if threat_reference:
+        lines.append(f"\n{threat_reference}")
+
     return "\n".join(lines)
+
+
+def _parse_risk_signals(raw_signals: list) -> list[RiskIndicator]:
+    """Parse risk_signals from LLM JSON — handles both new dict format and legacy string format."""
+    result: list[RiskIndicator] = []
+    for item in raw_signals:
+        if isinstance(item, dict):
+            signal = item.get("signal", "")
+            controls = item.get("recommended_controls", [])
+            if signal:
+                result.append(RiskIndicator(signal=signal, recommended_controls=controls))
+        elif isinstance(item, str) and item:
+            # Legacy format: plain string
+            result.append(RiskIndicator(signal=item, recommended_controls=[]))
+    return result
 
 
 def _parse_synthesis_response(raw: str) -> SynthesisResult:
@@ -169,21 +275,28 @@ def _parse_synthesis_response(raw: str) -> SynthesisResult:
             agent_type=a.get("agent_type", "unknown"),
             goal=a.get("goal", ""),
             capabilities=a.get("capabilities", []),
-            risk_signals=a.get("risk_signals", []),
+            risk_signals=_parse_risk_signals(a.get("risk_signals", [])),
             skills=a.get("skills", []),
             tools=a.get("tools", []),
             source_file=a.get("source_file", ""),
         ))
 
+    _VALID_TOOL_TYPES = {"tool_definition", "external_service", "skill", "mcp_tool"}
     tool_usages: list[ToolUsage] = []
     for t in data.get("tool_usages", []):
         if not isinstance(t, dict):
             continue
+        raw_type = t.get("tool_type", "tool_definition")
+        tool_type = raw_type if raw_type in _VALID_TOOL_TYPES else "tool_definition"
         tool_usages.append(ToolUsage(
             tool_name=t.get("tool_name", ""),
+            tool_type=tool_type,
+            service_category=t.get("service_category", ""),
             source_file=t.get("source_file", ""),
             line_number=t.get("line_number"),
         ))
+
+    repo_risk_signals = _parse_risk_signals(data.get("risk_signals", []))
 
     return SynthesisResult(
         is_ai_application=bool(data.get("is_ai_application", False)),
@@ -191,6 +304,7 @@ def _parse_synthesis_response(raw: str) -> SynthesisResult:
         summary=data.get("summary", ""),
         agents=agents,
         tool_usages=tool_usages,
+        risk_signals=repo_risk_signals,
     )
 
 
@@ -209,9 +323,21 @@ class SynthesisAgent:
         framework_candidate: str = "unknown",
         agent_instances: list[dict] | None = None,
         tool_definitions: list[dict] | None = None,
+        external_services: list[dict] | None = None,
+        classification: ClassificationResult | None = None,
     ) -> SynthesisResult:
         if on_progress:
             on_progress("Building evidence bundle...")
+
+        # Build threat reference from classification result
+        threat_reference = ""
+        if classification:
+            filtered = filter_threats(
+                classification.system_types,
+                threat_ids=classification.relevant_threats,
+            )
+            if filtered:
+                threat_reference = build_threat_reference(filtered)
 
         evidence = _build_evidence_block(
             scanner_summaries,
@@ -220,6 +346,8 @@ class SynthesisAgent:
             framework_candidate=framework_candidate,
             agent_instances=agent_instances,
             tool_definitions=tool_definitions,
+            external_services=external_services,
+            threat_reference=threat_reference,
         )
         prompt = f"{_SYSTEM_PROMPT}\n\nEvidence:\n{evidence}"
 

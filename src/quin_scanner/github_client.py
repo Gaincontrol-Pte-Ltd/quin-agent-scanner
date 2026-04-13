@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import urllib.request
 import urllib.error
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Iterator
 
@@ -29,22 +30,40 @@ class GitHubClient:
         self.token = token
 
     def _request(self, path: str) -> dict | list:
-        url = f"{self.BASE_URL}{path}"
-        req = urllib.request.Request(url)
-        req.add_header("Accept", "application/vnd.github+json")
-        req.add_header("X-GitHub-Api-Version", "2022-11-28")
-        if self.token:
-            req.add_header("Authorization", f"Bearer {self.token}")
-        with urllib.request.urlopen(req, timeout=30) as resp:
-            return json.loads(resp.read())
+        from quin_scanner.repo_accessor import _retry_with_backoff
 
-    def _paginate(self, path: str) -> Iterator[dict]:
+        url = f"{self.BASE_URL}{path}"
+
+        def _do() -> dict | list:
+            req = urllib.request.Request(url)
+            req.add_header("Accept", "application/vnd.github+json")
+            req.add_header("X-GitHub-Api-Version", "2022-11-28")
+            if self.token:
+                req.add_header("Authorization", f"Bearer {self.token}")
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                return json.loads(resp.read())
+
+        return _retry_with_backoff(_do)
+
+    def _paginate(
+        self,
+        path: str,
+        on_progress: Callable[[int, int], None] | None = None,
+    ) -> Iterator[dict]:
+        """Paginate a GitHub API endpoint.
+
+        *on_progress(page, items_so_far)* is called after each page.
+        """
         page = 1
+        total_items = 0
         while True:
             sep = "&" if "?" in path else "?"
             data = self._request(f"{path}{sep}per_page=100&page={page}")
             if not data:
                 break
+            total_items += len(data)
+            if on_progress:
+                on_progress(page, total_items)
             for item in data:
                 yield item
             if len(data) < 100:
@@ -56,9 +75,10 @@ class GitHubClient:
         org: str,
         skip_archived: bool = False,
         skip_forks: bool = False,
+        on_progress: Callable[[int, int], None] | None = None,
     ) -> list[RepoInfo]:
         repos = []
-        for item in self._paginate(f"/orgs/{org}/repos?type=all"):
+        for item in self._paginate(f"/orgs/{org}/repos?type=all", on_progress=on_progress):
             if skip_archived and item.get("archived"):
                 continue
             if skip_forks and item.get("fork"):
@@ -81,9 +101,10 @@ class GitHubClient:
         username: str,
         skip_archived: bool = False,
         skip_forks: bool = False,
+        on_progress: Callable[[int, int], None] | None = None,
     ) -> list[RepoInfo]:
         repos = []
-        for item in self._paginate(f"/users/{username}/repos?type=owner"):
+        for item in self._paginate(f"/users/{username}/repos?type=owner", on_progress=on_progress):
             if skip_archived and item.get("archived"):
                 continue
             if skip_forks and item.get("fork"):
@@ -106,13 +127,14 @@ class GitHubClient:
         name: str,
         skip_archived: bool = False,
         skip_forks: bool = False,
+        on_progress: Callable[[int, int], None] | None = None,
     ) -> list[RepoInfo]:
         """List repos for an org or user account, auto-detecting the type."""
         try:
-            return self.list_org_repos(name, skip_archived=skip_archived, skip_forks=skip_forks)
+            return self.list_org_repos(name, skip_archived=skip_archived, skip_forks=skip_forks, on_progress=on_progress)
         except urllib.error.HTTPError as e:
             if e.code == 404:
-                return self.list_user_repos(name, skip_archived=skip_archived, skip_forks=skip_forks)
+                return self.list_user_repos(name, skip_archived=skip_archived, skip_forks=skip_forks, on_progress=on_progress)
             raise
 
     def get_repo(self, owner: str, repo: str) -> RepoInfo:

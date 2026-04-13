@@ -6,6 +6,21 @@ from pathlib import Path
 from quin_scanner.repo_accessor import RepoAccessor
 
 
+_EXCLUDED_DIRS = frozenset({
+    ".venv", "venv", "node_modules", "__pycache__", ".git",
+    "site-packages", ".tox", ".mypy_cache", ".pytest_cache",
+    "dist", "build", ".eggs", "*.egg-info",
+})
+
+
+def _is_vendor_path(path: str) -> bool:
+    """Return True if path passes through a vendor/generated directory."""
+    for part in path.replace("\\", "/").split("/"):
+        if part in _EXCLUDED_DIRS or part.endswith(".egg-info"):
+            return True
+    return False
+
+
 class FileIndex:
     """Index of all files in a repo, queryable by extension, directory, or glob."""
 
@@ -15,7 +30,10 @@ class FileIndex:
 
     def build(self) -> None:
         """Populate the index by listing all files via the accessor."""
-        self._files = self._accessor.list_files("**/*")
+        self._files = [
+            f for f in self._accessor.list_files("**/*")
+            if not _is_vendor_path(f)
+        ]
 
     def all_files(self) -> list[str]:
         """Return every file path in the index."""

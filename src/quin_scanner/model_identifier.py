@@ -25,6 +25,10 @@ _CODE_PATTERNS = [
     re.compile(r'model_name\s*=\s*["\']([^"\']+)["\']'),
     # JS/TS: model: "gpt-4o"
     re.compile(r'model\s*:\s*["\']([^"\']+)["\']'),
+    # Python dict / JSON-in-code: "model": "gpt-4o" or 'model': 'gpt-4o'
+    re.compile(r'["\']model["\']\s*:\s*["\']([^"\']+)["\']'),
+    # Python dict: "model_name": "gpt-4o"
+    re.compile(r'["\']model_name["\']\s*:\s*["\']([^"\']+)["\']'),
     # TypeScript/JS Vercel AI SDK provider function calls: openai('gpt-4o'), anthropic('claude-...')
     re.compile(r'(?:openai|anthropic|google|mistral|groq|cohere|bedrock|azure)\s*\(\s*["\']([a-zA-Z0-9][\w.:-]{2,80})["\']'),
 ]
@@ -100,6 +104,9 @@ _KNOWN_MODELS: dict[str, str] = {
     "claude-sonnet": "anthropic",
     "claude-haiku": "anthropic",
     "claude-opus": "anthropic",
+    "claude-sonnet-4-5": "anthropic",
+    "claude-sonnet-4-6": "anthropic",
+    "claude-opus-4-5": "anthropic",
     # Bare aliases (e.g. model="opus" in @anthropic-ai/sdk and agent SDK)
     "opus": "anthropic",
     "sonnet": "anthropic",

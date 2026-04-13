@@ -100,6 +100,12 @@ patterns:
   - pattern: "import\\s+faiss"
     language: python
     capability_tag: rag
+  - pattern: "from\\s+metagpt"
+    language: python
+    capability_tag: multi-agent
+  - pattern: "import\\s+metagpt"
+    language: python
+    capability_tag: multi-agent
   - pattern: "from\\s+pydantic_ai"
     language: python
     capability_tag: llm-api

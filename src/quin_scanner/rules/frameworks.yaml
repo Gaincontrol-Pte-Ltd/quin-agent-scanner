@@ -63,3 +63,7 @@ frameworks:
     framework: databricks-agent-framework
     capability_tags: [llm-api, orchestration]
     confidence: 0.9
+  - file: openclaw.json
+    framework: openclaw
+    capability_tags: [llm-api, multi-agent, orchestration, tool-use]
+    confidence: 0.9

@@ -1,0 +1,37 @@
+# Signal groups for cross-scanner framework corroboration.
+# When multiple signals from the same group appear in a repo,
+# the orchestrator emits a synthetic finding with boosted confidence.
+#
+# signal.type: "file" matches findings by filename, "dependency" by package name.
+# boost.min_signals: minimum co-occurring signals to trigger the boost.
+
+signal_groups:
+  - framework: OpenClaw
+    description: "OpenClaw personal AI assistant framework"
+    base_capability_tags: [llm-api]
+    signals:
+      - type: file
+        pattern: "SOUL.md"
+        confidence: 0.65
+        capability_tags: [llm-api, prompt-templates]
+      - type: file
+        pattern: "AGENTS.md"
+        confidence: 0.7
+        capability_tags: [multi-agent, orchestration]
+      - type: file
+        pattern: "HEARTBEAT.md"
+        confidence: 0.6
+        capability_tags: [orchestration]
+      - type: file
+        pattern: "openclaw.json"
+        confidence: 0.9
+        capability_tags: [llm-api, multi-agent, orchestration, tool-use]
+      - type: dependency
+        pattern: "openclaw"
+        ecosystem: node
+        confidence: 0.9
+        capability_tags: [llm-api, multi-agent, orchestration, tool-use]
+    boost:
+      min_signals: 2
+      boosted_confidence: 0.92
+      max_confidence: 0.95

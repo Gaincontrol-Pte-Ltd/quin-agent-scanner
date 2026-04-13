@@ -23,7 +23,7 @@ class AnthropicProvider(BaseLLMProvider):
     def generate(self, prompt: str) -> str:
         response = self._client.messages.create(
             model=self._model,
-            max_tokens=4096,
+            max_tokens=16384,
             temperature=0,
             messages=[{"role": "user", "content": prompt}],
         )

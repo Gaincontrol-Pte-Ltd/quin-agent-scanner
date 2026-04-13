@@ -50,11 +50,17 @@ class ScannerConfig:
         elif "api_key" in llm_cfg:
             api_key = llm_cfg["api_key"]
 
+        provider = llm_cfg.get("provider", "openai")
+
+        # Fall back to env var when no key specified in config
+        if api_key is None:
+            api_key = _resolve_api_key(provider)
+
         return cls(
-            llm_provider=llm_cfg.get("provider", "openai"),
+            llm_provider=provider,
             llm_model=llm_cfg.get("model", "gpt-4o-mini"),
             llm_api_key=api_key,
-            output_format=out_cfg.get("format", "json"),
+            output_format=out_cfg.get("format", "html"),
             enabled_scanners=scan_cfg.get("enabled", list(_ALL_SCANNERS)),
         )
 

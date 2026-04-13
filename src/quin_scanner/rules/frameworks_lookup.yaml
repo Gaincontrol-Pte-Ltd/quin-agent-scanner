@@ -10,6 +10,7 @@ packages:
   # More specific entries first — iteration is in YAML order (highest priority wins).
   # Do NOT add generic SDK packages (anthropic, openai, google-generativeai) here —
   # they are too broad and cause false framework assignments.
+  metagpt: "MetaGPT"
   autogen-agentchat: "AutoGen"
   autogen_agentchat: "AutoGen"
   pyautogen: "AutoGen"
@@ -29,6 +30,7 @@ packages:
   mcp: "MCP"
   modelcontextprotocol: "MCP"
   crewai: "CrewAI"
+  dify: "Dify"
   ai: "Vercel AI SDK"
   "@ai-sdk/openai": "Vercel AI SDK"
   "@ai-sdk/anthropic": "Vercel AI SDK"
@@ -38,6 +40,7 @@ packages:
   langchain: "LangChain"
   langchain-core: "LangChain"
   langchain-community: "LangChain"
+  openclaw: "OpenClaw"
 
 # File marker name → framework
 # Checked against FrameworkMarkerScanner findings (file names)
@@ -48,3 +51,4 @@ file_markers:
   mcp.json: "MCP"
   .mcp.json: "MCP"
   langgraph.json: "LangGraph"
+  openclaw.json: "OpenClaw"

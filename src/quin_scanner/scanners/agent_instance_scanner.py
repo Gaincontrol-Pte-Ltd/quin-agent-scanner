@@ -37,8 +37,32 @@ _AGENT_CODE_PATTERNS = [
     re.compile(r'(?:Agent|Runner)\s*\(\s*["\']([^"\']{2,50})["\']'),
 ]
 
+# Class inheritance patterns that define agent roles
+# e.g. class ProductManager(Role): ... — MetaGPT, custom frameworks
+_AGENT_CLASS_PATTERNS = [
+    # class X(Role) — MetaGPT and generic role-based agent frameworks
+    (re.compile(r'class\s+(\w+)\s*\(\s*Role\s*\)'), 0.82),
+    # class X(BaseAgent) — generic agent base class
+    (re.compile(r'class\s+(\w+)\s*\(\s*BaseAgent\s*\)'), 0.85),
+    # class X(AssistantAgent) / class X(ConversableAgent) — AutoGen inheritance
+    (re.compile(r'class\s+(\w+)\s*\(\s*(?:Assistant|Conversable|UserProxy)Agent\s*\)'), 0.85),
+]
+
 # Config file names that define agents
 _AGENT_CONFIG_NAMES = {"agents.yaml", "agents.yml", "crew.yaml", "crew.yml"}
+
+# Markdown agent spec patterns
+_MD_AGENT_TITLE_RE = re.compile(
+    r'^#\s+(?:Agent\s*\d*[:\-—]\s*)?(.+)', re.MULTILINE,
+)
+_MD_ROLE_RE = re.compile(
+    r'\*\*Role[:\s]*\*\*\s*(.+)', re.MULTILINE,
+)
+_MD_PURPOSE_RE = re.compile(
+    r'\*\*Purpose[:\s]*\*\*\s*(.+)', re.MULTILINE,
+)
+# Directories that typically hold agent spec markdown files
+_AGENT_DIR_NAMES = {"agents", "agent", "agent_specs", "agent-specs"}
 
 # Test path patterns to skip
 _TEST_PATH_RE = re.compile(
@@ -81,6 +105,9 @@ class AgentInstanceScanner(BaseScanner):
                 elif fname == "flow.dag.yaml":
                     content = accessor.read_file(path)
                     findings.extend(self._scan_flow_dag(content, path, seen))
+                elif suffix == ".md" and self._in_agent_dir(path):
+                    content = accessor.read_file(path)
+                    findings.extend(self._scan_agent_markdown(content, path, seen))
             except Exception:
                 continue
 
@@ -90,6 +117,7 @@ class AgentInstanceScanner(BaseScanner):
         findings = []
         lines = content.splitlines()
         for lineno, line in enumerate(lines, start=1):
+            # Instantiation patterns: Agent(name="..."), @agent def ...
             for pattern in _AGENT_CODE_PATTERNS:
                 m = pattern.search(line)
                 if m:
@@ -108,6 +136,26 @@ class AgentInstanceScanner(BaseScanner):
                         match_text=agent_name,
                         capability_tag="multi-agent",
                         confidence=0.85,
+                    ))
+            # Class inheritance patterns: class X(Role), class X(BaseAgent), etc.
+            for pattern, conf in _AGENT_CLASS_PATTERNS:
+                m = pattern.search(line)
+                if m:
+                    class_name = m.group(1).strip()
+                    if not class_name or len(class_name) > 80:
+                        continue
+                    key = f"{path}:{lineno}:{class_name}"
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                    findings.append(ScanFinding(
+                        scanner_name=self.name(),
+                        category="agent_instance",
+                        file_path=path,
+                        line_number=lineno,
+                        match_text=class_name,
+                        capability_tag="multi-agent",
+                        confidence=conf,
                     ))
         return findings
 
@@ -160,6 +208,51 @@ class AgentInstanceScanner(BaseScanner):
                                 capability_tag="multi-agent",
                                 confidence=0.90,
                             ))
+        return findings
+
+    @staticmethod
+    def _in_agent_dir(path: str) -> bool:
+        """Return True if the file is inside an agents/ (or similar) directory."""
+        parts = Path(path).parts
+        return any(p.lower() in _AGENT_DIR_NAMES for p in parts[:-1])
+
+    def _scan_agent_markdown(self, content: str, path: str, seen: set[str]) -> list[ScanFinding]:
+        """Parse markdown agent specification files for agent definitions.
+
+        Recognises patterns like:
+          # Agent 3: Research Agent
+          **Role:** Vendor & Technology Intelligence Researcher
+          **Purpose:** Conduct web research ...
+        """
+        findings = []
+
+        title_m = _MD_AGENT_TITLE_RE.search(content)
+        if not title_m:
+            return findings
+
+        agent_name = title_m.group(1).strip()
+        if not agent_name or len(agent_name) > 120:
+            return findings
+
+        key = f"{path}::{agent_name}"
+        if key in seen:
+            return findings
+        seen.add(key)
+
+        # Build a descriptive match_text with role if available
+        role_m = _MD_ROLE_RE.search(content)
+        role = role_m.group(1).strip() if role_m else ""
+        match_text = f"{agent_name} — {role}" if role else agent_name
+
+        findings.append(ScanFinding(
+            scanner_name=self.name(),
+            category="agent_instance",
+            file_path=path,
+            line_number=1,
+            match_text=match_text[:200],
+            capability_tag="multi-agent",
+            confidence=0.92,
+        ))
         return findings
 
     def _scan_flow_dag(self, content: str, path: str, seen: set[str]) -> list[ScanFinding]:
