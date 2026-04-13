@@ -39,3 +39,12 @@ file_names:
     capability_tag: multi-agent
   - name: agents.yaml
     capability_tag: multi-agent
+  - name: SOUL.md
+    capability_tag: prompt-templates
+    framework: openclaw
+  - name: AGENTS.md
+    capability_tag: multi-agent
+    framework: openclaw
+  - name: HEARTBEAT.md
+    capability_tag: orchestration
+    framework: openclaw

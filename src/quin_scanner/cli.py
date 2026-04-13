@@ -17,11 +17,13 @@ load_dotenv()
 
 def _output_filename(target: str, fmt: str) -> str:
     """Build an output filename: <repo-name>_<YYYYMMDD_HHMMSS>.<fmt>"""
-    safe = target.replace("/", "_").replace(":", "_").replace(".git", "").strip("_")
+    # Extract the repo (or directory) name from the target
+    clean = target.rstrip("/").removesuffix(".git")
+    name = clean.rsplit("/", 1)[-1] or clean.replace("/", "_").replace(":", "_")
     ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-    return f"{safe}_{ts}.{fmt}"
+    return f"{name}_{ts}.{fmt}"
 
-_OUTPUT_CHOICES = click.Choice(["json", "yaml"])
+_OUTPUT_CHOICES = click.Choice(["json", "yaml", "html"])
 
 
 @click.group(context_settings={"help_option_names": ["-h", "--help"]})
@@ -58,9 +60,9 @@ def cli() -> None:
 
 @cli.command()
 @click.argument("target")
-@click.option("--output", "-o", default="json", type=_OUTPUT_CHOICES, show_default=True, help="Output format")
+@click.option("--output", "-o", default="html", type=_OUTPUT_CHOICES, show_default=True, help="Output format")
 @click.option("--output-file", "-f", default=None, help="Write output to a specific file")
-@click.option("--output-dir", "-d", default=None, help="Write output to this directory (auto-names the file)")
+@click.option("--output-dir", "-d", default="./report", show_default=True, help="Write output to this directory (auto-names the file)")
 @click.option(
     "--llm-provider", default=None,
     help="LLM provider for agent intent analysis (openai|anthropic|google|ollama|openai-compatible)",
@@ -72,7 +74,7 @@ def cli() -> None:
 @click.option("--no-llm", is_flag=True, default=False, help="Skip LLM analysis entirely (faster, no API key needed)")
 @click.option(
     "--min-confidence", default=0.0, show_default=True, type=float,
-    help="Exclude findings below this confidence threshold (0.0–1.0)",
+    help="Exclude artifacts below this confidence threshold (0.0–1.0)",
 )
 @click.option("--github-token", default=None, envvar="GITHUB_TOKEN", help="GitHub PAT (overrides GITHUB_TOKEN env var)")
 @click.option("--openai-compatible-url", default=None, help="Base URL for OpenAI-compatible endpoints (vLLM, LiteLLM, Azure, etc.)")
@@ -80,7 +82,7 @@ def scan(
     target: str,
     output: str,
     output_file: str | None,
-    output_dir: str | None,
+    output_dir: str,
     llm_provider: str | None,
     llm_model: str | None,
     llm_api_key: str | None,
@@ -138,7 +140,7 @@ def scan(
 
     # Apply confidence filter if requested
     if min_confidence > 0.0:
-        report.findings = [f for f in report.findings if f.confidence >= min_confidence]
+        report.artifacts = [f for f in report.artifacts if f.confidence >= min_confidence]
 
     # Output
     rendered = ReportGenerator.to_string(report, output)
@@ -156,8 +158,8 @@ def scan(
 
 @cli.command("scan-batch")
 @click.argument("targets_file", type=click.Path(exists=True))
-@click.option("--output", "-o", default="json", type=_OUTPUT_CHOICES, show_default=True, help="Output format")
-@click.option("--output-dir", "-d", default=None, help="Directory for per-repo output files")
+@click.option("--output", "-o", default="html", type=_OUTPUT_CHOICES, show_default=True, help="Output format")
+@click.option("--output-dir", "-d", default="./report", show_default=True, help="Directory for per-repo output files")
 @click.option(
     "--llm-provider", default=None,
     help="LLM provider for agent intent analysis (openai|anthropic|google|ollama|openai-compatible)",
@@ -171,7 +173,7 @@ def scan(
 def scan_batch(
     targets_file: str,
     output: str,
-    output_dir: str | None,
+    output_dir: str,
     llm_provider: str | None,
     llm_model: str | None,
     llm_api_key: str | None,
@@ -212,10 +214,8 @@ def scan_batch(
             openai_compatible_url=openai_compatible_url,
         )
 
-    if output_dir:
-        Path(output_dir).mkdir(parents=True, exist_ok=True)
+    Path(output_dir).mkdir(parents=True, exist_ok=True)
 
-    reports = []
     for target in targets:
         click.echo(f"Scanning {target} ...", err=True)
         try:
@@ -225,22 +225,15 @@ def scan_batch(
             click.echo(f"  ERROR: {e}", err=True)
             continue
 
-        if output_dir:
-            out_path = Path(output_dir) / _output_filename(target, output)
-            ReportGenerator.write_to_file(report, str(out_path), output)
-            click.echo(f"  -> {out_path}", err=True)
-        else:
-            reports.append(report.to_dict())
-
-    if not output_dir:
-        import json
-        click.echo(json.dumps(reports, indent=2, default=str))
+        out_path = Path(output_dir) / _output_filename(target, output)
+        ReportGenerator.write_to_file(report, str(out_path), output)
+        click.echo(f"  -> {out_path}", err=True)
 
 
 @cli.command("scan-org")
 @click.argument("org_name")
-@click.option("--output", "-o", type=click.Choice(["json", "yaml"]), default="json", show_default=True, help="Output format")
-@click.option("--output-dir", default=".", type=click.Path(), show_default=True, help="Directory for per-repo output files")
+@click.option("--output", "-o", type=_OUTPUT_CHOICES, default="html", show_default=True, help="Output format")
+@click.option("--output-dir", default="./report", type=click.Path(), show_default=True, help="Directory for per-repo output files")
 @click.option("--github-token", envvar="GITHUB_TOKEN", default=None, help="GitHub PAT (overrides GITHUB_TOKEN env var)")
 @click.option("--skip-archived", is_flag=True, default=False, help="Skip archived repositories")
 @click.option("--skip-forks", is_flag=True, default=False, help="Skip forked repositories")
@@ -276,13 +269,28 @@ def scan_org(
 
     client = GitHubClient(token=github_token)
 
-    click.echo(f"Listing repos for org: {org_name} ...", err=True)
+    verbose = sys.stderr.isatty()
+
+    def _listing_progress(page: int, total: int) -> None:
+        if verbose:
+            sys.stderr.write(f"\r  Listing repos … page {page} ({total} repos found)")
+            sys.stderr.flush()
+
+    click.echo(f"Listing repos for: {org_name} …", err=True)
     try:
-        repos = client.list_repos_for(org_name, skip_archived=skip_archived, skip_forks=skip_forks)
+        repos = client.list_repos_for(
+            org_name,
+            skip_archived=skip_archived,
+            skip_forks=skip_forks,
+            on_progress=_listing_progress if verbose else None,
+        )
     except Exception as e:
         click.echo(f"Error listing repos: {e}", err=True)
         sys.exit(1)
 
+    if verbose:
+        sys.stderr.write("\n")
+        sys.stderr.flush()
     click.echo(f"Found {len(repos)} repos to scan.", err=True)
 
     if config:

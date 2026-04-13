@@ -2,10 +2,96 @@ from __future__ import annotations
 
 import json
 import os
+import re
+import sys
+import time
 import urllib.error
 import urllib.request
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from pathlib import Path
+
+# ── Network resilience & progress utilities ──────────────────────────────────
+
+_MAX_RETRIES = 5
+_BASE_DELAY = 2  # seconds — exponential backoff: 2, 4, 8, 16, 32
+
+# HTTP status codes that should NOT be retried (permanent errors)
+_PERMANENT_HTTP_CODES = frozenset({401, 403, 404, 422})
+
+
+def _is_permanent_error(exc: Exception) -> bool:
+    """Return True if the error is permanent and should not be retried."""
+    if isinstance(exc, urllib.error.HTTPError):
+        return exc.code in _PERMANENT_HTTP_CODES
+    return False
+
+
+def _retry_with_backoff(
+    fn: Callable,
+    *,
+    max_retries: int = _MAX_RETRIES,
+    base_delay: float = _BASE_DELAY,
+    on_retry: Callable[[int, int, float, str], None] | None = None,
+) -> object:
+    """Call *fn()* with exponential backoff on transient failures.
+
+    Parameters
+    ----------
+    fn:
+        Zero-argument callable to execute.
+    max_retries:
+        Total number of attempts (including the first).
+    base_delay:
+        Initial delay in seconds; doubled on each retry.
+    on_retry:
+        Optional callback ``(attempt, max_retries, delay, error_msg)``
+        invoked before each wait.
+
+    Returns the result of *fn()* on success, or raises the last exception.
+    """
+    last_exc: Exception | None = None
+    for attempt in range(1, max_retries + 1):
+        try:
+            return fn()
+        except Exception as exc:
+            if _is_permanent_error(exc):
+                raise
+            last_exc = exc
+            if attempt == max_retries:
+                break
+            delay = base_delay * (2 ** (attempt - 1))
+            if on_retry:
+                on_retry(attempt, max_retries, delay, str(exc))
+            time.sleep(delay)
+    raise last_exc  # type: ignore[misc]
+
+
+# ── Git clone progress parsing ───────────────────────────────────────────────
+
+# Matches lines like:  Receiving objects:  45% (123/274)
+_GIT_PROGRESS_RE = re.compile(
+    r"(Counting objects|Compressing objects|Receiving objects|Resolving deltas)"
+    r":\s+(\d+)%\s+\((\d+)/(\d+)\)"
+)
+
+
+def _parse_git_progress(line: str) -> tuple[str, int] | None:
+    """Parse a git progress stderr line into (phase, percentage) or None."""
+    m = _GIT_PROGRESS_RE.search(line)
+    if m:
+        return m.group(1), int(m.group(2))
+    return None
+
+
+def _render_clone_progress(label: str, phase: str, pct: int) -> None:
+    """Render an in-place progress bar for git clone on stderr."""
+    width = 25
+    filled = int(pct / 100 * width)
+    bar = "\u2588" * filled + "\u2591" * (width - filled)
+    line = f"\r  {label}  [{bar}] {pct:3d}%  {phase}"
+    sys.stderr.write(line)
+    sys.stderr.flush()
 
 
 class RepoAccessor(ABC):
@@ -149,59 +235,105 @@ class GitHubMCPAccessor(RepoAccessor):
         return h
 
     def _get_json(self, url: str) -> dict:
-        req = urllib.request.Request(url, headers=self._headers())
-        with urllib.request.urlopen(req, timeout=30) as resp:
-            return json.loads(resp.read())
+        def _do() -> dict:
+            req = urllib.request.Request(url, headers=self._headers())
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                return json.loads(resp.read())
+        return _retry_with_backoff(_do)
 
     def _get_text(self, url: str) -> str:
-        req = urllib.request.Request(url, headers=self._headers())
-        with urllib.request.urlopen(req, timeout=30) as resp:
-            return resp.read().decode("utf-8", errors="replace")
+        def _do() -> str:
+            req = urllib.request.Request(url, headers=self._headers())
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                return resp.read().decode("utf-8", errors="replace")
+        return _retry_with_backoff(_do)
 
 
 class GitHubAPIAccessor(RepoAccessor):
     """Accessor for GitHub repos via REST API (clone to temp dir)."""
 
-    def __init__(self, repo_url: str, github_token: str | None = None, branch: str = "main"):
+    def __init__(self, repo_url: str, github_token: str | None = None, branch: str = "main",
+                 verbose: bool = True):
         self.repo_url = repo_url
         self.github_token = github_token
         self.branch = branch
+        self.verbose = verbose
         self._temp_dir: Path | None = None
         self._local_accessor: LocalRepoAccessor | None = None
 
-    def setup(self) -> None:
-        """Clone repo to temp directory."""
-        import tempfile
+    def setup(self, verbose: bool = True) -> None:
+        """Clone repo to temp directory with progress and retry."""
+        import shutil
         import subprocess
-        self._temp_dir = Path(tempfile.mkdtemp(prefix="quin_scanner_"))
+        import tempfile
+
         if self.github_token:
-            # Embed token in URL for auth
             url = self.repo_url.replace("https://", f"https://{self.github_token}@")
         else:
             url = self.repo_url
-        # Skip LFS file downloads — avoids failures when git-lfs is not installed
+
         env = {**os.environ, "GIT_LFS_SKIP_SMUDGE": "1"}
         lfs_bypass = ["-c", "filter.lfs.smudge=cat", "-c", "filter.lfs.required=false"]
 
         def _has_files(d: Path) -> bool:
             return any(True for _ in d.iterdir()) if d.exists() else False
 
-        # Try with explicit branch first; fall back to default branch if it fails
-        result = subprocess.run(
-            ["git", *lfs_bypass, "clone", "--depth", "1", "--branch", self.branch, url, str(self._temp_dir)],
-            capture_output=True, env=env
-        )
-        if result.returncode != 0 and not _has_files(self._temp_dir):
-            # Branch may not exist (e.g. repo uses master instead of main); clone default branch
-            import shutil
-            shutil.rmtree(self._temp_dir, ignore_errors=True)
-            self._temp_dir = Path(tempfile.mkdtemp(prefix="quin_scanner_"))
-            result = subprocess.run(
-                ["git", *lfs_bypass, "clone", "--depth", "1", url, str(self._temp_dir)],
-                capture_output=True, env=env
+        def _clone_with_progress(branch_args: list[str]) -> Path:
+            """Run git clone with --progress, stream stderr, return temp dir."""
+            tmp = Path(tempfile.mkdtemp(prefix="quin_scanner_"))
+            cmd = ["git", *lfs_bypass, "clone", "--depth", "1", "--progress",
+                   *branch_args, url, str(tmp)]
+            proc = subprocess.Popen(
+                cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env
             )
-            if result.returncode != 0 and not _has_files(self._temp_dir):
-                raise subprocess.CalledProcessError(result.returncode, result.args, result.stdout, result.stderr)
+            # Read stderr byte-by-byte to handle \r-delimited progress lines
+            buf = b""
+            while True:
+                ch = proc.stderr.read(1)  # type: ignore[union-attr]
+                if not ch:
+                    break
+                if ch in (b"\r", b"\n"):
+                    line = buf.decode("utf-8", errors="replace")
+                    buf = b""
+                    if verbose and line.strip():
+                        parsed = _parse_git_progress(line)
+                        if parsed:
+                            phase, pct = parsed
+                            _render_clone_progress("Cloning    ", phase, pct)
+                else:
+                    buf += ch
+            proc.wait()
+            if proc.returncode != 0 and not _has_files(tmp):
+                shutil.rmtree(tmp, ignore_errors=True)
+                raise subprocess.CalledProcessError(
+                    proc.returncode, cmd, proc.stdout.read() if proc.stdout else b"",  # type: ignore[union-attr]
+                    b"",
+                )
+            return tmp
+
+        def _retry_msg(attempt: int, max_retries: int, delay: float, msg: str) -> None:
+            if verbose:
+                sys.stderr.write(
+                    f"\n  Connection failed. Retrying ({attempt}/{max_retries})... "
+                    f"waiting {int(delay)}s\n"
+                )
+                sys.stderr.flush()
+
+        def _do_clone() -> Path:
+            # Try explicit branch first; fall back to default branch
+            try:
+                return _clone_with_progress(["--branch", self.branch])
+            except subprocess.CalledProcessError:
+                return _clone_with_progress([])
+
+        self._temp_dir = _retry_with_backoff(_do_clone, on_retry=_retry_msg)
+
+        if verbose:
+            # Finish the progress line
+            _render_clone_progress("Cloning    ", "done", 100)
+            sys.stderr.write("\n")
+            sys.stderr.flush()
+
         self._local_accessor = LocalRepoAccessor(self._temp_dir)
 
     def cleanup(self) -> None:
@@ -213,17 +345,17 @@ class GitHubAPIAccessor(RepoAccessor):
 
     def list_files(self, glob_pattern: str = "**/*") -> list[str]:
         if not self._local_accessor:
-            self.setup()
+            self.setup(verbose=self.verbose)
         return self._local_accessor.list_files(glob_pattern)
 
     def read_file(self, path: str) -> str:
         if not self._local_accessor:
-            self.setup()
+            self.setup(verbose=self.verbose)
         return self._local_accessor.read_file(path)
 
     def file_exists(self, path: str) -> bool:
         if not self._local_accessor:
-            self.setup()
+            self.setup(verbose=self.verbose)
         return self._local_accessor.file_exists(path)
 
     def repo_identifier(self) -> str:
@@ -232,7 +364,7 @@ class GitHubAPIAccessor(RepoAccessor):
     @property
     def root(self) -> Path:
         if not self._local_accessor:
-            self.setup()
+            self.setup(verbose=self.verbose)
         return self._local_accessor.root
 
 

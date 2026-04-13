@@ -1,0 +1,95 @@
+# Maps high-signal package names to external service categories.
+# Only packages that strongly imply a specific tool capability are included.
+# Generic utilities (requests, boto3, httpx) are intentionally excluded.
+
+web_search:
+  - serper
+  - google-serper
+  - tavily
+  - tavily-python
+  - duckduckgo-search
+  - googlesearch-python
+  - exa-py
+  - serpapi
+  - google-search-results
+  - brave-search
+
+web_browsing:
+  - playwright
+  - selenium
+  - puppeteer
+  - pyppeteer
+  - crawl4ai
+  - firecrawl
+  - firecrawl-py
+  - crawlee
+
+code_execution:
+  - e2b
+  - e2b-code-interpreter
+  - jupyter-client
+  - ipykernel
+  - modal
+  - runloop-api-client
+
+vector_database:
+  - chromadb
+  - pinecone-client
+  - pinecone
+  - qdrant-client
+  - weaviate-client
+  - faiss-cpu
+  - faiss-gpu
+  - pgvector
+  - pymilvus
+  - lancedb
+  - marqo
+  - vespa
+  - chroma-hnswlib
+
+database:
+  - neo4j
+  - arangodb
+  - dgraph-py
+  - tigergraph
+
+communication:
+  - slack-sdk
+  - slack-bolt
+  - discord.py
+  - twilio
+  - sendgrid
+  - python-telegram-bot
+  - telebot
+
+document_processing:
+  - pypdf
+  - pypdf2
+  - pdfplumber
+  - unstructured
+  - python-docx
+  - openpyxl
+  - python-pptx
+  - docling
+  - pdf2image
+  - camelot-py
+  - tabula-py
+  - mammoth
+
+image_generation:
+  - stability-sdk
+  - replicate
+  - diffusers
+  - together
+  - fal-client
+
+voice_audio:
+  - elevenlabs
+  - deepgram-sdk
+  - openai-whisper
+  - assemblyai
+  - cartesia
+  - speechrecognition
+  - pyttsx3
+  - bark
+  - coqui-tts

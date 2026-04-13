@@ -26,5 +26,6 @@ class OpenAIProvider(BaseLLMProvider):
             model=self._model,
             messages=[{"role": "user", "content": prompt}],
             temperature=0,
+            max_tokens=16384,
         )
         return response.choices[0].message.content or "{}"

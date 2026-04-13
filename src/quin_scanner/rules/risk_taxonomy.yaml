@@ -1,0 +1,224 @@
+# Risk Taxonomy — structured data extracted from docs/threats/threat-taxonomy.md
+# Source: OWASP LLM Top 10, OWASP Agentic Top 10, OWASP MCP Top 10, MAESTRO, Databricks DASF
+
+system_types:
+  - id: standard_ai
+    description: Non-agentic LLM applications (chatbots, summarizers, content generators)
+  - id: agentic_ai
+    description: Autonomous agents with tool-use and decision-making capability
+  - id: mcp_enabled
+    description: Systems using MCP servers, MCP-based tool orchestration
+  - id: multi_agent
+    description: Multi-agent architectures with agent-to-agent communication
+
+threats:
+  - id: T001
+    name: Input Manipulation & Prompt Injection
+    category: Input Manipulation
+    applies_to: [standard_ai, agentic_ai, mcp_enabled, multi_agent]
+    key_risk_indicators:
+      - User input reaches the model without sanitization
+      - Agent retrieves external content (RAG, web, email, documents)
+      - Model output triggers downstream actions or tool calls
+      - Retrieved content treated as instructions rather than passive data
+      - No validation that planned tool calls align with original user goals
+      - System instructions and untrusted content merged indistinguishably in context
+    recommended_controls: [C001, C002, C003, C006, C008]
+
+  - id: T002
+    name: Sensitive Data Exposure
+    category: Data Exposure
+    applies_to: [standard_ai, agentic_ai, mcp_enabled, multi_agent]
+    key_risk_indicators:
+      - PII or sensitive data in training data, fine-tuning datasets, or RAG knowledge bases
+      - System prompts containing credentials, connection strings, or internal URLs
+      - Hard-coded credentials in MCP server configurations
+      - API keys or tokens stored in conversational memory across sessions
+      - Debug logs containing unredacted secrets
+      - Shared context stores across users or tenants without isolation
+    recommended_controls: [C005, C003, C007, C010, C013]
+
+  - id: T003
+    name: AI Supply Chain Compromise
+    category: Supply Chain
+    applies_to: [standard_ai, agentic_ai, mcp_enabled, multi_agent]
+    key_risk_indicators:
+      - Third-party models used without provenance verification
+      - MCP servers or plugins from unverified community sources
+      - No SBOM or AI-BOM maintained
+      - Tool schemas fetched remotely without integrity verification
+      - Dependencies not pinned to verified versions
+      - No multi-person approval for schema or tool registry changes
+    recommended_controls: [C004, C011, C009, C010]
+
+  - id: T004
+    name: Data & Model Integrity Poisoning
+    category: Data Integrity
+    applies_to: [standard_ai, agentic_ai, mcp_enabled, multi_agent]
+    key_risk_indicators:
+      - Training/fine-tuning data from unvetted or publicly scraped sources
+      - RAG knowledge base populated without content validation
+      - No data provenance tracking or integrity verification
+      - Persistent agent memory across sessions without sanitization
+      - Shared vector stores across users/tenants without namespace isolation
+      - No anomaly detection on embedding drift
+    recommended_controls: [C011, C005, C007, C009, C010]
+
+  - id: T005
+    name: Unsafe Output & Code Execution
+    category: Output Safety
+    applies_to: [standard_ai, agentic_ai, mcp_enabled, multi_agent]
+    key_risk_indicators:
+      - LLM output rendered directly in browsers without encoding
+      - LLM-generated SQL or commands executed without parameterization
+      - Agent constructs shell commands by concatenating user/external input
+      - Code execution capability without sandboxing
+      - Tool wrappers using eval(), exec(), or shell=True
+      - No allowlisting of permitted commands at tool boundaries
+    recommended_controls: [C002, C010, C006, C008]
+
+  - id: T006
+    name: Excessive Permissions & Privilege Abuse
+    category: Access Control
+    applies_to: [standard_ai, agentic_ai, mcp_enabled, multi_agent]
+    key_risk_indicators:
+      - Agent has access to tools beyond its defined purpose
+      - Extensions with broad permissions (read+write+delete when only read needed)
+      - No human-in-the-loop for high-impact or irreversible actions
+      - Agent uses high-privileged service accounts rather than user-scoped credentials
+      - MCP tool permissions broader than required
+      - Dev/test permissions left active in production
+      - No mutual authentication between agents and MCP servers
+      - Shared service accounts across multiple agents
+    recommended_controls: [C003, C006, C008, C010, C007]
+
+  - id: T007
+    name: AI Misinformation & Hallucination
+    category: Output Reliability
+    applies_to: [standard_ai, agentic_ai, mcp_enabled, multi_agent]
+    key_risk_indicators:
+      - Customer-facing applications where outputs influence decisions
+      - High-stakes contexts (financial, medical, legal, operational)
+      - No RAG grounding or verification of model outputs
+      - AI-generated code integrated without review
+      - Agent outputs fed into other agents without validation
+      - No clear labeling of AI-generated content
+    recommended_controls: [C002, C006, C009, C013]
+
+  - id: T008
+    name: Resource Abuse & Service Disruption
+    category: Availability
+    applies_to: [standard_ai, agentic_ai, mcp_enabled, multi_agent]
+    key_risk_indicators:
+      - Externally accessible APIs without rate limiting
+      - Cloud-hosted models on consumption-based billing
+      - No input size limits or processing timeouts
+      - Logprobs or logit_bias exposed in API responses
+      - Unrestricted output volume enabling model extraction
+      - No anomaly detection on usage patterns
+    recommended_controls: [C012, C007, C010]
+
+  - id: T009
+    name: Inter-Agent Communication Compromise
+    category: Agent Communication
+    applies_to: [multi_agent]
+    key_risk_indicators:
+      - Multi-agent systems with A2A delegation
+      - No mutual authentication between agents
+      - Agents sharing context without authorization controls
+      - MCP server chains without per-step permission validation
+      - No agent identity verification in orchestrator-to-sub-agent communication
+    recommended_controls: [C003, C007, C010, C008]
+
+  - id: T010
+    name: Cascading & Emergent Failures
+    category: System Resilience
+    applies_to: [agentic_ai, multi_agent]
+    key_risk_indicators:
+      - Agent chains where output of one feeds into another
+      - No circuit breakers or error isolation between agents
+      - No per-step validation in multi-step workflows
+      - Agents operating without output verification gates
+      - Cyclical agent execution paths (Level 3 autonomy)
+    recommended_controls: [C008, C006, C007, C009]
+
+  - id: T011
+    name: Rogue Agent Behavior
+    category: Agent Governance
+    applies_to: [agentic_ai, multi_agent]
+    key_risk_indicators:
+      - Fine-tuned models from untrusted sources
+      - Third-party agents integrated without behavioral validation
+      - Limited runtime behavioral monitoring
+      - No kill switch or forced shutdown mechanism
+      - Agent can modify its own instructions or goals
+      - Fully autonomous execution (Level 3 autonomy)
+    recommended_controls: [C008, C007, C009, C006]
+
+  - id: T012
+    name: Insufficient Observability & Audit
+    category: Observability
+    applies_to: [standard_ai, agentic_ai, mcp_enabled, multi_agent]
+    key_risk_indicators:
+      - No centralized logging of MCP tool invocations
+      - No record of context changes in agent memory
+      - Logs mutable or accessible to agents themselves
+      - No anomaly detection on tool usage patterns
+      - No integration with SIEM or security monitoring
+      - Human reviewers overwhelmed by alert volume
+    recommended_controls: [C007, C006, C009]
+
+  - id: T013
+    name: Unmanaged AI Infrastructure
+    category: AI Governance
+    applies_to: [mcp_enabled, multi_agent]
+    key_risk_indicators:
+      - No central registry or inventory of all AI/MCP instances
+      - Teams deploy AI systems without security review
+      - MCP services running on unusual ports outside standard infrastructure
+      - Security team cannot enumerate all active AI endpoints
+      - No access controls or logging on unofficial deployments
+    recommended_controls: [C004, C007, C010, C013]
+
+  - id: T014
+    name: Human-AI Trust Manipulation
+    category: Trust & Safety
+    applies_to: [agentic_ai, mcp_enabled, multi_agent]
+    key_risk_indicators:
+      - Customer-facing agents with persuasive output capability
+      - Agents handling financial transactions or official communications
+      - No human-in-the-loop for high-impact actions
+      - Agent can send external communications as the organization
+      - Users trained to trust AI outputs without verification
+      - HITL reviewers overloaded, creating approval fatigue
+    recommended_controls: [C006, C013, C009, C007]
+
+controls:
+  - id: C001
+    name: Input Validation & Filtering
+  - id: C002
+    name: Output Validation & Handling
+  - id: C003
+    name: Access Control & Least Privilege
+  - id: C004
+    name: Supply Chain Security
+  - id: C005
+    name: Data Protection & Classification
+  - id: C006
+    name: Human Oversight & Approval Gates
+  - id: C007
+    name: Monitoring, Logging & Observability
+  - id: C008
+    name: Agent Governance & Boundaries
+  - id: C009
+    name: Testing & Adversarial Evaluation
+  - id: C010
+    name: Infrastructure Security
+  - id: C011
+    name: Model & Data Integrity
+  - id: C012
+    name: Rate Limiting & Resource Management
+  - id: C013
+    name: Transparency & AI Governance
+  - id: C014
+    name: Incident Response & Recovery

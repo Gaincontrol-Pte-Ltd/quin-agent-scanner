@@ -28,12 +28,32 @@ class ScanFinding:
 
 
 @dataclass
+class RiskIndicator:
+    """A single risk indicator grounded in the threat taxonomy."""
+    signal: str                          # KRI text from taxonomy
+    recommended_controls: list[str] = field(default_factory=list)  # e.g. ["C003: Access Control & Least Privilege"]
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "signal": self.signal,
+            "recommended_controls": self.recommended_controls,
+        }
+
+
+@dataclass
+class ClassificationResult:
+    """Result from the classification pass (Pass 1)."""
+    system_types: list[str] = field(default_factory=list)       # e.g. ["agentic_ai", "mcp_enabled"]
+    relevant_threats: list[str] = field(default_factory=list)    # e.g. ["T001", "T005", "T006"]
+
+
+@dataclass
 class AgentProfile:
     name: str
     agent_type: str                      # "supervisor" | "utility" | "worker" | "unknown"
     goal: str
     capabilities: list[str] = field(default_factory=list)
-    risk_signals: list[str] = field(default_factory=list)
+    risk_signals: list[RiskIndicator] = field(default_factory=list)
     skills: list[str] = field(default_factory=list)
     tools: list[str] = field(default_factory=list)
     source_file: str = ""
@@ -44,7 +64,7 @@ class AgentProfile:
             "agent_type": self.agent_type,
             "goal": self.goal,
             "capabilities": self.capabilities,
-            "risk_signals": self.risk_signals,
+            "risk_signals": [r.to_dict() if isinstance(r, RiskIndicator) else r for r in self.risk_signals],
             "skills": self.skills,
             "tools": self.tools,
             "source_file": self.source_file,
@@ -82,12 +102,16 @@ class InfraProfile:
 @dataclass
 class ToolUsage:
     tool_name: str
+    tool_type: str = "tool_definition"   # "tool_definition" | "external_service" | "skill" | "mcp_tool"
+    service_category: str = ""           # only for external_service: "web_search", "web_browsing", etc.
     source_file: str = ""
     line_number: int | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "tool_name": self.tool_name,
+            "tool_type": self.tool_type,
+            "service_category": self.service_category,
             "source_file": self.source_file,
             "line_number": self.line_number,
         }
@@ -101,6 +125,7 @@ class SynthesisResult:
     summary: str
     agents: list[AgentProfile] = field(default_factory=list)
     tool_usages: list[ToolUsage] = field(default_factory=list)
+    risk_signals: list[RiskIndicator] = field(default_factory=list)  # repo-level risks
     confidence_adjustment: float = 0.0   # -0.1 to +0.1, applied to static confidence
 
 
@@ -154,12 +179,13 @@ class ScanReport:
     is_ai_application: bool
     confidence: float
     capability_tags: list[str] = field(default_factory=list)
-    findings: list[ScanFinding] = field(default_factory=list)
+    artifacts: list[ScanFinding] = field(default_factory=list)
     # New synthesis fields
     framework: str = "unknown"
     summary: str = ""
     agents: list[AgentProfile] = field(default_factory=list)
     tool_usages: list[ToolUsage] = field(default_factory=list)
+    risk_signals: list[RiskIndicator] = field(default_factory=list)  # repo-level risks
     mcp_servers: list[MCPServer] = field(default_factory=list)
     infra: InfraProfile | None = None
     # Existing fields
@@ -177,9 +203,10 @@ class ScanReport:
             "summary": self.summary,
             "agents": [a.to_dict() for a in self.agents],
             "tool_usages": [t.to_dict() for t in self.tool_usages],
+            "risk_signals": [r.to_dict() for r in self.risk_signals],
             "mcp_servers": [m.to_dict() for m in self.mcp_servers],
             "infra": self.infra.to_dict() if self.infra else None,
-            "findings": [f.to_dict() for f in self.findings],
+            "artifacts": [f.to_dict() for f in self.artifacts],
             "model_usages": [m.to_dict() for m in self.model_usages],
             "metadata": self.metadata,
         }

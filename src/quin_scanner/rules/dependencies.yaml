@@ -26,6 +26,8 @@ python:
     capability_tags: [llm-api]
   - package: google-genai
     capability_tags: [llm-api]
+  - package: metagpt
+    capability_tags: [multi-agent, orchestration, tool-use]
   - package: crewai
     capability_tags: [multi-agent, orchestration]
   - package: autogen
@@ -136,6 +138,8 @@ nodejs:
     capability_tags: [llm-api]
   - package: llamaindex
     capability_tags: [rag, embeddings]
+  - package: openclaw
+    capability_tags: [llm-api, multi-agent, orchestration, tool-use]
 
 go:
   - package: github.com/sashabaranov/go-openai

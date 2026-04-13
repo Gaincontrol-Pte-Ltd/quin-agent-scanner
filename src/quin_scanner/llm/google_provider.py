@@ -25,6 +25,6 @@ class GoogleProvider(BaseLLMProvider):
         response = self._client.models.generate_content(
             model=self._model,
             contents=prompt,
-            config=types.GenerateContentConfig(temperature=0),
+            config=types.GenerateContentConfig(temperature=0, max_output_tokens=16384),
         )
         return response.text if response.text else "{}"

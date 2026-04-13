@@ -9,6 +9,50 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+#### Scanner Plugins (+2, now 13 total)
+- `tool_definition` — extracts named tool definitions from code via `@tool`, `@function_tool`, `@register_tool`, `@kernel_function`, `@register_function` decorators, `BaseTool` / `StructuredTool` class inheritance, tool registration calls (`register_tool()`, `server.tool()`), and Markdown tool-definition tables
+- `agent_instance` — extracts named agent instantiations from code (`Agent(name=...)`, `AssistantAgent`, `UserProxyAgent`, `ConversableAgent`, etc.) and YAML/JSON agent config files
+
+#### Risk Taxonomy & Classification
+- `risk_taxonomy.yaml` — structured threat catalog sourced from OWASP LLM Top 10, OWASP Agentic Top 10, OWASP MCP Top 10, MAESTRO, and Databricks DASF
+- `risk_taxonomy.py` — loader and query interface for the threat taxonomy
+- `classification_agent.py` — LLM Pass 1 that classifies system type (`standard_ai`, `agentic_ai`, `mcp_enabled`, `multi_agent`) and identifies relevant threats from the taxonomy
+- `RiskIndicator` dataclass — pairs a key risk indicator signal with its recommended controls
+- `ClassificationResult` dataclass — captures system types and relevant threat IDs
+- Repo-level `risk_signals` field on `SynthesisResult` and `ScanReport`
+
+#### External Service Detection
+- `tool_services.yaml` — maps high-signal packages to service categories: web search, web browsing, code execution, database access, file system, email, and more
+- `ToolUsage` now includes `tool_type` (tool_definition / external_service / skill / mcp_tool) and `service_category`
+
+#### Signal Groups
+- `signal_groups.yaml` — cross-scanner framework corroboration rules that boost confidence when multiple co-occurring signals appear (e.g. OpenClaw: `SOUL.md` + `AGENTS.md` + `openclaw.json`)
+
+#### HTML Report Output
+- `html_template.py` — self-contained HTML report template with embedded JS dashboard
+- `--format html` output option via `ReportGenerator.to_html()`
+
+#### Detection Rules (expanded)
+- New entries in `code_patterns.yaml`, `dependencies.yaml`, `file_markers.yaml`, `frameworks.yaml`, and `frameworks_lookup.yaml`
+
+### Changed
+- `findings` field renamed to `artifacts` in `ScanReport` output
+- `risk_signals` on `AgentProfile` changed from `list[str]` to `list[RiskIndicator]` (now includes recommended controls)
+- CLI help text and option descriptions overhauled for all scan commands
+- Orchestrator expanded with two-pass LLM pipeline (classification → synthesis)
+
+### Fixed
+- Removed compiled Python bytecache files (`.pyc`) from repository
+
+### Maintenance
+- Updated dependency versions in `pyproject.toml`
+- Updated scanner configuration defaults in `scanner-config.yaml`
+- PyPI publish workflow switched to OIDC authentication with `contents: read` permission
+- Updated project branding, repository URL, and company information in README
+- Removed testing documentation and references from project files
+
 ---
 
 ## [0.1.0] — 2026-03-31
