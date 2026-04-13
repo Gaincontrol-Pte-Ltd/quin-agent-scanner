@@ -5,9 +5,9 @@
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 
-Named after [Bao Qingtian](https://gaincontrol.ai/about) -- the incorruptible judge of the Song Dynasty who saw through every deception -- **Quin** is an open-source CLI tool by [Gaincontrol](https://gaincontrol.ai/) that scans any codebase to detect AI agents, extract system prompts, analyze intent, and produce compliance-ready reports.
+Named after [Bao Qingtian](https://gaincontrol.ai/about) -- the incorruptible judge of the Song Dynasty who saw through every deception -- **Quin** is an open-source CLI tool by [Gaincontrol](https://gaincontrol.ai/) that scans any codebase to detect AI agents, extract system prompts, classify risk, and produce compliance-ready reports.
 
-Point Quin at any repository, local or remote, and get a structured map of every AI agent, what it's instructed to do, and what risks it carries. No other open-source tool combines AI dependency detection, system prompt discovery, LLM-powered agent intent analysis, and model usage identification in a single scan.
+Point Quin at any repository, local or remote, and get a structured map of every AI agent, what it's instructed to do, and what risks it carries. Quin runs a two-pass LLM pipeline -- first classifying the system type and applicable threats, then synthesising agent profiles with taxonomy-grounded risk indicators and recommended controls. No other open-source tool combines AI dependency detection, system prompt discovery, tool and agent extraction, risk classification, and model usage identification in a single scan.
 
 Learn more at [gaincontrol.ai/quin](https://gaincontrol.ai/quin).
 
@@ -56,7 +56,7 @@ Edit `scanner-config.yaml` to match your provider:
 
 ```yaml
 llm:
-  provider: anthropic                  # openai | anthropic | google | ollama
+  provider: anthropic                  # openai | anthropic | google | ollama | openai-compatible
   model: claude-haiku-4-5-20251001     # see LLM Providers for options
   api_key_env: ANTHROPIC_API_KEY       # reads from your .env file
 ```
@@ -64,10 +64,10 @@ llm:
 ### 4. Run your first scan
 
 ```bash
-# Scan a local repository
-quin-scanner scan ./path/to/repo --config scanner-config.yaml --output json
+# Scan a local repository (default: HTML report in ./report/)
+quin-scanner scan ./path/to/repo --config scanner-config.yaml
 
-# Scan a GitHub repository
+# Scan a GitHub repository with JSON output
 quin-scanner scan https://github.com/org/repo --config scanner-config.yaml --output json
 
 # Scan all repos in a GitHub organization
@@ -111,6 +111,7 @@ uv run quin-scanner scan ./path/to/repo --config scanner-config.yaml --output js
 - [LLM Providers](#llm-providers)
 - [Output Format](#output-format)
 - [Scanners & Capability Tags](#scanners)
+- [Risk Taxonomy](#risk-taxonomy)
 - [Architecture](#architecture)
 - [Troubleshooting](#troubleshooting)
 - [Development Setup](#development-setup)
@@ -127,10 +128,15 @@ uv run quin-scanner scan ./path/to/repo --config scanner-config.yaml --output js
 - **Identifies the AI framework** — LangChain, CrewAI, Anthropic Agent SDK, AutoGen, LlamaIndex, and more
 - **Identifies LLM models** in use — including provider, model name, and primary/fallback routing patterns
 - **Discovers system prompts** from source code, YAML configs, Markdown, and template files (Jinja2, Mustache)
-- **Profiles each agent** using a single LLM synthesis call — name, type (supervisor/utility/worker), goal, capabilities, tools, skills, and risk signals
+- **Extracts tool definitions** — `@tool`, `@function_tool`, `@register_tool`, `@kernel_function` decorators, `BaseTool` class inheritance, registration calls, and Markdown tool tables
+- **Extracts agent instances** — `Agent(name=...)`, `AssistantAgent`, `UserProxyAgent`, `ConversableAgent`, and YAML/JSON agent config files
+- **Classifies system type** — determines whether the repo is standard AI, agentic AI, MCP-enabled, or multi-agent via a lightweight LLM classification pass
+- **Maps threats & controls** — identifies applicable threats from a taxonomy sourced from OWASP LLM Top 10, OWASP Agentic Top 10, OWASP MCP Top 10, MAESTRO, and Databricks DASF, with recommended controls per risk signal
+- **Profiles each agent** using an LLM synthesis call — name, type (supervisor/utility/worker), goal, capabilities, tools, skills, and taxonomy-grounded risk indicators
+- **Detects external services** — classifies tool dependencies by service category (web search, web browsing, code execution, vector database, communication, document processing, image generation, voice/audio)
 - **Detects MCP servers** — name, transport (stdio/http/sse), and source file
-- **Detects tool usage** — repo-wide tool and function references
 - **Detects deployment infrastructure** — Terraform, Kubernetes, and Docker Compose configurations
+- **Generates HTML reports** — self-contained HTML dashboard with embedded JavaScript, alongside JSON and YAML output
 - **Scans everywhere** — local folders, GitHub repo URLs, or an entire GitHub org
 
 ---
@@ -222,7 +228,7 @@ llm:
   api_key_env: ANTHROPIC_API_KEY       # reads the key from your .env file
 
 output:
-  format: json                         # json | yaml
+  format: html                         # html | json | yaml
 
 scanners:
   enabled:
@@ -237,6 +243,8 @@ scanners:
     - iac
     - ci
     - mcp
+    - agent_instance
+    - tool_definition
 ```
 
 Pass it to any command with `--config scanner-config.yaml`.
@@ -279,20 +287,21 @@ Create a token at [github.com/settings/tokens](https://github.com/settings/token
 
 ### How It Works
 
-The scan pipeline flows linearly through these stages:
+The scan pipeline flows through these stages:
 
 ```
 CLI → RepoAccessorFactory → FileIndex → ScanOrchestrator
          ↓                                      ↓
-  LocalRepoAccessor               ┌─────────────────────────┐
-  GitHubAPIAccessor               │  11 Scanner Plugins      │
-                                  │  + ModelIdentifier        │
-                                  │  + SynthesisAgent (LLM)  │
-                                  └─────────────────────────┘
+  LocalRepoAccessor               ┌──────────────────────────────┐
+  GitHubAPIAccessor               │  13 Scanner Plugins           │
+                                  │  + ModelIdentifier             │
+                                  │  + ClassificationAgent (LLM)  │  ← Pass 1
+                                  │  + SynthesisAgent (LLM)       │  ← Pass 2
+                                  └──────────────────────────────┘
                                               ↓
                                        ReportGenerator
                                               ↓
-                                      JSON / YAML output
+                                  HTML / JSON / YAML output
 ```
 
 1. The CLI parses arguments and resolves configuration (flags → config file → env vars)
@@ -300,8 +309,9 @@ CLI → RepoAccessorFactory → FileIndex → ScanOrchestrator
 3. `FileIndex` enumerates all files and builds a lookup structure (extension → paths, dir → paths)
 4. `ScanOrchestrator` runs all enabled scanner plugins in parallel, collects `ScanFinding` objects
 5. `ModelIdentifier` scans code and config files for LLM model name references
-6. `SynthesisAgent` sends a summary of all findings to an LLM for agent profiling (skipped if `--no-llm`)
-7. `ReportGenerator` serializes the final `ScanReport` to JSON or YAML
+6. **Pass 1 — Classification:** `ClassificationAgent` sends a compact evidence summary to an LLM, which classifies the system type (`standard_ai`, `agentic_ai`, `mcp_enabled`, `multi_agent`) and identifies relevant threat IDs from the risk taxonomy
+7. **Pass 2 — Synthesis:** `SynthesisAgent` receives the full scanner evidence plus the classification result and a filtered threat reference; it returns per-agent profiles with taxonomy-grounded risk indicators, tool usages with service categories, and a narrative summary
+8. `ReportGenerator` serializes the final `ScanReport` to HTML, JSON, or YAML
 
 ### Directory Structure
 
@@ -311,13 +321,15 @@ quin-agent-scanner/
 │   └── quin_scanner/
 │       ├── cli.py                    # click entry point — all commands defined here
 │       ├── config.py                 # ScannerConfig dataclass + loader
-│       ├── models.py                 # All data models (ScanFinding, ScanReport, ModelUsage, ...)
+│       ├── models.py                 # All data models (ScanFinding, ScanReport, RiskIndicator, ...)
 │       ├── orchestrator.py           # ScanOrchestrator — wires everything together
 │       ├── repo_accessor.py          # RepoAccessor ABC + LocalRepoAccessor + GitHubAPIAccessor
 │       ├── file_index.py             # FileIndex — fast glob matching over repo file tree
 │       ├── model_identifier.py       # ModelIdentifier — LLM model name detection
-│       ├── github_client.py          # GitHubClient — minimal REST API v3 (org/user repo listing, auto-detected)
-│       ├── report.py                 # ReportGenerator — JSON/YAML serialization
+│       ├── risk_taxonomy.py          # Loads and queries the risk taxonomy
+│       ├── html_template.py          # Self-contained HTML report template
+│       ├── github_client.py          # GitHubClient — minimal REST API v3 (org/user repo listing)
+│       ├── report.py                 # ReportGenerator — HTML/JSON/YAML serialization
 │       ├── scanners/
 │       │   ├── base.py               # BaseScanner ABC
 │       │   ├── dependency.py         # DependencyScanner
@@ -335,7 +347,8 @@ quin-agent-scanner/
 │       │   └── tool_definition_scanner.py # ToolDefinitionScanner
 │       ├── llm/
 │       │   ├── base.py               # BaseLLMProvider ABC
-│       │   ├── synthesis_agent.py    # SynthesisAgent — orchestrates the LLM call
+│       │   ├── classification_agent.py # ClassificationAgent — Pass 1 (system type + threats)
+│       │   ├── synthesis_agent.py    # SynthesisAgent — Pass 2 (agent profiles + risk signals)
 │       │   ├── analyzer.py           # LLMAnalyzer — prompt construction
 │       │   ├── openai_provider.py    # OpenAIProvider
 │       │   ├── anthropic_provider.py # AnthropicProvider
@@ -346,13 +359,16 @@ quin-agent-scanner/
 │           ├── dependencies.yaml     # AI package names per ecosystem
 │           ├── code_patterns.yaml    # Import/usage regex patterns per language
 │           ├── frameworks.yaml       # Framework config file names + confidence
+│           ├── frameworks_lookup.yaml # Extended framework lookup data
 │           ├── file_markers.yaml     # AI-related directory names
 │           ├── models.yaml           # LLM model registry for provider classification
 │           ├── prompt_signals.yaml   # Patterns for system prompt detection
+│           ├── risk_taxonomy.yaml    # Threat catalog (14 threats, 14 controls)
+│           ├── signal_groups.yaml    # Cross-scanner framework corroboration rules
+│           ├── tool_services.yaml    # Package-to-service-category mapping
 │           └── exclusions.yaml       # Paths/patterns to skip during scanning
 ├── scanner-config.yaml               # Default config (copy of scanner-config.example.yaml)
 ├── pyproject.toml                    # Project metadata + dependencies
-├── uv.lock                           # Locked dependency versions
 ├── .env.example                      # Environment variable template
 ├── .python-version                   # Pinned Python version for uv
 └── CONTRIBUTING.md                   # Contribution guidelines
@@ -388,12 +404,15 @@ Scanners are stateless. They receive a `RepoAccessor` (file I/O) and a `FileInde
 
 **`BaseLLMProvider` (ABC)**
 
-All LLM adapters implement a single method:
+All LLM adapters implement two methods:
 
 ```python
 class BaseLLMProvider(ABC):
     def analyze_prompt(self, system_prompt: str) -> AgentIntentSummary: ...
+    def generate(self, prompt: str) -> str: ...
 ```
+
+The `generate` method is used by both `ClassificationAgent` (Pass 1) and `SynthesisAgent` (Pass 2).
 
 **`FileIndex`**
 
@@ -414,9 +433,11 @@ All models are plain Python dataclasses with a `.to_dict()` method for serializa
 |---|---|
 | `ScanFinding` | A single detected signal from a scanner plugin |
 | `ModelUsage` | An identified LLM model reference (provider, model_name, source, file, line, role) |
-| `AgentIntentSummary` | LLM analysis result (framework, summary, agents, tool_usages) |
+| `ClassificationResult` | Pass 1 output — system types and relevant threat IDs |
+| `SynthesisResult` | Pass 2 output — framework, agents, tool usages, repo-level risk signals |
+| `RiskIndicator` | A risk signal paired with recommended controls from the threat taxonomy |
 | `AgentProfile` | Individual agent profile (name, type, goal, capabilities, tools, risk_signals) |
-| `ToolUsage` | Tool/function reference (tool_name, source_file, line_number) |
+| `ToolUsage` | Tool/function reference (tool_name, tool_type, service_category, source_file, line_number) |
 | `MCPServer` | MCP server config (name, transport, source_file) |
 | `InfraProfile` | Infrastructure profile (platform, details, source_files) |
 | `ScanReport` | Final output — aggregates all of the above |
@@ -425,24 +446,32 @@ All models are plain Python dataclasses with a `.to_dict()` method for serializa
 ### Detection Pipeline Detail
 
 ```
-ScanFinding  ←─── DependencyScanner      (requirements.txt, package.json, go.mod, ...)
-ScanFinding  ←─── CodePatternScanner     (import langchain, from anthropic import, ...)
-ScanFinding  ←─── ConfigScanner          (OPENAI_API_KEY=, ANTHROPIC_API_KEY=, ...)
-ScanFinding  ←─── FileStructureScanner   (agents/, prompts/, vector_store/, ...)
-ScanFinding  ←─── FrameworkMarkerScanner (langgraph.json, crew.yaml, .mcp.json, ...)
-ScanFinding  ←─── PromptDiscoveryScanner (system_prompt = "...", SYSTEM: ..., ...)
-ScanFinding  ←─── DockerfileScanner      (FROM langchain/..., pip install openai, ...)
-ScanFinding  ←─── JupyterScanner         (.ipynb cells with AI imports/prompts)
-ScanFinding  ←─── CIScanner             (GitHub Actions with OPENAI_API_KEY, ...)
-ScanFinding  ←─── IaCScanner            (Terraform aws_bedrock_*, k8s model-service, ...)
-ScanFinding  ←─── MCPScanner            (.mcp.json, claude_desktop_config.json, ...)
-ModelUsage   ←─── ModelIdentifier        (model="gpt-4o", model: claude-sonnet-4-6, ...)
+ScanFinding  ←─── DependencyScanner         (requirements.txt, package.json, go.mod, ...)
+ScanFinding  ←─── CodePatternScanner        (import langchain, from anthropic import, ...)
+ScanFinding  ←─── ConfigScanner             (OPENAI_API_KEY=, ANTHROPIC_API_KEY=, ...)
+ScanFinding  ←─── FileStructureScanner      (agents/, prompts/, vector_store/, ...)
+ScanFinding  ←─── FrameworkMarkerScanner    (langgraph.json, crew.yaml, .mcp.json, ...)
+ScanFinding  ←─── PromptDiscoveryScanner    (system_prompt = "...", SYSTEM: ..., ...)
+ScanFinding  ←─── DockerfileScanner         (FROM langchain/..., pip install openai, ...)
+ScanFinding  ←─── JupyterScanner            (.ipynb cells with AI imports/prompts)
+ScanFinding  ←─── CIScanner                (GitHub Actions with OPENAI_API_KEY, ...)
+ScanFinding  ←─── IaCScanner               (Terraform aws_bedrock_*, k8s model-service, ...)
+ScanFinding  ←─── MCPScanner               (.mcp.json, claude_desktop_config.json, ...)
+ScanFinding  ←─── AgentInstanceScanner      (Agent(name="..."), AssistantAgent(...), ...)
+ScanFinding  ←─── ToolDefinitionScanner     (@tool, @function_tool, BaseTool subclass, ...)
+ModelUsage   ←─── ModelIdentifier           (model="gpt-4o", model: claude-sonnet-4-6, ...)
                               │
                               ▼
-                    SynthesisAgent (single LLM call)
+              ClassificationAgent (Pass 1 — LLM call)
                               │
                               ▼
-              AgentIntentSummary (framework, agents[], summary)
+              ClassificationResult (system_types[], relevant_threats[])
+                              │
+                              ▼
+                SynthesisAgent (Pass 2 — LLM call)
+                              │
+                              ▼
+              SynthesisResult (framework, agents[], risk_signals[], tool_usages[])
 ```
 
 All scanner output is merged into a `ScanReport` by `ScanOrchestrator`:
@@ -463,9 +492,9 @@ Arguments:
   TARGET  Local path or GitHub URL (https://github.com/org/repo)
 
 Options:
-  -o, --output [json|yaml]             Output format (default: json)
+  -o, --output [json|yaml|html]        Output format (default: html)
   -f, --output-file PATH               Write output to a specific file
-  -d, --output-dir PATH                Write output to this directory (auto-names file)
+  -d, --output-dir PATH                Write output to this directory (default: ./report/)
   --llm-provider [openai|anthropic|google|ollama|openai-compatible]
                                        LLM provider for agent intent analysis
   --llm-model TEXT                     Override the default model for the provider
@@ -474,6 +503,7 @@ Options:
   --github-token TEXT                  GitHub PAT (overrides GITHUB_TOKEN env var)
   --branch TEXT                        Branch to scan (default: main)
   --no-llm                             Skip LLM analysis entirely (faster, no key needed)
+  --min-confidence FLOAT               Exclude artifacts below this confidence (0.0–1.0, default: 0.0)
   --config PATH                        Path to a scanner-config.yaml file
   -h, --help                           Show this message and exit
 ```
@@ -481,14 +511,14 @@ Options:
 **Examples:**
 
 ```bash
-# Scan a local repo using your config file
+# Scan a local repo (default: HTML report to ./report/)
 quin-scanner scan ./my-repo --config scanner-config.yaml
 
-# Scan with YAML output to a file
+# Scan with JSON output to a specific file
 quin-scanner scan ./my-repo \
   --config scanner-config.yaml \
-  --output yaml \
-  --output-file report.yaml
+  --output json \
+  --output-file report.json
 
 # Scan a GitHub repo on a specific branch
 quin-scanner scan https://github.com/org/repo \
@@ -512,7 +542,10 @@ quin-scanner scan ./my-repo \
   --llm-model my-fine-tuned-model \
   --llm-api-key dummy
 
-# Static-only scan (skips LLM agent intent analysis)
+# Filter out low-confidence artifacts
+quin-scanner scan ./my-repo --config scanner-config.yaml --min-confidence 0.5
+
+# Static-only scan (skips both LLM passes)
 quin-scanner scan ./my-repo --no-llm
 ```
 
@@ -525,8 +558,8 @@ Arguments:
   ORG_NAME  GitHub organization or user account name (auto-detected)
 
 Options:
-  -o, --output [json|yaml]             Output format (default: json)
-  --output-dir PATH                    Directory for per-repo reports (default: current dir)
+  -o, --output [json|yaml|html]        Output format (default: html)
+  --output-dir PATH                    Directory for per-repo reports (default: ./report/)
   --github-token TEXT                  GitHub PAT (or set GITHUB_TOKEN env var)
   --skip-archived                      Skip archived repositories
   --skip-forks                         Skip forked repositories
@@ -554,7 +587,7 @@ Arguments:
   TARGETS_FILE  File with one target per line (local path or GitHub URL)
 
 Options:
-  -o, --output [json|yaml]             Output format (default: json)
+  -o, --output [json|yaml|html]        Output format (default: html)
   --output-dir PATH                    Directory for per-repo reports
   --no-llm                             Skip LLM analysis
 ```
@@ -585,7 +618,7 @@ quin-scanner scan-batch targets.txt --config scanner-config.yaml --output-dir ./
 
 ## LLM Providers
 
-Quin Scanner uses a **single LLM synthesis call** after all 11 scanners complete. The prompt includes pre-summarised evidence from every scanner and asks the LLM to return: the detected framework, per-agent profiles (name, type, goal, capabilities, tools, risk signals), and a plain-English narrative summary.
+Quin Scanner uses a **two-pass LLM pipeline** after all 13 scanners complete. Pass 1 (classification) classifies the system type and identifies applicable threats. Pass 2 (synthesis) receives the full evidence plus the classification result and a filtered threat reference, returning per-agent profiles with taxonomy-grounded risk indicators, tool usages with service categories, and a narrative summary.
 
 Configure the LLM provider in your `scanner-config.yaml` or with `--llm-provider`:
 
@@ -606,18 +639,18 @@ ollama pull llama3.2
 quin-scanner scan ./my-repo --llm-provider ollama --llm-model llama3.2
 ```
 
-> **Static-only mode:** You can pass `--no-llm` to skip LLM analysis entirely. All 13 scanners still run and detect dependencies, prompts, MCP servers, infrastructure, and model usage. Only the synthesis step (agent profiles, framework detection, narrative summary) is skipped.
+> **Static-only mode:** You can pass `--no-llm` to skip both LLM passes entirely. All 13 scanners still run and detect dependencies, prompts, MCP servers, infrastructure, tool definitions, agent instances, and model usage. Only the classification and synthesis steps (system type, threat mapping, agent profiles, narrative summary) are skipped.
 
 ---
 
 ## Output Format
 
-The scan result is a single JSON (or YAML) document:
+Quin supports three output formats: **HTML** (default — a self-contained dashboard), **JSON**, and **YAML**. The underlying data structure is the same across all formats.
 
 ```json
 {
   "repo_path": "./my-repo",
-  "scan_timestamp": "2026-03-31T10:00:00+00:00",
+  "scan_timestamp": "2026-04-13T10:00:00+00:00",
   "is_ai_application": true,
   "confidence": 0.97,
   "capability_tags": ["llm-api", "rag", "tool-use", "orchestration"],
@@ -629,7 +662,16 @@ The scan result is a single JSON (or YAML) document:
       "agent_type": "utility",
       "goal": "Search the web and summarise research findings",
       "capabilities": ["web-search", "summarisation"],
-      "risk_signals": ["makes outbound HTTP requests", "returns user-facing content"],
+      "risk_signals": [
+        {
+          "signal": "Agent retrieves external content (RAG, web, email, documents)",
+          "recommended_controls": ["C001: Input Validation & Filtering", "C002: Output Validation & Handling"]
+        },
+        {
+          "signal": "Model output triggers downstream actions or tool calls",
+          "recommended_controls": ["C003: Access Control & Least Privilege", "C006: Human Oversight & Approval Gates"]
+        }
+      ],
       "skills": [],
       "tools": ["web_search", "summarise"],
       "source_file": "src/agents/researcher.py"
@@ -646,8 +688,14 @@ The scan result is a single JSON (or YAML) document:
     }
   ],
   "tool_usages": [
-    { "tool_name": "web_search", "source_file": "src/tools.py", "line_number": 12 },
-    { "tool_name": "summarise",  "source_file": "src/tools.py", "line_number": 28 }
+    { "tool_name": "web_search", "tool_type": "tool_definition", "service_category": "", "source_file": "src/tools.py", "line_number": 12 },
+    { "tool_name": "tavily",     "tool_type": "external_service", "service_category": "web_search", "source_file": "requirements.txt", "line_number": 5 }
+  ],
+  "risk_signals": [
+    {
+      "signal": "Agent retrieves external content (RAG, web, email, documents)",
+      "recommended_controls": ["C001: Input Validation & Filtering"]
+    }
   ],
   "mcp_servers": [
     { "name": "filesystem", "transport": "stdio", "source_file": ".mcp.json" }
@@ -667,7 +715,7 @@ The scan result is a single JSON (or YAML) document:
       "role": "primary"
     }
   ],
-  "findings": [
+  "artifacts": [
     {
       "scanner_name": "DependencyScanner",
       "category": "dependency",
@@ -702,19 +750,20 @@ The scan result is a single JSON (or YAML) document:
 | `capability_tags` | string[] | Union of all finding capability tags |
 | `framework` | string | Detected framework name (`"unknown"` if `--no-llm`) |
 | `summary` | string | LLM-generated narrative (`""` if `--no-llm`) |
-| `agents` | AgentProfile[] | Per-agent profiles (`[]` if `--no-llm`) |
-| `tool_usages` | ToolUsage[] | Repo-wide tool references (`[]` if `--no-llm`) |
+| `agents` | AgentProfile[] | Per-agent profiles with taxonomy-grounded risk signals (`[]` if `--no-llm`) |
+| `tool_usages` | ToolUsage[] | Tool references with type and service category (`[]` if `--no-llm`) |
+| `risk_signals` | RiskIndicator[] | Repo-level risk indicators with recommended controls (`[]` if `--no-llm`) |
 | `mcp_servers` | MCPServer[] | Detected MCP server configs |
 | `infra` | InfraProfile \| null | Infrastructure profile (Terraform, k8s, Docker) |
 | `model_usages` | ModelUsage[] | Identified LLM model references |
-| `findings` | ScanFinding[] | Raw scanner output |
+| `artifacts` | ScanFinding[] | Raw scanner output (formerly `findings`) |
 | `metadata` | object | Scan stats (duration, file count, finding counts) |
 
 ---
 
 ## Scanners
 
-Quin Scanner runs up to 13 plugins. Each plugin is independent, stateless, and receives the same `RepoAccessor` and `FileIndex`:
+Quin runs 13 scanner plugins. Each plugin is independent, stateless, and receives the same `RepoAccessor` and `FileIndex`:
 
 | Scanner | Files Examined | What It Detects |
 |---|---|---|
@@ -752,6 +801,66 @@ Every `ScanFinding` carries a `capability_tag` that describes what type of AI ca
 | `voice-ai` | Speech-to-text, text-to-speech, or voice agent capabilities |
 | `code-gen` | Code generation, code review, or execution |
 | `orchestration` | Agent orchestration frameworks (LangGraph, CrewAI, AutoGen, etc.) |
+
+---
+
+## Risk Taxonomy
+
+Quin's risk analysis is grounded in a structured threat taxonomy (`rules/risk_taxonomy.yaml`) sourced from industry standards:
+
+- **OWASP LLM Top 10**
+- **OWASP Agentic AI Top 10**
+- **OWASP MCP Top 10**
+- **MAESTRO** (Multi-Agent Environment Security Threat and Risk Operations)
+- **Databricks DASF** (Data and AI Security Framework)
+
+### System Types
+
+The classification pass determines which system types apply:
+
+| System Type | Description |
+|---|---|
+| `standard_ai` | Non-agentic LLM applications (chatbots, summarizers, content generators) |
+| `agentic_ai` | Autonomous agents with tool-use and decision-making capability |
+| `mcp_enabled` | Systems using MCP servers, MCP-based tool orchestration |
+| `multi_agent` | Multi-agent architectures with agent-to-agent communication |
+
+### Threats (14 categories)
+
+| ID | Threat | Applies To |
+|---|---|---|
+| T001 | Input Manipulation & Prompt Injection | All |
+| T002 | Sensitive Data Exposure | All |
+| T003 | AI Supply Chain Compromise | All |
+| T004 | Data & Model Integrity Poisoning | All |
+| T005 | Unsafe Output & Code Execution | All |
+| T006 | Excessive Permissions & Privilege Abuse | All |
+| T007 | AI Misinformation & Hallucination | All |
+| T008 | Resource Abuse & Service Disruption | All |
+| T009 | Inter-Agent Communication Compromise | multi_agent |
+| T010 | Cascading & Emergent Failures | agentic_ai, multi_agent |
+| T011 | Rogue Agent Behavior | agentic_ai, multi_agent |
+| T012 | Insufficient Observability & Audit | All |
+| T013 | Unmanaged AI Infrastructure | mcp_enabled, multi_agent |
+| T014 | Human-AI Trust Manipulation | agentic_ai, mcp_enabled, multi_agent |
+
+Each threat includes **key risk indicators** (KRIs) that the LLM matches against scanner evidence, and **recommended controls** (C001–C014) that appear in the report output.
+
+### External Service Categories
+
+Tool dependencies are classified into service categories via `rules/tool_services.yaml`:
+
+| Category | Example Packages |
+|---|---|
+| `web_search` | tavily, serper, duckduckgo-search, exa-py, brave-search |
+| `web_browsing` | playwright, selenium, puppeteer, crawl4ai, firecrawl |
+| `code_execution` | e2b, jupyter-client, modal |
+| `vector_database` | chromadb, pinecone, qdrant-client, faiss-cpu, pgvector |
+| `database` | neo4j, arangodb |
+| `communication` | slack-sdk, discord.py, twilio, sendgrid |
+| `document_processing` | pypdf, unstructured, python-docx, docling |
+| `image_generation` | stability-sdk, replicate, diffusers, fal-client |
+| `voice_audio` | elevenlabs, deepgram-sdk, assemblyai, coqui-tts |
 
 ---
 
@@ -957,9 +1066,12 @@ See [`docs/plans/2026-03-31-quin-agent-scanner-drop-plan.md`](docs/plans/2026-03
 | AI dependency detection | ✅ 5 ecosystems | ⚠️ Community rules | ✅ General only | ✅ General only | ❌ |
 | AI capability taxonomy | ✅ 12 tags | ❌ | ❌ | ❌ | ❌ |
 | System prompt discovery | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Tool & agent extraction | ✅ 13 scanners | ❌ | ❌ | ❌ | ❌ |
+| Risk classification (threat taxonomy) | ✅ 14 threats, 14 controls | ❌ | ❌ | ❌ | ❌ |
 | LLM model identification | ✅ + routing | ❌ | ❌ | ❌ | ❌ |
-| Agent intent analysis (LLM) | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Agent intent analysis (LLM) | ✅ 2-pass pipeline | ❌ | ❌ | ❌ | ❌ |
 | MCP server detection | ✅ | ❌ | ❌ | ❌ | ❌ |
+| HTML dashboard report | ✅ | ❌ | ✅ | ❌ | ❌ |
 | Org-level scanning | ✅ | ⚠️ Enterprise | ✅ | ✅ | ❌ |
 | No-config local run | ✅ | ⚠️ | ✅ | ✅ | ⚠️ |
 | Open source | ✅ Apache-2.0 | ✅ / ⚠️ | ✅ | ✅ | ✅ |
