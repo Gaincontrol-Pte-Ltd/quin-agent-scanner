@@ -105,7 +105,6 @@ _KNOWN_MODELS: dict[str, str] = {
     "claude-haiku": "anthropic",
     "claude-opus": "anthropic",
     "claude-sonnet-4-5": "anthropic",
-    "claude-sonnet-4-6": "anthropic",
     "claude-opus-4-5": "anthropic",
     # Bare aliases (e.g. model="opus" in @anthropic-ai/sdk and agent SDK)
     "opus": "anthropic",
