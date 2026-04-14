@@ -42,7 +42,7 @@ vuln_check:
   # Each reuses that provider's existing API key env var
   # (PERPLEXITY_API_KEY, GOOGLE_API_KEY, OPENAI_API_KEY, ANTHROPIC_API_KEY).
   # The VULN_SEARCH_PROVIDER env var takes precedence over this setting.
-  search_provider: none
+  search_provider: anthropic
 
   # Optional model override (provider-specific defaults are used otherwise):
   #   perplexity: sonar-pro
