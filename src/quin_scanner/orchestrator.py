@@ -16,10 +16,13 @@ from quin_scanner.models import (
     ClassificationResult,
     InfraProfile,
     MCPServer,
+    RiskIndicator,
     ScanFinding,
     ScanReport,
     SynthesisResult,
+    Vulnerability,
 )
+from quin_scanner.vuln_checker import VulnChecker
 from quin_scanner.repo_accessor import RepoAccessor
 from quin_scanner.scanners.base import BaseScanner
 from quin_scanner.scanners.ci_scanner import CIScanner
@@ -847,6 +850,16 @@ class ScanOrchestrator:
         if fw_version:
             pp_framework = f"{pp_framework} {fw_version}"
 
+        # Rule 1c: check detected framework+version against OSV.dev and
+        # (optionally) an LLM web search for CVEs / advisories. Failures
+        # degrade gracefully (warning only).
+        pp_vulnerabilities: list[Vulnerability] = []
+        if config.vuln_check_enabled and fw_version:
+            try:
+                pp_vulnerabilities = VulnChecker(config).check(pp_framework)
+            except Exception as _exc:  # noqa: BLE001
+                _log(f"vuln check failed for {pp_framework}: {_exc}")
+
         # Rule 2: agents — fall back to AgentInstanceScanner findings when empty
         pp_agents = synthesis.agents if synthesis else []
         if not pp_agents:
@@ -964,7 +977,18 @@ class ScanOrchestrator:
         # ── End post-processing ────────────────────────────────────────────────
 
         # Repo-level risk signals from synthesis
-        pp_risk_signals = synthesis.risk_signals if synthesis else []
+        pp_risk_signals = list(synthesis.risk_signals) if synthesis else []
+
+        # Promote critical / high vulnerabilities into the repo-level risk signals
+        # so they surface in the main risk narrative alongside other findings.
+        for _v in pp_vulnerabilities:
+            if _v.severity in ("critical", "high"):
+                _cve = _v.cve_id or "CVE-unknown"
+                _sum = (_v.summary or "")[:160]
+                pp_risk_signals.append(RiskIndicator(
+                    signal=f"{_v.severity.upper()} vulnerability {_cve}: {_sum}",
+                    recommended_controls=["C002: Patch & Dependency Hygiene"],
+                ))
 
         return ScanReport(
             repo_path=accessor.repo_identifier(),
@@ -979,6 +1003,7 @@ class ScanOrchestrator:
             risk_signals=pp_risk_signals,
             mcp_servers=mcp_servers,
             infra=infra,
+            vulnerabilities=pp_vulnerabilities,
             artifacts=all_findings,
             model_usages=model_usages,
             metadata=metadata,

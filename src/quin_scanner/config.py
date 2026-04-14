@@ -36,6 +36,12 @@ class ScannerConfig:
     no_llm: bool = False
     github_token: str | None = None
     openai_compatible_url: str | None = None
+    # Vulnerability check (OSV.dev + optional LLM web search)
+    vuln_check_enabled: bool = True
+    vuln_search_provider: str | None = None  # "perplexity" | "gemini" | "openai" | "anthropic" | None
+    vuln_search_model: str | None = None     # optional override (e.g. "sonar-pro")
+    vuln_osv_timeout: float = 10.0
+    vuln_web_timeout: float = 5.0
 
     @classmethod
     def load_from_file(cls, path: str) -> "ScannerConfig":
@@ -56,12 +62,24 @@ class ScannerConfig:
         if api_key is None:
             api_key = _resolve_api_key(provider)
 
+        vuln_cfg = data.get("vuln_check", {}) or {}
+        vuln_provider_yaml = vuln_cfg.get("search_provider")
+        # Env var always overrides YAML provider if set
+        vuln_provider = os.environ.get("VULN_SEARCH_PROVIDER") or vuln_provider_yaml
+        if vuln_provider == "none":
+            vuln_provider = None
+
         return cls(
             llm_provider=provider,
             llm_model=llm_cfg.get("model", "gpt-4o-mini"),
             llm_api_key=api_key,
             output_format=out_cfg.get("format", "html"),
             enabled_scanners=scan_cfg.get("enabled", list(_ALL_SCANNERS)),
+            vuln_check_enabled=bool(vuln_cfg.get("enabled", True)),
+            vuln_search_provider=vuln_provider,
+            vuln_search_model=vuln_cfg.get("search_model"),
+            vuln_osv_timeout=float(vuln_cfg.get("osv_timeout_seconds", 10.0)),
+            vuln_web_timeout=float(vuln_cfg.get("web_timeout_seconds", 5.0)),
         )
 
     _BOOL_FIELDS: frozenset[str] = frozenset({"no_llm"})
@@ -80,6 +98,11 @@ class ScannerConfig:
         # Resolve API key: CLI flag > env var > None
         if cfg.llm_api_key is None:
             cfg.llm_api_key = _resolve_api_key(cfg.llm_provider)
+        # Resolve vuln search provider from env if not set via CLI
+        if cfg.vuln_search_provider is None:
+            env_vsp = os.environ.get("VULN_SEARCH_PROVIDER")
+            if env_vsp and env_vsp != "none":
+                cfg.vuln_search_provider = env_vsp
         return cfg
 
     def provider_factory(self) -> BaseLLMProvider:
@@ -111,6 +134,8 @@ def _resolve_api_key(provider: str) -> str | None:
         "openai": "OPENAI_API_KEY",
         "anthropic": "ANTHROPIC_API_KEY",
         "google": "GOOGLE_API_KEY",
+        "gemini": "GOOGLE_API_KEY",
+        "perplexity": "PERPLEXITY_API_KEY",
         "ollama": None,
     }
     env_var = env_vars.get(provider)

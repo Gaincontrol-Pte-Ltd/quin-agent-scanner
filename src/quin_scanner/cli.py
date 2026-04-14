@@ -78,6 +78,12 @@ def cli() -> None:
 )
 @click.option("--github-token", default=None, envvar="GITHUB_TOKEN", help="GitHub PAT (overrides GITHUB_TOKEN env var)")
 @click.option("--openai-compatible-url", default=None, help="Base URL for OpenAI-compatible endpoints (vLLM, LiteLLM, Azure, etc.)")
+@click.option("--no-vuln-check", is_flag=True, default=False, help="Skip vulnerability lookup (OSV + web search)")
+@click.option(
+    "--vuln-search-provider", default=None, envvar="VULN_SEARCH_PROVIDER",
+    type=click.Choice(["perplexity", "gemini", "openai", "anthropic", "none"]),
+    help="LLM provider for web-based vulnerability search (reuses that provider's API key env var)",
+)
 def scan(
     target: str,
     output: str,
@@ -92,6 +98,8 @@ def scan(
     min_confidence: float,
     github_token: str | None,
     openai_compatible_url: str | None,
+    no_vuln_check: bool,
+    vuln_search_provider: str | None,
 ) -> None:
     """Scan a single repository for GenAI/Agentic AI indicators.
 
@@ -123,6 +131,12 @@ def scan(
             github_token=github_token,
             openai_compatible_url=openai_compatible_url,
         )
+
+    # CLI overrides for vulnerability checking
+    if no_vuln_check:
+        cfg.vuln_check_enabled = False
+    if vuln_search_provider:
+        cfg.vuln_search_provider = None if vuln_search_provider == "none" else vuln_search_provider
 
     # Create accessor
     try:
@@ -172,6 +186,12 @@ def scan(
 @click.option("--no-llm", is_flag=True, default=False, help="Skip LLM analysis entirely (faster, no API key needed)")
 @click.option("--github-token", default=None, envvar="GITHUB_TOKEN", help="GitHub PAT (overrides GITHUB_TOKEN env var)")
 @click.option("--openai-compatible-url", default=None, help="Base URL for OpenAI-compatible endpoints (vLLM, LiteLLM, Azure, etc.)")
+@click.option("--no-vuln-check", is_flag=True, default=False, help="Skip vulnerability lookup (OSV + web search)")
+@click.option(
+    "--vuln-search-provider", default=None, envvar="VULN_SEARCH_PROVIDER",
+    type=click.Choice(["perplexity", "gemini", "openai", "anthropic", "none"]),
+    help="LLM provider for web-based vulnerability search",
+)
 def scan_batch(
     targets_file: str,
     output: str,
@@ -183,6 +203,8 @@ def scan_batch(
     no_llm: bool,
     github_token: str | None,
     openai_compatible_url: str | None,
+    no_vuln_check: bool,
+    vuln_search_provider: str | None,
 ) -> None:
     """Scan multiple repositories listed in a file.
 
@@ -216,6 +238,11 @@ def scan_batch(
             openai_compatible_url=openai_compatible_url,
         )
 
+    if no_vuln_check:
+        base_cfg.vuln_check_enabled = False
+    if vuln_search_provider:
+        base_cfg.vuln_search_provider = None if vuln_search_provider == "none" else vuln_search_provider
+
     Path(output_dir).mkdir(parents=True, exist_ok=True)
 
     for target in targets:
@@ -246,6 +273,12 @@ def scan_batch(
 @click.option("--no-llm", is_flag=True, default=False, help="Skip LLM analysis entirely (faster, no API key needed)")
 @click.option("--config", "-c", type=click.Path(exists=True), default=None, help="Path to a scanner-config.yaml file")
 @click.option("--openai-compatible-url", default=None, help="Base URL for OpenAI-compatible endpoints (vLLM, LiteLLM, Azure, etc.)")
+@click.option("--no-vuln-check", is_flag=True, default=False, help="Skip vulnerability lookup (OSV + web search)")
+@click.option(
+    "--vuln-search-provider", default=None, envvar="VULN_SEARCH_PROVIDER",
+    type=click.Choice(["perplexity", "gemini", "openai", "anthropic", "none"]),
+    help="LLM provider for web-based vulnerability search",
+)
 @click.pass_context
 def scan_org(
     ctx: click.Context,
@@ -258,6 +291,8 @@ def scan_org(
     no_llm: bool,
     config: str | None,
     openai_compatible_url: str | None,
+    no_vuln_check: bool,
+    vuln_search_provider: str | None,
 ) -> None:
     """Scan all repositories in a GitHub organization or user account.
 
@@ -309,6 +344,11 @@ def scan_org(
             github_token=github_token,
             openai_compatible_url=openai_compatible_url,
         )
+
+    if no_vuln_check:
+        base_cfg.vuln_check_enabled = False
+    if vuln_search_provider:
+        base_cfg.vuln_search_provider = None if vuln_search_provider == "none" else vuln_search_provider
 
     Path(output_dir).mkdir(parents=True, exist_ok=True)
 
