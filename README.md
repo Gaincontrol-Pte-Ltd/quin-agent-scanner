@@ -56,6 +56,14 @@ ANTHROPIC_API_KEY=sk-ant-...
 
 # For scanning GitHub repos or orgs:
 GITHUB_TOKEN=ghp_...
+
+# Optional — vulnerability web search (OSV.dev is always on).
+# Reuses the chosen provider's API key; set PERPLEXITY_API_KEY if you pick perplexity.
+# VULN_SEARCH_PROVIDER=anthropic       # perplexity | gemini | openai | anthropic | none
+# PERPLEXITY_API_KEY=pplx-...
+
+# Optional — custom base URL for OpenAI-compatible endpoints (vLLM, LiteLLM, Azure, Ollama).
+# OPENAI_COMPATIBLE_URL=http://localhost:11434/v1
 ```
 
 ### 3. Set up `scanner-config.yaml`
@@ -74,6 +82,13 @@ llm:
 
 output:
   format: html                         # html | json | yaml
+
+vuln_check:
+  enabled: true                        # OSV.dev lookup for detected framework+version
+  search_provider: anthropic           # perplexity | gemini | openai | anthropic | none
+  # search_model: sonar-pro            # optional override; provider defaults otherwise
+  osv_timeout_seconds: 30
+  web_timeout_seconds: 60
 
 scanners:
   enabled:
@@ -103,6 +118,10 @@ quin-scanner scan https://github.com/org/repo --config scanner-config.yaml
 
 # Static-only scan (no LLM, no API key needed)
 quin-scanner scan ./path/to/repo --config scanner-config.yaml --no-llm
+
+# Skip the vulnerability lookup, or pick a different web-search provider
+quin-scanner scan ./path/to/repo --config scanner-config.yaml --no-vuln-check
+quin-scanner scan ./path/to/repo --config scanner-config.yaml --vuln-search-provider perplexity
 ```
 
 ---
@@ -218,17 +237,41 @@ uv run quin-scanner scan ./path/to/repo --config scanner-config.yaml
 
 ## How It Works
 
-Quin runs 13 scanner plugins in parallel, then uses a two-pass LLM pipeline:
+Quin runs 13 scanner plugins in parallel, looks up known CVEs for the detected framework, then uses a two-pass LLM pipeline:
 
 ```
-Repo  -->  13 Scanners (parallel)  -->  Pass 1: Classification  -->  Pass 2: Synthesis  -->  Report
+Repo  -->  13 Scanners (parallel)  -->  Vulnerability Lookup  -->  Pass 1: Classification  -->  Pass 2: Synthesis  -->  Report
 ```
 
 1. **13 scanners** detect dependencies, code patterns, configs, prompts, frameworks, tools, agents, MCP servers, Dockerfiles, notebooks, CI pipelines, and infrastructure-as-code
-2. **Pass 1 (Classification)** -- an LLM classifies the system type (`standard_ai`, `agentic_ai`, `mcp_enabled`, `multi_agent`) and identifies relevant threats from a taxonomy sourced from OWASP LLM Top 10, OWASP Agentic Top 10, OWASP MCP Top 10, MAESTRO, and Databricks DASF
-3. **Pass 2 (Synthesis)** -- a second LLM call profiles each agent with taxonomy-grounded risk indicators, maps tool usages to service categories, and generates a narrative summary
+2. **Vulnerability lookup** -- once the agentic framework and its base version are identified (e.g. `CrewAI 0.80.0`), the scanner queries OSV.dev and optionally an LLM with web search for recent advisories. Critical/high findings are promoted into risk signals
+3. **Pass 1 (Classification)** -- an LLM classifies the system type (`standard_ai`, `agentic_ai`, `mcp_enabled`, `multi_agent`) and identifies relevant threats from a taxonomy sourced from OWASP LLM Top 10, OWASP Agentic Top 10, OWASP MCP Top 10, MAESTRO, and Databricks DASF
+4. **Pass 2 (Synthesis)** -- a second LLM call profiles each agent with taxonomy-grounded risk indicators, maps tool usages to service categories, and generates a narrative summary
 
-Use `--no-llm` to skip both LLM passes and run scanners only.
+Use `--no-llm` to skip both LLM passes and run scanners only. Use `--no-vuln-check` to skip the vulnerability lookup.
+
+---
+
+## Vulnerability Lookup
+
+When a framework and its base version are detected, Quin checks for known CVEs and promotes critical/high-severity findings into the report's risk signals. All findings are listed under `vulnerabilities` in the report.
+
+| Source | When it runs | Auth |
+|---|---|---|
+| **OSV.dev** | Always, when `vuln_check.enabled: true` | None |
+| **LLM web search** | Optional, when `search_provider` is set | Reuses the chosen provider's API key |
+
+**Supported web-search providers** (each reuses its own existing API key env var):
+
+| Provider | Env var | Default model |
+|---|---|---|
+| `perplexity` | `PERPLEXITY_API_KEY` | `sonar-pro` |
+| `gemini` | `GOOGLE_API_KEY` | `gemini-2.0-flash` |
+| `openai` | `OPENAI_API_KEY` | `gpt-4o-mini` |
+| `anthropic` | `ANTHROPIC_API_KEY` | `claude-haiku-4-5-20251001` |
+| `none` | -- | disables web search (OSV still runs) |
+
+Precedence: `--vuln-search-provider` CLI flag > `VULN_SEARCH_PROVIDER` env var > `vuln_check.search_provider` in YAML.
 
 ---
 
