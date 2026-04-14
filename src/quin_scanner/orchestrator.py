@@ -439,6 +439,7 @@ def _load_frameworks_lookup() -> dict:
 
 
 _FRAMEWORKS_LOOKUP: dict | None = None
+_FRAMEWORK_TO_PACKAGES: dict[str, list[str]] | None = None
 
 
 def _detect_framework(findings: list) -> str:
@@ -517,6 +518,74 @@ def _detect_framework(findings: list) -> str:
                 return framework
 
     return "unknown"
+
+
+def _get_framework_to_packages() -> dict[str, list[str]]:
+    """Build and cache reverse map: framework name -> list of package names."""
+    global _FRAMEWORK_TO_PACKAGES, _FRAMEWORKS_LOOKUP
+    if _FRAMEWORK_TO_PACKAGES is not None:
+        return _FRAMEWORK_TO_PACKAGES
+    if _FRAMEWORKS_LOOKUP is None:
+        _FRAMEWORKS_LOOKUP = _load_frameworks_lookup()
+    reverse: dict[str, list[str]] = {}
+    for pkg, fw in _FRAMEWORKS_LOOKUP.get("packages", {}).items():
+        reverse.setdefault(fw, []).append(pkg.lower())
+    _FRAMEWORK_TO_PACKAGES = reverse
+    return _FRAMEWORK_TO_PACKAGES
+
+
+# Matches version specifiers where the operator indicates a lower bound or exact pin.
+# Skips versions after < / <= / != (upper bounds / exclusions).
+_VERSION_RE = re.compile(
+    r"(?:>=|==|~=|~|\^|=)\s*(\d+(?:\.\d+)*)"
+    r"|(?<![<!=])(?:^|[\s,\"])\s*(\d+\.\d+(?:\.\d+)*)"
+)
+
+
+def _parse_version_tuple(v: str) -> tuple[int, ...]:
+    return tuple(int(x) for x in v.split("."))
+
+
+def _extract_framework_version(
+    framework: str, findings: list,
+) -> str | None:
+    """Extract the highest base version of the framework from dependency findings.
+
+    Returns the version string (e.g. "0.80.0") or None if not found.
+    """
+    if framework == "unknown":
+        return None
+
+    pkg_names = _get_framework_to_packages().get(framework, [])
+    if not pkg_names:
+        return None
+
+    versions: list[str] = []
+    for f in findings:
+        if f.scanner_name != "DependencyScanner":
+            continue
+        text = f.match_text.lower().strip()
+        for pkg in pkg_names:
+            if not (
+                text == pkg
+                or text.startswith(pkg + "=")
+                or text.startswith(pkg + ">")
+                or text.startswith(pkg + "<")
+                or text.startswith(pkg + "~")
+                or text.startswith(pkg + "[")
+                or text.startswith(pkg + "^")
+                or text.startswith('"' + pkg + '"')
+                or text.startswith(pkg + " ")
+            ):
+                continue
+            for m in _VERSION_RE.finditer(f.match_text):
+                ver = m.group(1) or m.group(2)
+                if ver:
+                    versions.append(ver)
+
+    if not versions:
+        return None
+    return max(versions, key=_parse_version_tuple)
 
 
 def _sanitise_model_usages(
@@ -772,6 +841,11 @@ class ScanOrchestrator:
         pp_framework = (synthesis.framework if synthesis else "unknown") or "unknown"
         if pp_framework == "unknown" and framework_candidate != "unknown":
             pp_framework = framework_candidate
+
+        # Rule 1b: append framework version from dependency manifests
+        fw_version = _extract_framework_version(pp_framework, all_findings)
+        if fw_version:
+            pp_framework = f"{pp_framework} {fw_version}"
 
         # Rule 2: agents — fall back to AgentInstanceScanner findings when empty
         pp_agents = synthesis.agents if synthesis else []
