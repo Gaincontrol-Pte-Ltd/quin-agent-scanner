@@ -51,8 +51,8 @@ vuln_check:
   #   anthropic:  claude-haiku-4-5-20251001
   # search_model: sonar-pro
 
-  osv_timeout_seconds: 10
-  web_timeout_seconds: 5
+  osv_timeout_seconds: 30
+  web_timeout_seconds: 60
 
 # ── Scanners ─────────────────────────────────────────────────────────────────
 scanners:
