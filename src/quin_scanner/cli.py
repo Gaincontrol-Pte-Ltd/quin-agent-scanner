@@ -134,26 +134,28 @@ def scan(
     # Run scan
     try:
         report = ScanOrchestrator().run(accessor, cfg, verbose=sys.stderr.isatty())
+
+        # Apply confidence filter if requested
+        if min_confidence > 0.0:
+            report.artifacts = [f for f in report.artifacts if f.confidence >= min_confidence]
+
+        # Output
+        rendered = ReportGenerator.to_string(report, output)
+        if output_file:
+            ReportGenerator.write_to_file(report, output_file, output)
+            click.echo(f"Report written to {output_file}", err=True)
+        elif output_dir:
+            Path(output_dir).mkdir(parents=True, exist_ok=True)
+            out_path = Path(output_dir) / _output_filename(target, output)
+            ReportGenerator.write_to_file(report, str(out_path), output)
+            click.echo(f"Report written to {out_path}", err=True)
+        else:
+            click.echo(rendered)
     except Exception as e:
         click.echo(f"Scan failed: {e}", err=True)
         sys.exit(1)
-
-    # Apply confidence filter if requested
-    if min_confidence > 0.0:
-        report.artifacts = [f for f in report.artifacts if f.confidence >= min_confidence]
-
-    # Output
-    rendered = ReportGenerator.to_string(report, output)
-    if output_file:
-        ReportGenerator.write_to_file(report, output_file, output)
-        click.echo(f"Report written to {output_file}", err=True)
-    elif output_dir:
-        Path(output_dir).mkdir(parents=True, exist_ok=True)
-        out_path = Path(output_dir) / _output_filename(target, output)
-        ReportGenerator.write_to_file(report, str(out_path), output)
-        click.echo(f"Report written to {out_path}", err=True)
-    else:
-        click.echo(rendered)
+    finally:
+        accessor.cleanup()
 
 
 @cli.command("scan-batch")
@@ -218,12 +220,16 @@ def scan_batch(
 
     for target in targets:
         click.echo(f"Scanning {target} ...", err=True)
+        accessor = None
         try:
             accessor = RepoAccessorFactory.create(target, github_token=base_cfg.github_token)
             report = ScanOrchestrator().run(accessor, base_cfg, verbose=sys.stderr.isatty())
         except Exception as e:
             click.echo(f"  ERROR: {e}", err=True)
             continue
+        finally:
+            if accessor:
+                accessor.cleanup()
 
         out_path = Path(output_dir) / _output_filename(target, output)
         ReportGenerator.write_to_file(report, str(out_path), output)
@@ -309,6 +315,7 @@ def scan_org(
     reports = []
     for repo in repos:
         click.echo(f"Scanning {repo.full_name} ...", err=True)
+        accessor = None
         try:
             accessor = RepoAccessorFactory.create(
                 repo.clone_url,
@@ -319,6 +326,9 @@ def scan_org(
         except Exception as e:
             click.echo(f"  ERROR: {e}", err=True)
             continue
+        finally:
+            if accessor:
+                accessor.cleanup()
 
         out_path = Path(output_dir) / _output_filename(repo.full_name, output)
         ReportGenerator.write_to_file(report, str(out_path), output)
