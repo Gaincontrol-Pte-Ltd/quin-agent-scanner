@@ -112,7 +112,7 @@ tr:hover td{background:#fafbfc}
 .agent-card__goal{font-size:.85rem;color:#525252;margin-bottom:12px;line-height:1.6}
 .agent-card__section{margin-bottom:8px}
 .agent-card__label{font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--color-muted);margin-bottom:4px}
-.agent-card__footer{margin-top:12px;padding-top:10px;border-top:1px solid #f3f4f6;font-size:.75rem;color:var(--color-muted);font-family:var(--font-mono)}
+.agent-card__footer{margin-top:12px;padding-top:10px;border-top:1px solid #f3f4f6;font-size:.75rem;color:var(--color-muted);font-family:var(--font-mono);word-break:break-all;overflow-wrap:break-word}
 
 /* ---------- Section Headers ---------- */
 .section-title{font-size:1rem;font-weight:700;margin-bottom:12px;letter-spacing:-.01em}
@@ -563,7 +563,7 @@ window.__REPORT_DATA__ = {{REPORT_DATA_JSON}};
         html+='</div>';
       }
       if(a.source_file){
-        html+='<div class="agent-card__footer">'+esc(a.source_file)+'</div>';
+        html+='<div class="agent-card__footer" title="'+esc(a.source_file)+'">'+esc(truncPath(a.source_file,3))+'</div>';
       }
       html+='</div>';
     });
