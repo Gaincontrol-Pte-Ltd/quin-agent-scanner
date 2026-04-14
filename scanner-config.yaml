@@ -27,6 +27,33 @@ output:
   # Format: html | json | yaml
   format: html
 
+# ── Vulnerability lookup ─────────────────────────────────────────────────────
+# Once the agentic framework and its base version are detected
+# (e.g. "CrewAI 0.80.0"), the scanner checks known CVEs:
+#   1. OSV.dev — always on when `enabled: true`, no auth required
+#   2. LLM web search — optional, via `search_provider` below
+#
+# Critical/high-severity findings are promoted into risk_signals; all
+# findings are listed under `vulnerabilities` in the report.
+vuln_check:
+  enabled: true
+
+  # search_provider: perplexity | gemini | openai | anthropic | none
+  # Each reuses that provider's existing API key env var
+  # (PERPLEXITY_API_KEY, GOOGLE_API_KEY, OPENAI_API_KEY, ANTHROPIC_API_KEY).
+  # The VULN_SEARCH_PROVIDER env var takes precedence over this setting.
+  search_provider: anthropic
+
+  # Optional model override (provider-specific defaults are used otherwise):
+  #   perplexity: sonar-pro
+  #   gemini:     gemini-2.0-flash
+  #   openai:     gpt-4o-mini
+  #   anthropic:  claude-haiku-4-5-20251001
+  # search_model: sonar-pro
+
+  osv_timeout_seconds: 30
+  web_timeout_seconds: 60
+
 # ── Scanners ─────────────────────────────────────────────────────────────────
 scanners:
   # List only the scanners you want to run.

@@ -78,6 +78,12 @@ def cli() -> None:
 )
 @click.option("--github-token", default=None, envvar="GITHUB_TOKEN", help="GitHub PAT (overrides GITHUB_TOKEN env var)")
 @click.option("--openai-compatible-url", default=None, help="Base URL for OpenAI-compatible endpoints (vLLM, LiteLLM, Azure, etc.)")
+@click.option("--no-vuln-check", is_flag=True, default=False, help="Skip vulnerability lookup (OSV + web search)")
+@click.option(
+    "--vuln-search-provider", default=None, envvar="VULN_SEARCH_PROVIDER",
+    type=click.Choice(["perplexity", "gemini", "openai", "anthropic", "none"]),
+    help="LLM provider for web-based vulnerability search (reuses that provider's API key env var)",
+)
 def scan(
     target: str,
     output: str,
@@ -92,6 +98,8 @@ def scan(
     min_confidence: float,
     github_token: str | None,
     openai_compatible_url: str | None,
+    no_vuln_check: bool,
+    vuln_search_provider: str | None,
 ) -> None:
     """Scan a single repository for GenAI/Agentic AI indicators.
 
@@ -124,6 +132,12 @@ def scan(
             openai_compatible_url=openai_compatible_url,
         )
 
+    # CLI overrides for vulnerability checking
+    if no_vuln_check:
+        cfg.vuln_check_enabled = False
+    if vuln_search_provider:
+        cfg.vuln_search_provider = None if vuln_search_provider == "none" else vuln_search_provider
+
     # Create accessor
     try:
         accessor = RepoAccessorFactory.create(target, github_token=cfg.github_token, branch=branch)
@@ -134,26 +148,28 @@ def scan(
     # Run scan
     try:
         report = ScanOrchestrator().run(accessor, cfg, verbose=sys.stderr.isatty())
+
+        # Apply confidence filter if requested
+        if min_confidence > 0.0:
+            report.artifacts = [f for f in report.artifacts if f.confidence >= min_confidence]
+
+        # Output
+        rendered = ReportGenerator.to_string(report, output)
+        if output_file:
+            ReportGenerator.write_to_file(report, output_file, output)
+            click.echo(f"Report written to {output_file}", err=True)
+        elif output_dir:
+            Path(output_dir).mkdir(parents=True, exist_ok=True)
+            out_path = Path(output_dir) / _output_filename(target, output)
+            ReportGenerator.write_to_file(report, str(out_path), output)
+            click.echo(f"Report written to {out_path}", err=True)
+        else:
+            click.echo(rendered)
     except Exception as e:
         click.echo(f"Scan failed: {e}", err=True)
         sys.exit(1)
-
-    # Apply confidence filter if requested
-    if min_confidence > 0.0:
-        report.artifacts = [f for f in report.artifacts if f.confidence >= min_confidence]
-
-    # Output
-    rendered = ReportGenerator.to_string(report, output)
-    if output_file:
-        ReportGenerator.write_to_file(report, output_file, output)
-        click.echo(f"Report written to {output_file}", err=True)
-    elif output_dir:
-        Path(output_dir).mkdir(parents=True, exist_ok=True)
-        out_path = Path(output_dir) / _output_filename(target, output)
-        ReportGenerator.write_to_file(report, str(out_path), output)
-        click.echo(f"Report written to {out_path}", err=True)
-    else:
-        click.echo(rendered)
+    finally:
+        accessor.cleanup()
 
 
 @cli.command("scan-batch")
@@ -170,6 +186,12 @@ def scan(
 @click.option("--no-llm", is_flag=True, default=False, help="Skip LLM analysis entirely (faster, no API key needed)")
 @click.option("--github-token", default=None, envvar="GITHUB_TOKEN", help="GitHub PAT (overrides GITHUB_TOKEN env var)")
 @click.option("--openai-compatible-url", default=None, help="Base URL for OpenAI-compatible endpoints (vLLM, LiteLLM, Azure, etc.)")
+@click.option("--no-vuln-check", is_flag=True, default=False, help="Skip vulnerability lookup (OSV + web search)")
+@click.option(
+    "--vuln-search-provider", default=None, envvar="VULN_SEARCH_PROVIDER",
+    type=click.Choice(["perplexity", "gemini", "openai", "anthropic", "none"]),
+    help="LLM provider for web-based vulnerability search",
+)
 def scan_batch(
     targets_file: str,
     output: str,
@@ -181,6 +203,8 @@ def scan_batch(
     no_llm: bool,
     github_token: str | None,
     openai_compatible_url: str | None,
+    no_vuln_check: bool,
+    vuln_search_provider: str | None,
 ) -> None:
     """Scan multiple repositories listed in a file.
 
@@ -214,16 +238,25 @@ def scan_batch(
             openai_compatible_url=openai_compatible_url,
         )
 
+    if no_vuln_check:
+        base_cfg.vuln_check_enabled = False
+    if vuln_search_provider:
+        base_cfg.vuln_search_provider = None if vuln_search_provider == "none" else vuln_search_provider
+
     Path(output_dir).mkdir(parents=True, exist_ok=True)
 
     for target in targets:
         click.echo(f"Scanning {target} ...", err=True)
+        accessor = None
         try:
             accessor = RepoAccessorFactory.create(target, github_token=base_cfg.github_token)
             report = ScanOrchestrator().run(accessor, base_cfg, verbose=sys.stderr.isatty())
         except Exception as e:
             click.echo(f"  ERROR: {e}", err=True)
             continue
+        finally:
+            if accessor:
+                accessor.cleanup()
 
         out_path = Path(output_dir) / _output_filename(target, output)
         ReportGenerator.write_to_file(report, str(out_path), output)
@@ -240,6 +273,12 @@ def scan_batch(
 @click.option("--no-llm", is_flag=True, default=False, help="Skip LLM analysis entirely (faster, no API key needed)")
 @click.option("--config", "-c", type=click.Path(exists=True), default=None, help="Path to a scanner-config.yaml file")
 @click.option("--openai-compatible-url", default=None, help="Base URL for OpenAI-compatible endpoints (vLLM, LiteLLM, Azure, etc.)")
+@click.option("--no-vuln-check", is_flag=True, default=False, help="Skip vulnerability lookup (OSV + web search)")
+@click.option(
+    "--vuln-search-provider", default=None, envvar="VULN_SEARCH_PROVIDER",
+    type=click.Choice(["perplexity", "gemini", "openai", "anthropic", "none"]),
+    help="LLM provider for web-based vulnerability search",
+)
 @click.pass_context
 def scan_org(
     ctx: click.Context,
@@ -252,6 +291,8 @@ def scan_org(
     no_llm: bool,
     config: str | None,
     openai_compatible_url: str | None,
+    no_vuln_check: bool,
+    vuln_search_provider: str | None,
 ) -> None:
     """Scan all repositories in a GitHub organization or user account.
 
@@ -304,11 +345,17 @@ def scan_org(
             openai_compatible_url=openai_compatible_url,
         )
 
+    if no_vuln_check:
+        base_cfg.vuln_check_enabled = False
+    if vuln_search_provider:
+        base_cfg.vuln_search_provider = None if vuln_search_provider == "none" else vuln_search_provider
+
     Path(output_dir).mkdir(parents=True, exist_ok=True)
 
     reports = []
     for repo in repos:
         click.echo(f"Scanning {repo.full_name} ...", err=True)
+        accessor = None
         try:
             accessor = RepoAccessorFactory.create(
                 repo.clone_url,
@@ -319,6 +366,9 @@ def scan_org(
         except Exception as e:
             click.echo(f"  ERROR: {e}", err=True)
             continue
+        finally:
+            if accessor:
+                accessor.cleanup()
 
         out_path = Path(output_dir) / _output_filename(repo.full_name, output)
         ReportGenerator.write_to_file(report, str(out_path), output)

@@ -16,10 +16,13 @@ from quin_scanner.models import (
     ClassificationResult,
     InfraProfile,
     MCPServer,
+    RiskIndicator,
     ScanFinding,
     ScanReport,
     SynthesisResult,
+    Vulnerability,
 )
+from quin_scanner.vuln_checker import VulnChecker
 from quin_scanner.repo_accessor import RepoAccessor
 from quin_scanner.scanners.base import BaseScanner
 from quin_scanner.scanners.ci_scanner import CIScanner
@@ -61,6 +64,69 @@ def _progress_bar(label: str, current: int, total: int) -> None:
         if current == total:
             sys.stderr.write("\n")
             sys.stderr.flush()
+
+
+def _progress_bar_pct(label: str, pct: int, *, done: bool = False) -> None:
+    """Render an in-place percentage progress bar on stderr (no fraction suffix)."""
+    width = 25
+    pct = max(0, min(100, pct))
+    filled = int(pct / 100 * width)
+    bar = "█" * filled + "░" * (width - filled)
+    line = f"\r  {label}  [{bar}] {pct:3d}%"
+    with _print_lock:
+        sys.stderr.write(line)
+        sys.stderr.flush()
+        if done:
+            sys.stderr.write("\n")
+            sys.stderr.flush()
+
+
+def _run_with_animated_progress(
+    label: str,
+    func,
+    *,
+    expected_seconds: float,
+    verbose: bool,
+    tick_seconds: float = 0.15,
+):
+    """Run *func* in a background thread while animating a time-based
+    percentage bar on the main thread.
+
+    The bar fills based on elapsed / expected_seconds, capped at 95% until
+    the underlying call actually completes — then snaps to 100%. If the call
+    finishes quickly, the bar jumps to 100% right away. If it takes longer
+    than expected, the bar holds at 95% so it never looks stuck past done.
+    """
+    holder: dict = {}
+
+    def _target() -> None:
+        try:
+            holder["value"] = func()
+        except Exception as exc:  # noqa: BLE001
+            holder["error"] = exc
+
+    thread = threading.Thread(target=_target, daemon=True)
+    thread.start()
+
+    if not verbose:
+        thread.join()
+        if "error" in holder:
+            raise holder["error"]
+        return holder.get("value")
+
+    start = time.monotonic()
+    expected = max(0.1, float(expected_seconds))
+    _progress_bar_pct(label, 0)
+    while thread.is_alive():
+        elapsed = time.monotonic() - start
+        pct = min(int(elapsed / expected * 100), 95)
+        _progress_bar_pct(label, pct)
+        thread.join(timeout=tick_seconds)
+    _progress_bar_pct(label, 100, done=True)
+
+    if "error" in holder:
+        raise holder["error"]
+    return holder.get("value")
 
 _SCANNER_REGISTRY: dict[str, type[BaseScanner]] = {
     "dependency": DependencyScanner,
@@ -439,6 +505,7 @@ def _load_frameworks_lookup() -> dict:
 
 
 _FRAMEWORKS_LOOKUP: dict | None = None
+_FRAMEWORK_TO_PACKAGES: dict[str, list[str]] | None = None
 
 
 def _detect_framework(findings: list) -> str:
@@ -517,6 +584,74 @@ def _detect_framework(findings: list) -> str:
                 return framework
 
     return "unknown"
+
+
+def _get_framework_to_packages() -> dict[str, list[str]]:
+    """Build and cache reverse map: framework name -> list of package names."""
+    global _FRAMEWORK_TO_PACKAGES, _FRAMEWORKS_LOOKUP
+    if _FRAMEWORK_TO_PACKAGES is not None:
+        return _FRAMEWORK_TO_PACKAGES
+    if _FRAMEWORKS_LOOKUP is None:
+        _FRAMEWORKS_LOOKUP = _load_frameworks_lookup()
+    reverse: dict[str, list[str]] = {}
+    for pkg, fw in _FRAMEWORKS_LOOKUP.get("packages", {}).items():
+        reverse.setdefault(fw, []).append(pkg.lower())
+    _FRAMEWORK_TO_PACKAGES = reverse
+    return _FRAMEWORK_TO_PACKAGES
+
+
+# Matches version specifiers where the operator indicates a lower bound or exact pin.
+# Skips versions after < / <= / != (upper bounds / exclusions).
+_VERSION_RE = re.compile(
+    r"(?:>=|==|~=|~|\^|=)\s*(\d+(?:\.\d+)*)"
+    r"|(?<![<!=])(?:^|[\s,\"])\s*(\d+\.\d+(?:\.\d+)*)"
+)
+
+
+def _parse_version_tuple(v: str) -> tuple[int, ...]:
+    return tuple(int(x) for x in v.split("."))
+
+
+def _extract_framework_version(
+    framework: str, findings: list,
+) -> str | None:
+    """Extract the highest base version of the framework from dependency findings.
+
+    Returns the version string (e.g. "0.80.0") or None if not found.
+    """
+    if framework == "unknown":
+        return None
+
+    pkg_names = _get_framework_to_packages().get(framework, [])
+    if not pkg_names:
+        return None
+
+    versions: list[str] = []
+    for f in findings:
+        if f.scanner_name != "DependencyScanner":
+            continue
+        text = f.match_text.lower().strip()
+        for pkg in pkg_names:
+            if not (
+                text == pkg
+                or text.startswith(pkg + "=")
+                or text.startswith(pkg + ">")
+                or text.startswith(pkg + "<")
+                or text.startswith(pkg + "~")
+                or text.startswith(pkg + "[")
+                or text.startswith(pkg + "^")
+                or text.startswith('"' + pkg + '"')
+                or text.startswith(pkg + " ")
+            ):
+                continue
+            for m in _VERSION_RE.finditer(f.match_text):
+                ver = m.group(1) or m.group(2)
+                if ver:
+                    versions.append(ver)
+
+    if not versions:
+        return None
+    return max(versions, key=_parse_version_tuple)
 
 
 def _sanitise_model_usages(
@@ -773,6 +908,39 @@ class ScanOrchestrator:
         if pp_framework == "unknown" and framework_candidate != "unknown":
             pp_framework = framework_candidate
 
+        # Rule 1b: append framework version from dependency manifests
+        fw_version = _extract_framework_version(pp_framework, all_findings)
+        if fw_version:
+            pp_framework = f"{pp_framework} {fw_version}"
+
+        # Rule 1c: check detected framework+version against OSV.dev and
+        # (optionally) an LLM web search for CVEs / advisories. Failures
+        # degrade gracefully (warning only).
+        pp_vulnerabilities: list[Vulnerability] = []
+        if config.vuln_check_enabled and fw_version:
+            if verbose:
+                has_web = bool(config.vuln_search_provider)
+                sources = "OSV.dev + web search" if has_web else "OSV.dev"
+                _log(f"\nChecking vulnerabilities ({sources}) for {pp_framework}...")
+            # Rough expected wall-clock: OSV is typically fast (<1s); web
+            # search usually 2–4s. Use half the configured timeouts so the
+            # bar fills at a realistic pace for typical responses.
+            expected_seconds = config.vuln_osv_timeout / 2
+            if config.vuln_search_provider:
+                expected_seconds += config.vuln_web_timeout / 2
+            try:
+                pp_vulnerabilities = _run_with_animated_progress(
+                    "Vuln check ",
+                    lambda: VulnChecker(config).check(pp_framework),
+                    expected_seconds=expected_seconds,
+                    verbose=verbose,
+                ) or []
+                if verbose:
+                    n = len(pp_vulnerabilities)
+                    _log(f"  {n} vulnerabilit{'y' if n == 1 else 'ies'} found")
+            except Exception as _exc:  # noqa: BLE001
+                _log(f"vuln check failed for {pp_framework}: {_exc}")
+
         # Rule 2: agents — fall back to AgentInstanceScanner findings when empty
         pp_agents = synthesis.agents if synthesis else []
         if not pp_agents:
@@ -890,7 +1058,18 @@ class ScanOrchestrator:
         # ── End post-processing ────────────────────────────────────────────────
 
         # Repo-level risk signals from synthesis
-        pp_risk_signals = synthesis.risk_signals if synthesis else []
+        pp_risk_signals = list(synthesis.risk_signals) if synthesis else []
+
+        # Promote critical / high vulnerabilities into the repo-level risk signals
+        # so they surface in the main risk narrative alongside other findings.
+        for _v in pp_vulnerabilities:
+            if _v.severity in ("critical", "high"):
+                _cve = _v.cve_id or "CVE-unknown"
+                _sum = (_v.summary or "")[:160]
+                pp_risk_signals.append(RiskIndicator(
+                    signal=f"{_v.severity.upper()} vulnerability {_cve}: {_sum}",
+                    recommended_controls=["C002: Patch & Dependency Hygiene"],
+                ))
 
         return ScanReport(
             repo_path=accessor.repo_identifier(),
@@ -905,6 +1084,7 @@ class ScanOrchestrator:
             risk_signals=pp_risk_signals,
             mcp_servers=mcp_servers,
             infra=infra,
+            vulnerabilities=pp_vulnerabilities,
             artifacts=all_findings,
             model_usages=model_usages,
             metadata=metadata,

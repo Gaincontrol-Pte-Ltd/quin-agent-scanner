@@ -117,6 +117,9 @@ class RepoAccessor(ABC):
         """Return a string identifying this repo (e.g. absolute path or owner/repo)."""
         ...
 
+    def cleanup(self) -> None:
+        """Release resources (e.g. temp directories). No-op by default."""
+
 
 class LocalRepoAccessor(RepoAccessor):
     """Reads files directly from the local filesystem."""

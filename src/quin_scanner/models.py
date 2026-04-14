@@ -173,6 +173,31 @@ class ModelUsage:
 
 
 @dataclass
+class Vulnerability:
+    """A known vulnerability affecting the detected framework+version."""
+    cve_id: str | None                       # "CVE-2024-1234" or GHSA-... or None
+    severity: str                            # "critical" | "high" | "medium" | "low" | "unknown"
+    cvss_score: float | None                 # 0.0–10.0
+    published: str | None                    # ISO date string
+    summary: str                             # short human description
+    source: str                              # "osv" | "web:perplexity" | "web:gemini" | ...
+    source_url: str | None                   # canonical advisory URL
+    affected_versions: str | None = None     # e.g. ">=0.80.0,<0.90.0"
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "cve_id": self.cve_id,
+            "severity": self.severity,
+            "cvss_score": self.cvss_score,
+            "published": self.published,
+            "summary": self.summary,
+            "source": self.source,
+            "source_url": self.source_url,
+            "affected_versions": self.affected_versions,
+        }
+
+
+@dataclass
 class ScanReport:
     repo_path: str
     scan_timestamp: str
@@ -188,6 +213,7 @@ class ScanReport:
     risk_signals: list[RiskIndicator] = field(default_factory=list)  # repo-level risks
     mcp_servers: list[MCPServer] = field(default_factory=list)
     infra: InfraProfile | None = None
+    vulnerabilities: list[Vulnerability] = field(default_factory=list)
     # Existing fields
     model_usages: list[ModelUsage] = field(default_factory=list)
     metadata: dict[str, Any] = field(default_factory=dict)
@@ -206,6 +232,7 @@ class ScanReport:
             "risk_signals": [r.to_dict() for r in self.risk_signals],
             "mcp_servers": [m.to_dict() for m in self.mcp_servers],
             "infra": self.infra.to_dict() if self.infra else None,
+            "vulnerabilities": [v.to_dict() for v in self.vulnerabilities],
             "artifacts": [f.to_dict() for f in self.artifacts],
             "model_usages": [m.to_dict() for m in self.model_usages],
             "metadata": self.metadata,

@@ -52,3 +52,57 @@ file_markers:
   .mcp.json: "MCP"
   langgraph.json: "LangGraph"
   openclaw.json: "OpenClaw"
+
+# Framework → (OSV ecosystem, canonical package name for queries)
+# Used by VulnChecker to query OSV.dev. Ecosystems follow OSV conventions:
+# https://ossf.github.io/osv-schema/#affectedpackage-field
+# Frameworks not listed here are skipped for OSV lookup (web search may still run).
+ecosystems:
+  CrewAI:
+    ecosystem: "PyPI"
+    package: "crewai"
+  LangChain:
+    ecosystem: "PyPI"
+    package: "langchain"
+  LangGraph:
+    ecosystem: "PyPI"
+    package: "langgraph"
+  LlamaIndex:
+    ecosystem: "PyPI"
+    package: "llama-index"
+  Haystack:
+    ecosystem: "PyPI"
+    package: "haystack-ai"
+  AutoGen:
+    ecosystem: "PyPI"
+    package: "autogen-agentchat"
+  MetaGPT:
+    ecosystem: "PyPI"
+    package: "metagpt"
+  "Semantic Kernel":
+    ecosystem: "PyPI"
+    package: "semantic-kernel"
+  PromptFlow:
+    ecosystem: "PyPI"
+    package: "promptflow"
+  "OpenAI Agents SDK":
+    ecosystem: "PyPI"
+    package: "openai-agents"
+  "Google ADK":
+    ecosystem: "PyPI"
+    package: "google-adk"
+  MCP:
+    ecosystem: "PyPI"
+    package: "mcp"
+  Dify:
+    ecosystem: "PyPI"
+    package: "dify"
+  OpenClaw:
+    ecosystem: "PyPI"
+    package: "openclaw"
+  "Vercel AI SDK":
+    ecosystem: "npm"
+    package: "ai"
+  Flowise:
+    ecosystem: "npm"
+    package: "flowise"

@@ -112,10 +112,26 @@ tr:hover td{background:#fafbfc}
 .agent-card__goal{font-size:.85rem;color:#525252;margin-bottom:12px;line-height:1.6}
 .agent-card__section{margin-bottom:8px}
 .agent-card__label{font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--color-muted);margin-bottom:4px}
-.agent-card__footer{margin-top:12px;padding-top:10px;border-top:1px solid #f3f4f6;font-size:.75rem;color:var(--color-muted);font-family:var(--font-mono)}
+.agent-card__footer{margin-top:12px;padding-top:10px;border-top:1px solid #f3f4f6;font-size:.75rem;color:var(--color-muted);font-family:var(--font-mono);word-break:break-all;overflow-wrap:break-word}
 
 /* ---------- Section Headers ---------- */
 .section-title{font-size:1rem;font-weight:700;margin-bottom:12px;letter-spacing:-.01em}
+.vuln-card{border:1px solid var(--color-border);border-left:4px solid var(--color-muted);border-radius:var(--radius-md);padding:12px 14px;margin-bottom:10px;background:var(--color-surface)}
+.vuln-card--critical{border-left-color:#b91c1c;background:#fef2f2}
+.vuln-card--high{border-left-color:#dc2626;background:#fef2f2}
+.vuln-card--medium{border-left-color:#d97706;background:#fffbeb}
+.vuln-card--low{border-left-color:#65a30d;background:#f7fee7}
+.vuln-card__head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px}
+.vuln-card__id{font-family:var(--font-mono);font-weight:700;font-size:.85rem}
+.vuln-card__sev{font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:2px 7px;border-radius:4px;background:#e5e7eb;color:#111827}
+.vuln-card__sev--critical{background:#b91c1c;color:#fff}
+.vuln-card__sev--high{background:#dc2626;color:#fff}
+.vuln-card__sev--medium{background:#d97706;color:#fff}
+.vuln-card__sev--low{background:#65a30d;color:#fff}
+.vuln-card__score{font-size:.75rem;color:var(--color-muted);font-family:var(--font-mono)}
+.vuln-card__summary{font-size:.85rem;color:#374151;line-height:1.5;margin-top:4px;word-break:break-word}
+.vuln-card__meta{font-size:.72rem;color:var(--color-muted);margin-top:6px}
+.vuln-card__meta a{color:var(--color-muted);text-decoration:underline}
 .section-gap{margin-top:28px}
 
 /* ---------- Infra ---------- */
@@ -166,6 +182,9 @@ tr:hover td{background:#fafbfc}
 
   <!-- Repo-level Risk Signals -->
   <div id="repo-risks"></div>
+
+  <!-- Known Vulnerabilities (framework+version CVE lookup) -->
+  <div id="vulnerabilities"></div>
 
   <!-- Tab Bar -->
   <div class="tab-bar" id="tab-bar"></div>
@@ -323,6 +342,51 @@ window.__REPORT_DATA__ = {{REPORT_DATA_JSON}};
     html+=renderRiskSignals(signals);
     html+='</div>';
     $("repo-risks").innerHTML=html;
+  })();
+
+  /* ---- Known Vulnerabilities (framework+version) ---- */
+  (function renderVulnerabilities(){
+    var vulns=D.vulnerabilities||[];
+    if(!vulns.length){$("vulnerabilities").style.display="none";return}
+    var counts={critical:0,high:0,medium:0,low:0,unknown:0};
+    vulns.forEach(function(v){var s=v.severity||"unknown";if(counts[s]===undefined)counts.unknown++;else counts[s]++});
+    var subtitleParts=[];
+    ["critical","high","medium","low","unknown"].forEach(function(k){
+      if(counts[k]>0) subtitleParts.push(counts[k]+" "+k);
+    });
+    var html='<div style="margin:1.4rem 0">';
+    html+='<div style="display:flex;align-items:baseline;gap:10px;margin-bottom:.6rem">';
+    html+='<div style="font-size:.95rem;font-weight:700">Known Vulnerabilities</div>';
+    html+='<div style="font-size:.75rem;color:var(--color-muted)">'+esc(subtitleParts.join(" &middot; "))+'</div>';
+    html+='</div>';
+    vulns.forEach(function(v){
+      var sev=(v.severity||"unknown").toLowerCase();
+      var sevClass=(sev==="critical"||sev==="high"||sev==="medium"||sev==="low")?sev:"unknown";
+      html+='<div class="vuln-card vuln-card--'+esc(sevClass)+'">';
+      html+='<div class="vuln-card__head">';
+      var idText=v.cve_id||"(no CVE id)";
+      if(v.source_url){
+        html+='<a class="vuln-card__id" href="'+esc(v.source_url)+'" target="_blank" rel="noopener">'+esc(idText)+'</a>';
+      }else{
+        html+='<span class="vuln-card__id">'+esc(idText)+'</span>';
+      }
+      html+='<span class="vuln-card__sev vuln-card__sev--'+esc(sevClass)+'">'+esc(sev)+'</span>';
+      if(v.cvss_score!==null&&v.cvss_score!==undefined){
+        html+='<span class="vuln-card__score">CVSS '+esc(String(v.cvss_score))+'</span>';
+      }
+      html+='</div>';
+      if(v.summary) html+='<div class="vuln-card__summary">'+esc(v.summary)+'</div>';
+      var metaBits=[];
+      if(v.published) metaBits.push("Published "+esc(v.published));
+      if(v.affected_versions) metaBits.push("Affected: "+esc(v.affected_versions));
+      if(v.source) metaBits.push("Source: "+esc(v.source));
+      if(metaBits.length){
+        html+='<div class="vuln-card__meta">'+metaBits.join(" &middot; ")+'</div>';
+      }
+      html+='</div>';
+    });
+    html+='</div>';
+    $("vulnerabilities").innerHTML=html;
   })();
 
   /* ---- Tabs ---- */
@@ -563,7 +627,7 @@ window.__REPORT_DATA__ = {{REPORT_DATA_JSON}};
         html+='</div>';
       }
       if(a.source_file){
-        html+='<div class="agent-card__footer">'+esc(a.source_file)+'</div>';
+        html+='<div class="agent-card__footer" title="'+esc(a.source_file)+'">'+esc(truncPath(a.source_file,3))+'</div>';
       }
       html+='</div>';
     });
