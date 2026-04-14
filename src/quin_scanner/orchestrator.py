@@ -65,6 +65,69 @@ def _progress_bar(label: str, current: int, total: int) -> None:
             sys.stderr.write("\n")
             sys.stderr.flush()
 
+
+def _progress_bar_pct(label: str, pct: int, *, done: bool = False) -> None:
+    """Render an in-place percentage progress bar on stderr (no fraction suffix)."""
+    width = 25
+    pct = max(0, min(100, pct))
+    filled = int(pct / 100 * width)
+    bar = "█" * filled + "░" * (width - filled)
+    line = f"\r  {label}  [{bar}] {pct:3d}%"
+    with _print_lock:
+        sys.stderr.write(line)
+        sys.stderr.flush()
+        if done:
+            sys.stderr.write("\n")
+            sys.stderr.flush()
+
+
+def _run_with_animated_progress(
+    label: str,
+    func,
+    *,
+    expected_seconds: float,
+    verbose: bool,
+    tick_seconds: float = 0.15,
+):
+    """Run *func* in a background thread while animating a time-based
+    percentage bar on the main thread.
+
+    The bar fills based on elapsed / expected_seconds, capped at 95% until
+    the underlying call actually completes — then snaps to 100%. If the call
+    finishes quickly, the bar jumps to 100% right away. If it takes longer
+    than expected, the bar holds at 95% so it never looks stuck past done.
+    """
+    holder: dict = {}
+
+    def _target() -> None:
+        try:
+            holder["value"] = func()
+        except Exception as exc:  # noqa: BLE001
+            holder["error"] = exc
+
+    thread = threading.Thread(target=_target, daemon=True)
+    thread.start()
+
+    if not verbose:
+        thread.join()
+        if "error" in holder:
+            raise holder["error"]
+        return holder.get("value")
+
+    start = time.monotonic()
+    expected = max(0.1, float(expected_seconds))
+    _progress_bar_pct(label, 0)
+    while thread.is_alive():
+        elapsed = time.monotonic() - start
+        pct = min(int(elapsed / expected * 100), 95)
+        _progress_bar_pct(label, pct)
+        thread.join(timeout=tick_seconds)
+    _progress_bar_pct(label, 100, done=True)
+
+    if "error" in holder:
+        raise holder["error"]
+    return holder.get("value")
+
 _SCANNER_REGISTRY: dict[str, type[BaseScanner]] = {
     "dependency": DependencyScanner,
     "config": ConfigScanner,
@@ -855,8 +918,26 @@ class ScanOrchestrator:
         # degrade gracefully (warning only).
         pp_vulnerabilities: list[Vulnerability] = []
         if config.vuln_check_enabled and fw_version:
+            if verbose:
+                has_web = bool(config.vuln_search_provider)
+                sources = "OSV.dev + web search" if has_web else "OSV.dev"
+                _log(f"\nChecking vulnerabilities ({sources}) for {pp_framework}...")
+            # Rough expected wall-clock: OSV is typically fast (<1s); web
+            # search usually 2–4s. Use half the configured timeouts so the
+            # bar fills at a realistic pace for typical responses.
+            expected_seconds = config.vuln_osv_timeout / 2
+            if config.vuln_search_provider:
+                expected_seconds += config.vuln_web_timeout / 2
             try:
-                pp_vulnerabilities = VulnChecker(config).check(pp_framework)
+                pp_vulnerabilities = _run_with_animated_progress(
+                    "Vuln check ",
+                    lambda: VulnChecker(config).check(pp_framework),
+                    expected_seconds=expected_seconds,
+                    verbose=verbose,
+                ) or []
+                if verbose:
+                    n = len(pp_vulnerabilities)
+                    _log(f"  {n} vulnerabilit{'y' if n == 1 else 'ies'} found")
             except Exception as _exc:  # noqa: BLE001
                 _log(f"vuln check failed for {pp_framework}: {_exc}")
 
