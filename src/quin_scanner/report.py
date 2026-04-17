@@ -24,7 +24,9 @@ class ReportGenerator:
         from quin_scanner.html_template import HTML_TEMPLATE
 
         data_json = json.dumps(report.to_dict(), indent=2, default=str)
-        return HTML_TEMPLATE.replace("{{REPORT_DATA_JSON}}", data_json)
+        # Escape </script> sequences to prevent XSS when embedding in a <script> tag
+        safe_json = data_json.replace("</", "<\\/")
+        return HTML_TEMPLATE.replace("{{REPORT_DATA_JSON}}", safe_json)
 
     @classmethod
     def to_string(cls, report: ScanReport, fmt: str) -> str:
