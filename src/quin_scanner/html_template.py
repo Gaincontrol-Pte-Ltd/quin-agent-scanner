@@ -40,7 +40,9 @@ body{font-family:var(--font-sans);background:var(--color-bg);color:var(--color-t
 .header{border-bottom:1px solid var(--color-border);background:var(--color-surface);padding:16px 0}
 .header-inner{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
 .header h1{font-size:1.15rem;font-weight:700;letter-spacing:-.02em}
-.header-meta{font-size:.8rem;color:var(--color-muted);text-align:right}
+.header-meta{font-size:.8rem;color:var(--color-muted);text-align:right;word-break:break-all}
+.header-meta a{color:var(--color-muted);text-decoration:underline}
+.header-meta a:hover{color:var(--color-text)}
 
 /* ---------- Hero Cards ---------- */
 .hero{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:28px}
@@ -276,9 +278,23 @@ window.__REPORT_DATA__ = {{REPORT_DATA_JSON}};
 
   /* ---- Header ---- */
   (function renderHeader(){
-    var repoName=(D.repo_path||"").replace(/\\\\/g,"/").split("/").pop()||D.repo_path||"Unknown";
+    var rp=(D.repo_path||"").trim();
+    var display="Unknown", href=null;
+    if(rp){
+      if(/^https?:\\/\\/github\\.com\\//i.test(rp)){
+        href=rp; display=rp;
+      } else if(/^git@github\\.com:/i.test(rp)){
+        href="https://github.com/"+rp.replace(/^git@github\\.com:/i,"").replace(/\\.git$/,"");
+        display=rp;
+      } else if(/^[^\\/\\s]+\\/[^\\/\\s]+$/.test(rp) && !rp.startsWith(".")){
+        href="https://github.com/"+rp; display=rp;
+      } else {
+        display=rp;
+      }
+    }
+    var repoHtml=href?'<a href="'+esc(href)+'" target="_blank" rel="noopener">'+esc(display)+'</a>':esc(display);
     var ts=D.scan_timestamp||"";
-    $("header-meta").innerHTML=esc(repoName)+(ts?" &middot; "+esc(ts):"");
+    $("header-meta").innerHTML=repoHtml+(ts?" &middot; "+esc(ts):"");
   })();
 
   /* ---- Hero ---- */
