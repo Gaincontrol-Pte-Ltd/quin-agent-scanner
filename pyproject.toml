@@ -3,7 +3,7 @@ name = "quin-scanner"
 version = "0.1.0"
 description = "Scan repositories to detect GenAI and Agentic AI applications, identify LLM usage, and analyze agent intent"
 readme = "README.md"
-license = "AGPL-3.0-only"
+license = "Apache-2.0"
 requires-python = ">=3.11"
 authors = [
     { name = "Quin Agent Scanner Contributors" },
@@ -14,7 +14,7 @@ classifiers = [
     "Environment :: Console",
     "Intended Audience :: Developers",
     "Intended Audience :: Information Technology",
-    "License :: OSI Approved :: GNU Affero General Public License v3",
+    "License :: OSI Approved :: Apache Software License",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
@@ -48,10 +48,10 @@ dev = [
 quin-scanner = "quin_scanner.cli:cli"
 
 [project.urls]
-Homepage = "https://github.com/quin-scanner/quin-agent-scanner"
-Documentation = "https://github.com/quin-scanner/quin-agent-scanner#readme"
-Repository = "https://github.com/quin-scanner/quin-agent-scanner"
-Issues = "https://github.com/quin-scanner/quin-agent-scanner/issues"
+Homepage = "https://github.com/Gaincontrol-Pte-Ltd/quin-agent-scanner"
+Documentation = "https://github.com/Gaincontrol-Pte-Ltd/quin-agent-scanner#readme"
+Repository = "https://github.com/Gaincontrol-Pte-Ltd/quin-agent-scanner"
+Issues = "https://github.com/Gaincontrol-Pte-Ltd/quin-agent-scanner/issues"
 
 [build-system]
 requires = ["hatchling"]

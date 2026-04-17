@@ -28,6 +28,9 @@ jobs:
       - name: Lint
         run: uv run ruff check src/
 
+      - name: Test
+        run: uv run pytest tests/ -v
+
       - name: Build package
         run: uv run python -m build
 

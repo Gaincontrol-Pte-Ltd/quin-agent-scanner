@@ -159,11 +159,11 @@ class GitHubMCPAccessor(RepoAccessor):
     _API_BASE = "https://api.github.com"
     _RAW_BASE = "https://raw.githubusercontent.com"
 
-    def __init__(self, owner: str, repo: str, branch: str = "main") -> None:
+    def __init__(self, owner: str, repo: str, branch: str = "main", github_token: str | None = None) -> None:
         self.owner = owner
         self.repo = repo
         self.branch = branch
-        self._token: str | None = os.environ.get("GITHUB_TOKEN")
+        self._token: str | None = github_token or os.environ.get("GITHUB_TOKEN")
         # Lazily populated on first list_files() call
         self._file_list: list[str] | None = None
 
@@ -270,12 +270,23 @@ class GitHubAPIAccessor(RepoAccessor):
         import subprocess
         import tempfile
 
-        if self.github_token:
-            url = self.repo_url.replace("https://", f"https://{self.github_token}@")
-        else:
-            url = self.repo_url
-
+        url = self.repo_url
         env = {**os.environ, "GIT_LFS_SKIP_SMUDGE": "1"}
+
+        # Pass token via GIT_ASKPASS to avoid embedding secrets in URLs or
+        # command-line arguments (which are visible in process listings).
+        askpass_script: str | None = None
+        if self.github_token:
+            import stat
+            askpass_file = Path(tempfile.mktemp(prefix="quin_askpass_", suffix=".sh"))
+            askpass_file.write_text(f"#!/bin/sh\necho {self.github_token}\n")
+            askpass_file.chmod(stat.S_IRWXU)
+            askpass_script = str(askpass_file)
+            env["GIT_ASKPASS"] = askpass_script
+            # Rewrite HTTPS URL to include a dummy username so git triggers askpass
+            if url.startswith("https://") and "@" not in url:
+                url = url.replace("https://", "https://x-access-token@")
+
         lfs_bypass = ["-c", "filter.lfs.smudge=cat", "-c", "filter.lfs.required=false"]
 
         def _has_files(d: Path) -> bool:
@@ -329,7 +340,12 @@ class GitHubAPIAccessor(RepoAccessor):
             except subprocess.CalledProcessError:
                 return _clone_with_progress([])
 
-        self._temp_dir = _retry_with_backoff(_do_clone, on_retry=_retry_msg)
+        try:
+            self._temp_dir = _retry_with_backoff(_do_clone, on_retry=_retry_msg)
+        finally:
+            # Remove the temporary askpass script (contains the token)
+            if askpass_script:
+                Path(askpass_script).unlink(missing_ok=True)
 
         if verbose:
             # Finish the progress line
@@ -403,6 +419,6 @@ class RepoAccessorFactory:
         # owner/repo shorthand (exactly one slash, no spaces)
         parts = target.split("/")
         if len(parts) == 2 and all(p and " " not in p for p in parts):
-            return GitHubMCPAccessor(parts[0], parts[1], branch)
+            return GitHubMCPAccessor(parts[0], parts[1], branch, github_token=github_token)
 
         raise ValueError(f"Cannot determine accessor type for target: {target!r}")

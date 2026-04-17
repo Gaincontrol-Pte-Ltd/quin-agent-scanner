@@ -138,6 +138,15 @@ def scan(
     if vuln_search_provider:
         cfg.vuln_search_provider = None if vuln_search_provider == "none" else vuln_search_provider
 
+    # Early check: warn if LLM analysis is enabled but no API key is available
+    if not cfg.no_llm and not cfg.llm_api_key and cfg.llm_provider != "ollama" and not cfg.openai_compatible_url:
+        click.echo(
+            f"Warning: No API key found for provider '{cfg.llm_provider}'. "
+            "LLM analysis will likely fail.\n"
+            "  Hint: set the appropriate env var in .env, or run with --no-llm for static-only scanning.",
+            err=True,
+        )
+
     # Create accessor
     try:
         accessor = RepoAccessorFactory.create(target, github_token=cfg.github_token, branch=branch)

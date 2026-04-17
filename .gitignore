@@ -38,8 +38,8 @@ Thumbs.db
 .env.*
 !.env.example
 
-# Build
-*.lock
+# Build (keep uv.lock for reproducible builds)
+!uv.lock
 
 # Agent
 .agent/skills
