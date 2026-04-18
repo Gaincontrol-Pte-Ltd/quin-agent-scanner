@@ -151,6 +151,13 @@ tr:hover td{background:#fafbfc}
 /* ---------- Footer ---------- */
 .footer{border-top:1px solid var(--color-border);padding:20px 0;margin-top:48px;text-align:center;font-size:.78rem;color:var(--color-muted)}
 
+/* ---------- Help Icon + Tooltip ---------- */
+.help-icon{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:50%;background:#e5e7eb;color:#6b7280;font-size:.68rem;font-weight:700;cursor:help;position:relative;margin-left:6px;vertical-align:middle;font-family:var(--font-sans);line-height:1;user-select:none;text-transform:none;letter-spacing:0;transition:background var(--transition),color var(--transition)}
+.help-icon:hover,.help-icon:focus{background:var(--color-accent);color:#fff;outline:none}
+.help-icon__tip{visibility:hidden;opacity:0;position:absolute;bottom:calc(100% + 8px);left:50%;transform:translateX(-50%);width:280px;max-width:calc(100vw - 48px);padding:10px 12px;background:#1f2937;color:#f9fafb;font-size:.74rem;font-weight:400;line-height:1.55;border-radius:var(--radius-sm);box-shadow:var(--shadow-md);z-index:100;text-align:left;letter-spacing:0;text-transform:none;pointer-events:none;white-space:normal;transition:opacity var(--transition),visibility var(--transition)}
+.help-icon__tip::after{content:"";position:absolute;top:100%;left:50%;transform:translateX(-50%);border:5px solid transparent;border-top-color:#1f2937}
+.help-icon:hover .help-icon__tip,.help-icon:focus .help-icon__tip{visibility:visible;opacity:1}
+
 /* ---------- Responsive ---------- */
 @media(max-width:768px){
   .hero{grid-template-columns:1fr}
@@ -241,6 +248,20 @@ window.__REPORT_DATA__ = {{REPORT_DATA_JSON}};
     if(!s) return "";
     return s.replace(/[-_]/g," ").replace(/\\b\\w/g,function(c){return c.toUpperCase()});
   }
+  function helpIcon(text){
+    return '<span class="help-icon" tabindex="0" role="img" aria-label="Help">?<span class="help-icon__tip">'+esc(text)+'</span></span>';
+  }
+
+  /* ---- Section help copy ---- */
+  var HELP={
+    verdict:"Shows whether this repo contains AI agent code and how confident the scan is. Confirms upfront that AI-specific threats (prompt injection, tool misuse, agent identity) apply here — not just traditional app security.",
+    framework:"Identifies the agent framework in use (LangChain, LangGraph, CrewAI, etc.). Each framework has its own attack surface — use this to apply framework-specific hardening guides and match known CVEs.",
+    risk:"Aggregated risk level derived from detected system-wide and agent-specific signals. Use it to prioritize: High means review before production; Medium means targeted hardening; Low means verify your defenses still hold.",
+    capabilities:"High-level capabilities detected across the codebase (LLM calls, tool use, file I/O, network, etc.). Narrower capability surface means a narrower blast radius if an agent is compromised.",
+    summary:"LLM-generated plain-English summary of what this repo does. Gives reviewers shared context before diving into specific agents, tools, or risk findings.",
+    riskSignals:"Repo/architecture-level security concerns — not tied to one agent. Each signal is assessed against our framework combining OWASP LLM Top 10, OWASP Agentic AI Top 10, and OWASP MCP Top 10; click a signal to expand and see the recommended controls mapped to that finding.",
+    vulnerabilities:"Known CVEs matching the framework and dependency versions detected. Patch Critical/High items before running agents in production — AI frameworks have had serious RCE and prompt-leak issues."
+  };
 
   /* ---- Risk helpers ---- */
   function riskSignalText(r){
@@ -315,17 +336,17 @@ window.__REPORT_DATA__ = {{REPORT_DATA_JSON}};
     var html="";
     html+='<div class="hero-card '+verdictBorder+'">';
     html+='<div class="hero-card__title">'+esc(verdictText)+'</div>';
-    html+='<div class="hero-card__sub">'+Math.round(conf*100)+'% confidence</div>';
+    html+='<div class="hero-card__sub">'+Math.round(conf*100)+'% confidence'+helpIcon(HELP.verdict)+'</div>';
     html+='</div>';
 
     html+='<div class="hero-card hero-card--accent">';
     html+='<div class="hero-card__title">'+fwDisplay+'</div>';
-    html+='<div class="hero-card__sub">Framework</div>';
+    html+='<div class="hero-card__sub">Framework'+helpIcon(HELP.framework)+'</div>';
     html+='</div>';
 
     html+='<div class="hero-card '+riskBorder+'">';
     html+='<div class="hero-card__title">'+esc(risk.level)+'</div>';
-    html+='<div class="hero-card__sub">'+esc(riskSub)+'</div>';
+    html+='<div class="hero-card__sub">'+esc(riskSub)+helpIcon(HELP.risk)+'</div>';
     html+='</div>';
 
     $("hero").innerHTML=html;
@@ -354,7 +375,7 @@ window.__REPORT_DATA__ = {{REPORT_DATA_JSON}};
   (function renderRepoRisks(){
     var signals=D.risk_signals||[];
     if(!signals.length){$("repo-risks").style.display="none";return}
-    var html='<div style="margin:1.2rem 0"><div style="font-size:.85rem;font-weight:600;margin-bottom:.5rem">System-Wide Risk Signals</div>';
+    var html='<div style="margin:1.2rem 0"><div style="font-size:.85rem;font-weight:600;margin-bottom:.5rem">System-Wide Risk Signals'+helpIcon(HELP.riskSignals)+'</div>';
     html+=renderRiskSignals(signals);
     html+='</div>';
     $("repo-risks").innerHTML=html;
@@ -372,7 +393,7 @@ window.__REPORT_DATA__ = {{REPORT_DATA_JSON}};
     });
     var html='<div style="margin:1.4rem 0">';
     html+='<div style="display:flex;align-items:baseline;gap:10px;margin-bottom:.6rem">';
-    html+='<div style="font-size:.95rem;font-weight:700">Known Vulnerabilities</div>';
+    html+='<div style="font-size:.95rem;font-weight:700">Known Vulnerabilities'+helpIcon(HELP.vulnerabilities)+'</div>';
     html+='<div style="font-size:.75rem;color:var(--color-muted)">'+esc(subtitleParts.join(" &middot; "))+'</div>';
     html+='</div>';
     vulns.forEach(function(v){
