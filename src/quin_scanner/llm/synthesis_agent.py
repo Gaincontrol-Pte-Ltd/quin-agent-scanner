@@ -26,6 +26,7 @@ Output schema:
   "risk_signals": [
     {
       "signal": "<Key Risk Indicator text from the THREAT REFERENCE>",
+      "threat_id": "<T0NN — the threat this KRI belongs to>",
       "recommended_controls": ["<control ID: control name>"]
     }
   ],
@@ -38,6 +39,7 @@ Output schema:
       "risk_signals": [
         {
           "signal": "<Key Risk Indicator text from the THREAT REFERENCE>",
+          "threat_id": "<T0NN — the threat this KRI belongs to>",
           "recommended_controls": ["<control ID: control name>"]
         }
       ],
@@ -83,13 +85,15 @@ Rules:
   Use ONLY Key Risk Indicators from the THREAT REFERENCE below.
   Do NOT invent indicators outside the reference.
   Only flag a KRI when there is supporting evidence in the scanner findings.
-  For each KRI, include the recommended_controls listed for its threat in the reference.
+  For each KRI: (1) set threat_id to the T0NN heading under which the KRI appears in the
+  THREAT REFERENCE, and (2) include the recommended_controls listed for that threat.
 
 - risk_signals (per-agent): Agent-specific risks based on that agent's capabilities,
   tools, and permissions. Use ONLY Key Risk Indicators from the THREAT REFERENCE below.
   Do NOT invent indicators outside the reference.
   Only flag a KRI when there is supporting evidence for THAT SPECIFIC agent.
-  For each KRI, include the recommended_controls listed for its threat in the reference.
+  For each KRI: (1) set threat_id to the T0NN heading under which the KRI appears in the
+  THREAT REFERENCE, and (2) include the recommended_controls listed for that threat.
 
 - agents: Populate using AGENT INSTANCES (rule-based) in the evidence as the PRIMARY source.
   For each instance, set name from the instance name, description/goal from surrounding
@@ -230,11 +234,16 @@ def _parse_risk_signals(raw_signals: list) -> list[RiskIndicator]:
         if isinstance(item, dict):
             signal = item.get("signal", "")
             controls = item.get("recommended_controls", [])
+            threat_id = item.get("threat_id") or None
             if signal:
-                result.append(RiskIndicator(signal=signal, recommended_controls=controls))
+                result.append(RiskIndicator(
+                    signal=signal,
+                    recommended_controls=controls,
+                    threat_id=threat_id,
+                ))
         elif isinstance(item, str) and item:
             # Legacy format: plain string
-            result.append(RiskIndicator(signal=item, recommended_controls=[]))
+            result.append(RiskIndicator(signal=item, recommended_controls=[], threat_id=None))
     return result
 
 
