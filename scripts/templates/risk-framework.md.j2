@@ -1,0 +1,113 @@
+# Quin Risk Framework — Threats & Controls
+
+<!--
+  GENERATED FILE — DO NOT EDIT BY HAND.
+  Source of truth: src/quin_scanner/rules/risk_taxonomy.yaml
+  Regenerate:       python scripts/generate_risk_framework_docs.py
+  Drift check:      python scripts/generate_risk_framework_docs.py --check
+-->
+
+This document is generated from the Quin risk taxonomy. It catalogs the
+threats Quin's scanner reasons about and the controls it recommends, with
+evidence grounded in:
+
+- OWASP LLM Top 10 (2025)
+- OWASP Agentic AI Top 10 Vulnerabilities
+- OWASP MCP Top 10
+- OWASP MAESTRO multi-agent threat model
+- Databricks AI Security Framework (DASF) v3.0
+
+Scanner reports deep-link into this file. Each control label in a Quin HTML
+report (e.g. `C003: Access Control & Least Privilege`) links to the matching
+`#c003` anchor below. Each risk signal with a known threat renders a small
+`↗` icon that links to the matching `#t001` anchor.
+
+---
+
+## How to read this catalog
+
+- **Threats** (T0NN) describe *what can go wrong*. Each threat has a plain-language
+  description, a list of Key Risk Indicators (KRIs) the scanner looks for,
+  representative attack patterns, and a set of recommended controls.
+- **Controls** (C0NN) describe *what to do about it*. Each control has a description,
+  concrete implementation guidance, and the common pitfalls that make controls
+  fail to land even when they are nominally in place.
+
+Threats and controls cross-reference each other: every threat links to its
+recommended controls, and every control lists the threats it helps mitigate.
+
+---
+
+## Threats
+
+{% for threat in threats %}
+<a id="{{ threat.id | lower }}"></a>
+### {{ threat.id }} — {{ threat.name }}
+
+- **Category:** {{ threat.category }}
+- **Applies to:** {{ threat.applies_to | join(', ') }}
+- **Recommended controls:** {% for cid in threat.recommended_controls %}[{{ cid }}: {{ control_name(cid) }}](#{{ cid | lower }}){% if not loop.last %}, {% endif %}{% endfor %}
+
+**Description.** {{ threat.description | trim }}
+
+**Why it matters.** {{ threat.why_it_matters | trim }}
+
+**Key risk indicators.**
+{% for kri in threat.key_risk_indicators %}
+- {{ kri }}
+{%- endfor %}
+
+**Representative attack patterns.**
+{% for ap in threat.attack_patterns %}
+- {{ ap }}
+{%- endfor %}
+
+**References.**
+{% for ref in threat.external_refs %}
+- [{{ ref.title }}]({{ ref.url }}){% if ref.local %} — local copy: [`{{ ref.local }}`]({{ _rel(ref.local) }}){% endif %}
+{%- endfor %}
+
+---
+{% endfor %}
+
+## Controls
+
+{% for control in controls %}
+<a id="{{ control.id | lower }}"></a>
+### {{ control.id }} — {{ control.name }}
+
+- **Mitigates:** {% set tids = threats_for_control(control.id) %}{% if tids %}{% for tid in tids %}[{{ tid }}: {{ threat_name(tid) }}](#{{ tid | lower }}){% if not loop.last %}, {% endif %}{% endfor %}{% else %}_(no threats currently reference this control)_{% endif %}
+
+**Description.** {{ control.description | trim }}
+
+**Why it matters.** {{ control.why_it_matters | trim }}
+
+**How to implement.**
+{% for step in control.how_to_implement %}
+- {{ step }}
+{%- endfor %}
+
+**Common pitfalls.**
+{% for p in control.common_pitfalls %}
+- {{ p }}
+{%- endfor %}
+
+**References.**
+{% for ref in control.external_refs %}
+- [{{ ref.title }}]({{ ref.url }}){% if ref.local %} — local copy: [`{{ ref.local }}`]({{ _rel(ref.local) }}){% endif %}
+{%- endfor %}
+
+---
+{% endfor %}
+
+## Maintenance notes
+
+This file is regenerated from `src/quin_scanner/rules/risk_taxonomy.yaml`.
+
+- Edit prose, references, and KRIs in the YAML, then run
+  `python scripts/generate_risk_framework_docs.py` to refresh this file.
+- CI runs `python scripts/generate_risk_framework_docs.py --check` to fail
+  pull requests whose YAML and Markdown have drifted out of sync.
+- Anchors are stable: `#t001`..`#t014` for threats and `#c001`..`#c014` for
+  controls. External links (including the HTML scan report) depend on those
+  anchors — do not rename them without coordinating a downstream migration.

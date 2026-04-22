@@ -16,6 +16,16 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - LLM synthesis prompt updated to emit `threat_id` alongside each KRI in `risk_signals` (both repo-level and per-agent). Parser in `_parse_risk_signals` extracts the field; legacy string-format signals yield `threat_id=None`.
 - Hardcoded CVE/vulnerability risk signal in the orchestrator now carries `threat_id="T003"` (AI Supply Chain Compromise).
 
+#### Risk Framework Documentation
+- `docs/risk-framework.md` — generated reference documenting all 14 threats (T001–T014) and 14 controls (C001–C014) with description, rationale, key risk indicators, attack patterns, implementation guidance, common pitfalls, and sourced external references. Grounded in OWASP LLM Top 10, OWASP Agentic AI Top 10, OWASP MCP Top 10, OWASP MAESTRO, and Databricks DASF.
+- `src/quin_scanner/rules/risk_taxonomy.yaml` — extended with prose fields (`description`, `why_it_matters`, `attack_patterns`, `external_refs` on threats; `description`, `why_it_matters`, `how_to_implement`, `common_pitfalls`, `external_refs` on controls). YAML is the single source of truth — the MD is generated.
+- `scripts/generate_risk_framework_docs.py` — Jinja2-based generator with `--check` drift-gate flag suitable for CI. Template at `scripts/templates/risk-framework.md.j2`.
+- `src/quin_scanner/risk_taxonomy.py` — loader extended to surface the new prose fields via `ExternalRef`, `Threat`, and `Control` dataclasses (all new fields default-populated so existing consumers are unaffected).
+- `tests/test_risk_framework_docs.py` — drift, completeness, and referential-integrity tests: the on-disk MD must match what the generator produces, every T0NN/C0NN must have stable `t0NN`/`c0NN` anchors, every threat's `recommended_controls` must resolve to a real control, and every external ref must have a title and an http(s) URL.
+
+#### HTML Report Deep-Links to Risk Framework
+- `html_template.py` — control labels rendered inside risk signals (e.g. `C003: Access Control & Least Privilege`) are now clickable links that open `docs/risk-framework.md#c003` on GitHub. Each risk signal with a known `threat_id` renders a small `↗` icon linking to the matching `#t0NN` anchor. All external links use `target="_blank" rel="noopener"` to avoid reverse-tabnabbing. The click handler was refactored to ignore clicks on deep-link anchors so the row-toggle behavior still works for the rest of the signal.
+
 #### Scanner Plugins (+2, now 13 total)
 - `tool_definition` — extracts named tool definitions from code via `@tool`, `@function_tool`, `@register_tool`, `@kernel_function`, `@register_function` decorators, `BaseTool` / `StructuredTool` class inheritance, tool registration calls (`register_tool()`, `server.tool()`), and Markdown tool-definition tables
 - `agent_instance` — extracts named agent instantiations from code (`Agent(name=...)`, `AssistantAgent`, `UserProxyAgent`, `ConversableAgent`, etc.) and YAML/JSON agent config files
@@ -52,6 +62,7 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Removed compiled Python bytecache files (`.pyc`) from repository
 
 ### Maintenance
+- `pyproject.toml` — added `jinja2>=3.1` to the `dev` extra (used only by the risk-framework doc generator; not a runtime dependency).
 - Updated dependency versions in `pyproject.toml`
 - Updated scanner configuration defaults in `scanner-config.yaml`
 - PyPI publish workflow switched to OIDC authentication with `contents: read` permission
