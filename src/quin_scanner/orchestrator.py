@@ -1069,6 +1069,7 @@ class ScanOrchestrator:
                 pp_risk_signals.append(RiskIndicator(
                     signal=f"{_v.severity.upper()} vulnerability {_cve}: {_sum}",
                     recommended_controls=["C002: Patch & Dependency Hygiene"],
+                    threat_id="T003",
                 ))
 
         return ScanReport(

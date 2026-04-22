@@ -134,6 +134,18 @@ class TestParseRiskSignals:
         assert len(result) == 1
         assert result[0].signal == "Risk A"
         assert result[0].recommended_controls == ["C001"]
+        assert result[0].threat_id is None
+
+    def test_dict_format_with_threat_id(self):
+        raw = [{"signal": "Risk A", "recommended_controls": ["C001"], "threat_id": "T001"}]
+        result = _parse_risk_signals(raw)
+        assert len(result) == 1
+        assert result[0].threat_id == "T001"
+
+    def test_dict_format_empty_threat_id_becomes_none(self):
+        raw = [{"signal": "Risk A", "recommended_controls": [], "threat_id": ""}]
+        result = _parse_risk_signals(raw)
+        assert result[0].threat_id is None
 
     def test_legacy_string_format(self):
         raw = ["Risk B", "Risk C"]
@@ -141,6 +153,7 @@ class TestParseRiskSignals:
         assert len(result) == 2
         assert result[0].signal == "Risk B"
         assert result[0].recommended_controls == []
+        assert result[0].threat_id is None
 
     def test_empty_signal_skipped(self):
         raw = [{"signal": "", "recommended_controls": []}]
@@ -149,11 +162,40 @@ class TestParseRiskSignals:
 
     def test_mixed_formats(self):
         raw = [
-            {"signal": "Dict signal", "recommended_controls": ["C001"]},
+            {"signal": "Dict signal", "recommended_controls": ["C001"], "threat_id": "T002"},
             "String signal",
         ]
         result = _parse_risk_signals(raw)
         assert len(result) == 2
+        assert result[0].threat_id == "T002"
+        assert result[1].threat_id is None
+
+
+class TestRiskIndicatorToDict:
+    def test_to_dict_includes_threat_id(self):
+        from quin_scanner.models import RiskIndicator
+        ri = RiskIndicator(signal="s", recommended_controls=["C001"], threat_id="T001")
+        d = ri.to_dict()
+        assert d == {"signal": "s", "recommended_controls": ["C001"], "threat_id": "T001"}
+
+    def test_to_dict_threat_id_defaults_to_none(self):
+        from quin_scanner.models import RiskIndicator
+        ri = RiskIndicator(signal="s")
+        assert ri.to_dict()["threat_id"] is None
+
+
+class TestThreatIdTaxonomyResolution:
+    def test_hardcoded_vuln_threat_id_resolves(self):
+        """The orchestrator's hardcoded CVE->RiskIndicator uses threat_id='T003'; verify T003 exists in taxonomy."""
+        import re
+        from quin_scanner.risk_taxonomy import load_taxonomy
+        tax = load_taxonomy()
+        threat_ids = {t.id for t in tax.threats}
+        assert "T003" in threat_ids
+        # Format guard: all taxonomy threats follow T0NN
+        pattern = re.compile(r"^T\d{3}$")
+        for tid in threat_ids:
+            assert pattern.match(tid), f"Invalid threat ID format: {tid}"
 
 
 class TestParseClassificationResponse:

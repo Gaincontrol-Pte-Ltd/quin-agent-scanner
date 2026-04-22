@@ -9,6 +9,14 @@ import yaml
 
 
 @dataclass
+class ExternalRef:
+    """An external reference (authoritative URL + optional local doc)."""
+    title: str
+    url: str
+    local: str | None = None
+
+
+@dataclass
 class Threat:
     """A threat entry from the risk taxonomy."""
     id: str
@@ -17,6 +25,10 @@ class Threat:
     applies_to: list[str]
     key_risk_indicators: list[str]
     recommended_controls: list[str]
+    description: str = ""
+    why_it_matters: str = ""
+    attack_patterns: list[str] = field(default_factory=list)
+    external_refs: list[ExternalRef] = field(default_factory=list)
 
 
 @dataclass
@@ -24,6 +36,11 @@ class Control:
     """A control entry from the risk taxonomy."""
     id: str
     name: str
+    description: str = ""
+    why_it_matters: str = ""
+    how_to_implement: list[str] = field(default_factory=list)
+    common_pitfalls: list[str] = field(default_factory=list)
+    external_refs: list[ExternalRef] = field(default_factory=list)
 
 
 @dataclass
@@ -43,6 +60,15 @@ def load_taxonomy(path: Path | None = None) -> Taxonomy:
     with open(p, encoding="utf-8") as f:
         data = yaml.safe_load(f)
 
+    def _parse_refs(raw: list | None) -> list[ExternalRef]:
+        if not raw:
+            return []
+        out: list[ExternalRef] = []
+        for r in raw:
+            if isinstance(r, dict) and r.get("title") and r.get("url"):
+                out.append(ExternalRef(title=r["title"], url=r["url"], local=r.get("local")))
+        return out
+
     threats = [
         Threat(
             id=t["id"],
@@ -51,11 +77,23 @@ def load_taxonomy(path: Path | None = None) -> Taxonomy:
             applies_to=t.get("applies_to", []),
             key_risk_indicators=t.get("key_risk_indicators", []),
             recommended_controls=t.get("recommended_controls", []),
+            description=t.get("description", ""),
+            why_it_matters=t.get("why_it_matters", ""),
+            attack_patterns=t.get("attack_patterns", []),
+            external_refs=_parse_refs(t.get("external_refs")),
         )
         for t in data.get("threats", [])
     ]
     controls = [
-        Control(id=c["id"], name=c["name"])
+        Control(
+            id=c["id"],
+            name=c["name"],
+            description=c.get("description", ""),
+            why_it_matters=c.get("why_it_matters", ""),
+            how_to_implement=c.get("how_to_implement", []),
+            common_pitfalls=c.get("common_pitfalls", []),
+            external_refs=_parse_refs(c.get("external_refs")),
+        )
         for c in data.get("controls", [])
     ]
     return Taxonomy(threats=threats, controls=controls)

@@ -66,6 +66,10 @@ body{font-family:var(--font-sans);background:var(--color-bg);color:var(--color-t
 .pill--orange{background:#fff7ed;color:#9a3412;border-color:#fed7aa}
 .pill--gray{background:#f9fafb;color:#4b5563;border-color:#e5e7eb}
 .risk-signal{display:block;padding:6px 10px;border-radius:var(--radius-sm);font-size:.78rem;font-weight:500;line-height:1.5;background:#fef2f2;color:#991b1b;border:1px solid #fecaca;word-wrap:break-word;overflow-wrap:break-word}
+.doc-link{color:inherit;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:2px}
+.doc-link:hover{color:var(--color-accent);text-decoration-style:solid}
+.doc-link--icon{display:inline-block;margin-left:6px;font-size:.78rem;text-decoration:none;opacity:.7}
+.doc-link--icon:hover{opacity:1;text-decoration:none}
 
 /* ---------- Summary ---------- */
 .summary{margin-top:16px;padding:16px 20px;background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-md);font-size:.9rem;line-height:1.7;color:#404040}
@@ -216,6 +220,28 @@ window.__REPORT_DATA__ = {{REPORT_DATA_JSON}};
 
   var D = window.__REPORT_DATA__ || {};
 
+  /* ---- Deep-link base for the risk framework doc ----
+     Each control label in a risk signal becomes a link to the matching
+     anchor in docs/risk-framework.md, and each signal with a known
+     threat_id renders a \\u2197 icon linking to the threat anchor.
+     Anchors (t0NN / c0NN) are guarded by tests in tests/test_risk_framework_docs.py. */
+  var DOCS_BASE = "https://github.com/Gaincontrol-Pte-Ltd/quin-agent-scanner/blob/main/docs/risk-framework.md";
+
+  function controlLink(label){
+    /* Accepts "C003: Access Control & Least Privilege" or just "C003".
+       Renders a clickable link to DOCS_BASE#c003; falls back to plain text. */
+    var s=String(label||"");
+    var m=s.match(/^(C\\d{3})\\b/i);
+    if(!m) return esc(s);
+    var cid=m[1].toUpperCase();
+    return '<a href="'+esc(DOCS_BASE+"#"+cid.toLowerCase())+'" target="_blank" rel="noopener" class="doc-link">'+esc(s)+'</a>';
+  }
+  function threatAnchor(tid){
+    var s=String(tid||"");
+    if(!/^T\\d{3}$/i.test(s)) return null;
+    return DOCS_BASE+"#"+s.toLowerCase();
+  }
+
   /* ---- Helpers ---- */
   function esc(s){
     if(s==null) return "";
@@ -272,6 +298,10 @@ window.__REPORT_DATA__ = {{REPORT_DATA_JSON}};
   function riskControls(r){
     if(r&&typeof r==="object"&&Array.isArray(r.recommended_controls)) return r.recommended_controls;
     return [];
+  }
+  function riskThreatId(r){
+    if(r&&typeof r==="object"&&typeof r.threat_id==="string") return r.threat_id;
+    return null;
   }
 
   /* ---- Risk derivation ---- */
@@ -600,14 +630,24 @@ window.__REPORT_DATA__ = {{REPORT_DATA_JSON}};
     signals.forEach(function(r){
       var text=riskSignalText(r);
       var ctrls=riskControls(r);
+      var tid=riskThreatId(r);
+      var tHref=threatAnchor(tid);
       if(!text) return;
       html+='<div style="margin-bottom:.5rem">';
       html+='<div class="risk-signal risk-toggle" style="cursor:'+(ctrls.length?'pointer':'default')+'">';
-      html+=esc(text)+(ctrls.length?' <span style="float:right;margin-left:6px;font-size:.7rem;opacity:.6">&#9662;</span>':'');
+      html+='<span class="risk-signal__text">'+esc(text)+'</span>';
+      if(tHref){
+        /* Link-arrow icon opens the threat detail; stop-propagation keeps the
+           row toggle from firing when the user clicks the icon. */
+        html+=' <a href="'+esc(tHref)+'" target="_blank" rel="noopener" class="doc-link doc-link--icon" title="Open '+esc(tid)+' in risk framework" onclick="event.stopPropagation()">\\u2197</a>';
+      }
+      if(ctrls.length){
+        html+=' <span style="float:right;margin-left:6px;font-size:.7rem;opacity:.6">&#9662;</span>';
+      }
       html+='</div>';
       if(ctrls.length){
         html+='<div class="risk-controls" style="display:none;margin:.35rem 0 .35rem 10px;font-size:.75rem;color:var(--color-muted)">';
-        ctrls.forEach(function(c){html+='<div style="margin-bottom:.2rem">&#8594; '+esc(c)+'</div>'});
+        ctrls.forEach(function(c){html+='<div style="margin-bottom:.2rem">&#8594; '+controlLink(c)+'</div>'});
         html+='</div>';
       }
       html+='</div>';
@@ -616,9 +656,14 @@ window.__REPORT_DATA__ = {{REPORT_DATA_JSON}};
     return html;
   }
   document.addEventListener("click",function(e){
-    var t=e.target;
-    if(t.classList&&t.classList.contains("risk-toggle")){
-      var sib=t.nextElementSibling;
+    /* Let doc links (control + threat deep-links) open without toggling. */
+    var target=e.target;
+    if(target.closest && target.closest("a.doc-link")) return;
+    /* Walk up to find the risk-toggle container — click may land on the
+       inner span or anchor icon. */
+    var toggle=target.closest?target.closest(".risk-toggle"):null;
+    if(toggle){
+      var sib=toggle.nextElementSibling;
       if(sib&&sib.classList.contains("risk-controls")){
         sib.style.display=sib.style.display==="none"?"block":"none";
       }

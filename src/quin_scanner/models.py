@@ -32,11 +32,13 @@ class RiskIndicator:
     """A single risk indicator grounded in the threat taxonomy."""
     signal: str                          # KRI text from taxonomy
     recommended_controls: list[str] = field(default_factory=list)  # e.g. ["C003: Access Control & Least Privilege"]
+    threat_id: str | None = None         # e.g. "T001" — the originating threat in the taxonomy
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "signal": self.signal,
             "recommended_controls": self.recommended_controls,
+            "threat_id": self.threat_id,
         }
 
 
