@@ -11,6 +11,11 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+#### Risk Signal Data Model
+- `RiskIndicator.threat_id` — new optional field (`str | None`) identifying the originating threat (e.g. `"T001"`) per risk signal. Additive / backward-compatible: `to_dict()` includes the field, consumers that don't read it are unaffected. Enables downstream reports and UIs to link each signal to its threat in the taxonomy.
+- LLM synthesis prompt updated to emit `threat_id` alongside each KRI in `risk_signals` (both repo-level and per-agent). Parser in `_parse_risk_signals` extracts the field; legacy string-format signals yield `threat_id=None`.
+- Hardcoded CVE/vulnerability risk signal in the orchestrator now carries `threat_id="T003"` (AI Supply Chain Compromise).
+
 #### Scanner Plugins (+2, now 13 total)
 - `tool_definition` — extracts named tool definitions from code via `@tool`, `@function_tool`, `@register_tool`, `@kernel_function`, `@register_function` decorators, `BaseTool` / `StructuredTool` class inheritance, tool registration calls (`register_tool()`, `server.tool()`), and Markdown tool-definition tables
 - `agent_instance` — extracts named agent instantiations from code (`Agent(name=...)`, `AssistantAgent`, `UserProxyAgent`, `ConversableAgent`, etc.) and YAML/JSON agent config files
