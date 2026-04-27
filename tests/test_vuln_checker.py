@@ -361,7 +361,7 @@ class TestWebSearchRetry:
             calls.append(1)
             return []
         monkeypatch.setattr(vc, "query_web_search", fake_query)
-        result = self._checker(retries=-3)._query_web_with_retry(self._ref(), "anthropic")
+        self._checker(retries=-3)._query_web_with_retry(self._ref(), "anthropic")
         assert len(calls) == 1
 
 
