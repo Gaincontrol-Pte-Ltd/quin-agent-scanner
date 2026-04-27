@@ -80,6 +80,12 @@ body{font-family:var(--font-sans);background:var(--color-bg);color:var(--color-t
 .pill--orange{background:#fff7ed;color:#9a3412;border-color:#fed7aa}
 .pill--gray{background:#f9fafb;color:#4b5563;border-color:#e5e7eb}
 .risk-signal{display:block;padding:6px 10px;border-radius:var(--radius-sm);font-size:.78rem;font-weight:500;line-height:1.5;background:#fef2f2;color:#991b1b;border:1px solid #fecaca;word-wrap:break-word;overflow-wrap:break-word}
+.risk-signal--critical{background:#7f1d1d;color:#fff5f5;border-color:#7f1d1d}
+.risk-signal--high{background:#fef2f2;color:#991b1b;border-color:#fecaca}
+.risk-signal--medium{background:#fffbeb;color:#92400e;border-color:#fde68a}
+.risk-signal--low{background:#f9fafb;color:#4b5563;border-color:#e5e7eb}
+.risk-signal--info{background:#eff6ff;color:#1e40af;border-color:#bfdbfe}
+.risk-signal__sev{display:inline-block;padding:1px 6px;margin-right:6px;border-radius:3px;font-size:.65rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;background:rgba(0,0,0,.12);color:inherit;vertical-align:1px}
 .doc-link{color:inherit;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:2px}
 .doc-link:hover{color:var(--color-accent);text-decoration-style:solid}
 .doc-link--icon{display:inline-block;margin-left:6px;font-size:.78rem;text-decoration:none;opacity:.7}
@@ -326,6 +332,14 @@ window.__REPORT_DATA__ = {{REPORT_DATA_JSON}};
   function riskThreatId(r){
     if(r&&typeof r==="object"&&typeof r.threat_id==="string") return r.threat_id;
     return null;
+  }
+  function riskSeverity(r){
+    var allowed={critical:1,high:1,medium:1,low:1,info:1};
+    if(r&&typeof r==="object"&&typeof r.severity==="string"){
+      var s=r.severity.toLowerCase();
+      if(allowed[s]) return s;
+    }
+    return "medium";
   }
 
   /* ---- Risk derivation ---- */
@@ -658,9 +672,11 @@ window.__REPORT_DATA__ = {{REPORT_DATA_JSON}};
       var ctrls=riskControls(r);
       var tid=riskThreatId(r);
       var tHref=threatAnchor(tid);
+      var sev=riskSeverity(r);
       if(!text) return;
       html+='<div style="margin-bottom:.5rem">';
-      html+='<div class="risk-signal risk-toggle" style="cursor:'+(ctrls.length?'pointer':'default')+'">';
+      html+='<div class="risk-signal risk-signal--'+sev+' risk-toggle" style="cursor:'+(ctrls.length?'pointer':'default')+'">';
+      html+='<span class="risk-signal__sev">'+sev+'</span>';
       html+='<span class="risk-signal__text">'+esc(text)+'</span>';
       if(tHref){
         /* Link-arrow icon opens the threat detail; stop-propagation keeps the
