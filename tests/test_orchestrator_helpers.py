@@ -232,3 +232,60 @@ class TestPreSummarise:
         findings = [_finding("ScannerA", long_text)]
         summaries = _pre_summarise(findings)
         assert len(summaries[0]["top_artifacts"][0]["text"]) == 500
+
+
+class TestDedupRepoSignals:
+    """_dedup_repo_signals drops repo-level KRIs already attributed per-agent."""
+
+    def _ri(self, signal, threat_id):
+        from quin_scanner.models import RiskIndicator
+        return RiskIndicator(signal=signal, recommended_controls=[], threat_id=threat_id)
+
+    def _agent(self, name, risk_signals):
+        from quin_scanner.models import AgentProfile
+        return AgentProfile(
+            name=name, agent_type="worker", goal="", capabilities=[],
+            risk_signals=risk_signals, skills=[], tools=[], source_file="",
+        )
+
+    def test_drops_signal_already_on_an_agent(self):
+        from quin_scanner.orchestrator import _dedup_repo_signals
+        repo = [
+            self._ri("Agent retrieves external content (RAG, web, email, documents)", "T001"),
+            self._ri("No centralized logging of MCP tool invocations", "T012"),
+        ]
+        agents = [self._agent("Researcher", [
+            self._ri("Agent retrieves external content (RAG, web, email, documents)", "T001"),
+        ])]
+        result = _dedup_repo_signals(repo, agents)
+        assert len(result) == 1
+        assert result[0].threat_id == "T012"
+
+    def test_keeps_signal_when_only_threat_id_matches(self):
+        """Different signal text under same threat should NOT be dropped."""
+        from quin_scanner.orchestrator import _dedup_repo_signals
+        repo = [self._ri("Hard-coded credentials in MCP server configurations", "T002")]
+        agents = [self._agent("A", [
+            self._ri("System prompts containing credentials, connection strings, or internal URLs", "T002"),
+        ])]
+        assert _dedup_repo_signals(repo, agents) == repo
+
+    def test_dedup_is_case_and_whitespace_insensitive(self):
+        from quin_scanner.orchestrator import _dedup_repo_signals
+        repo = [self._ri("  AGENT retrieves external content  ", "t001")]
+        agents = [self._agent("A", [
+            self._ri("Agent retrieves external content", "T001"),
+        ])]
+        assert _dedup_repo_signals(repo, agents) == []
+
+    def test_no_agents_returns_input_unchanged(self):
+        from quin_scanner.orchestrator import _dedup_repo_signals
+        repo = [self._ri("any signal", "T003")]
+        assert _dedup_repo_signals(repo, []) == repo
+
+    def test_empty_threat_id_dedups_on_signal_text_only(self):
+        """Two signals with empty threat_id and identical text dedup."""
+        from quin_scanner.orchestrator import _dedup_repo_signals
+        repo = [self._ri("foo", "")]
+        agents = [self._agent("A", [self._ri("foo", "")])]
+        assert _dedup_repo_signals(repo, agents) == []

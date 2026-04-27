@@ -81,13 +81,36 @@ Rules:
   a summary that mentions the scanner itself. Do not write "insufficient evidence" —
   always produce a best-effort description.
 
-- risk_signals (repo-level): System-wide risks that do NOT belong to any single agent —
-  supply chain, observability, infrastructure, governance-level risks.
-  Use ONLY Key Risk Indicators from the THREAT REFERENCE below.
-  Do NOT invent indicators outside the reference.
+- risk_signals (repo-level): Cross-cutting risks that apply to the system as a whole and
+  cannot be meaningfully attributed to any single agent. Use ONLY Key Risk Indicators
+  from the THREAT REFERENCE below. Do NOT invent indicators outside the reference.
   Only flag a KRI when there is supporting evidence in the scanner findings.
   For each KRI: (1) set threat_id to the T0NN heading under which the KRI appears in the
   THREAT REFERENCE, and (2) include the recommended_controls listed for that threat.
+
+  ALLOWED at repo level (cross-cutting in nature):
+    * Supply chain (T003): pinning, SBOM, provenance, dependency hygiene
+    * Resource abuse (T008): rate limiting, consumption-based billing exposure, model extraction
+    * Observability (T012): centralized logging, anomaly detection, SIEM integration
+    * Governance / unmanaged AI (T013): registry of agents, deploy review, port sprawl
+    * System-wide data exposure (T002): system prompts containing secrets, hard-coded credentials in
+      MCP/configuration, shared context stores without tenant isolation
+    * System-wide infrastructure (T005): code execution capability without sandboxing as a platform property
+
+  FORBIDDEN at repo level (must be per-agent only):
+    * Any KRI whose subject is "Agent <verb>" — these belong on the specific agent doing the verb.
+      Examples NOT allowed at repo level: "Agent retrieves external content", "Agent constructs
+      shell commands by concatenating user/external input", "Agent has access to tools beyond its
+      defined purpose", "Agent outputs fed into other agents without validation",
+      "Agents handling financial transactions or official communications".
+    * Any KRI describing a per-agent capability or output behavior — "Customer-facing applications
+      where outputs influence decisions", "No RAG grounding or verification of model outputs",
+      "Model output triggers downstream actions or tool calls", "Agent chains where output of one
+      feeds into another", "No per-step validation in multi-step workflows".
+
+  DO NOT DUPLICATE: If a KRI is going to appear on a specific agent's risk_signals (because that
+  agent's evidence triggered it), do NOT also include it at the repo level. The repo-level list is
+  reserved for risks that exist independently of any single agent.
 
 - risk_signals (per-agent): Agent-specific risks based on that agent's capabilities,
   tools, and permissions. Use ONLY Key Risk Indicators from the THREAT REFERENCE below.

@@ -655,6 +655,31 @@ def _extract_framework_version(
     return max(versions, key=_parse_version_tuple)
 
 
+def _dedup_repo_signals(repo_signals: list, agents: list) -> list:
+    """Drop repo-level risk signals that are already attributed to a specific agent.
+
+    Dedup key: (lowercased+stripped signal text, threat_id). The synthesis prompt
+    instructs the LLM not to duplicate per-agent KRIs at repo level; this is the
+    deterministic backstop in case it does.
+    """
+    agent_keys: set[tuple[str, str]] = set()
+    for a in agents:
+        for s in getattr(a, "risk_signals", []) or []:
+            sig = (getattr(s, "signal", "") or "").strip().lower()
+            tid = (getattr(s, "threat_id", "") or "").strip().upper()
+            if sig:
+                agent_keys.add((sig, tid))
+
+    deduped: list = []
+    for s in repo_signals:
+        sig = (getattr(s, "signal", "") or "").strip().lower()
+        tid = (getattr(s, "threat_id", "") or "").strip().upper()
+        if (sig, tid) in agent_keys:
+            continue
+        deduped.append(s)
+    return deduped
+
+
 def _sanitise_model_usages(
     usages: list,
 ) -> tuple[list, int]:
@@ -1070,8 +1095,11 @@ class ScanOrchestrator:
                 pp_summary = f"AI application with detected capabilities: {tags_str}."
         # ── End post-processing ────────────────────────────────────────────────
 
-        # Repo-level risk signals from synthesis
-        pp_risk_signals = list(synthesis.risk_signals) if synthesis else []
+        # Repo-level risk signals from synthesis, with dedup against per-agent signals.
+        pp_risk_signals = _dedup_repo_signals(
+            list(synthesis.risk_signals) if synthesis else [],
+            pp_agents,
+        )
 
         # Promote critical / high vulnerabilities into the repo-level risk signals
         # so they surface in the main risk narrative alongside other findings.
