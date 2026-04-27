@@ -329,3 +329,43 @@ class TestSortedRepoSignals:
         ]
         result = _sorted_repo_signals(signals)
         assert result[0].severity == "critical"
+
+
+class TestRepoSignalCap:
+    """Cap is applied AFTER sort so it keeps the highest-severity entries."""
+
+    def _ri(self, signal, severity):
+        from quin_scanner.models import RiskIndicator
+        return RiskIndicator(signal=signal, recommended_controls=[], threat_id="T003", severity=severity)
+
+    def test_cap_keeps_highest_severity_after_sort(self):
+        from quin_scanner.orchestrator import _sorted_repo_signals
+        signals = _sorted_repo_signals([
+            self._ri("low1", "low"),
+            self._ri("crit1", "critical"),
+            self._ri("med1", "medium"),
+            self._ri("high1", "high"),
+            self._ri("info1", "info"),
+            self._ri("crit2", "critical"),
+        ])
+        capped = signals[:3]
+        assert [s.severity for s in capped] == ["critical", "critical", "high"]
+
+    def test_config_default_is_ten(self):
+        from quin_scanner.config import ScannerConfig
+        assert ScannerConfig().max_repo_risk_signals == 10
+
+    def test_config_yaml_zero_disables_cap(self):
+        from quin_scanner.config import _parse_max_signals
+        assert _parse_max_signals(0) is None
+        assert _parse_max_signals(-5) is None
+        assert _parse_max_signals(None) is None
+
+    def test_config_yaml_invalid_falls_back_to_ten(self):
+        from quin_scanner.config import _parse_max_signals
+        assert _parse_max_signals("not-a-number") == 10
+
+    def test_config_yaml_positive_int(self):
+        from quin_scanner.config import _parse_max_signals
+        assert _parse_max_signals(5) == 5
+        assert _parse_max_signals("7") == 7

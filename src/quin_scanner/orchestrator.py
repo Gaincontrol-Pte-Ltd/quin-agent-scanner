@@ -1144,6 +1144,13 @@ class ScanOrchestrator:
         # Final pass: stable sort by severity so critical/high CVEs surface first.
         pp_risk_signals = _sorted_repo_signals(pp_risk_signals)
 
+        # Cap to a precision-floor — the cut keeps the highest-severity entries
+        # because the sort already moved them to the front. Configurable via
+        # ScannerConfig.max_repo_risk_signals; None / <=0 disables the cap.
+        cap = config.max_repo_risk_signals
+        if cap is not None and cap > 0 and len(pp_risk_signals) > cap:
+            pp_risk_signals = pp_risk_signals[:cap]
+
         return ScanReport(
             repo_path=accessor.repo_identifier(),
             scan_timestamp=datetime.now(timezone.utc).isoformat(),
