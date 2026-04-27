@@ -12,7 +12,7 @@ from quin_scanner.config import ScannerConfig
 from quin_scanner.file_index import FileIndex
 from quin_scanner.llm.classification_agent import ClassificationAgent
 from quin_scanner.llm.synthesis_agent import SynthesisAgent
-from quin_scanner.rules.kri_predicates import EvidenceFacts
+from quin_scanner.rules.kri_predicates import CLOUD_LLM_PROVIDERS, EvidenceFacts
 from quin_scanner.models import (
     ClassificationResult,
     InfraProfile,
@@ -882,6 +882,10 @@ class ScanOrchestrator:
                 tool_definitions_count=len(tool_definitions),
                 external_service_categories=frozenset(
                     s["category"] for s in external_services if s.get("category")
+                ),
+                cloud_llm_count=sum(
+                    1 for m in model_usages
+                    if (m.provider or "").lower() in CLOUD_LLM_PROVIDERS
                 ),
             )
 

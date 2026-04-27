@@ -196,8 +196,10 @@ threats:
       - LLM output rendered directly in browsers without encoding
       - LLM-generated SQL or commands executed without parameterization
       - Agent constructs shell commands by concatenating user/external input
-      - Code execution capability without sandboxing
-      - Tool wrappers using eval(), exec(), or shell=True
+      - text: Code execution capability without sandboxing
+        requires: [code_execution_capability]
+      - text: Tool wrappers using eval(), exec(), or shell=True
+        requires: [tool_use_present]
       - No allowlisting of permitted commands at tool boundaries
     attack_patterns:
       - Stored XSS via LLM responses rendered in a web UI
@@ -229,11 +231,14 @@ threats:
       privilege therefore must be enforced at the credential boundary, not
       trusted to the model.
     key_risk_indicators:
-      - Agent has access to tools beyond its defined purpose
-      - Extensions with broad permissions (read+write+delete when only read needed)
+      - text: Agent has access to tools beyond its defined purpose
+        requires: [tool_use_present]
+      - text: Extensions with broad permissions (read+write+delete when only read needed)
+        requires: [tool_use_present]
       - No human-in-the-loop for high-impact or irreversible actions
       - Agent uses high-privileged service accounts rather than user-scoped credentials
-      - MCP tool permissions broader than required
+      - text: MCP tool permissions broader than required
+        requires: [mcp_servers_present]
       - Dev/test permissions left active in production
       - No mutual authentication between agents and MCP servers
       - Shared service accounts across multiple agents
@@ -304,7 +309,8 @@ threats:
       as availability monitoring.
     key_risk_indicators:
       - Externally accessible APIs without rate limiting
-      - Cloud-hosted models on consumption-based billing
+      - text: Cloud-hosted models on consumption-based billing
+        requires: [cloud_llm_usage]
       - No input size limits or processing timeouts
       - Logprobs or logit_bias exposed in API responses
       - Unrestricted output volume enabling model extraction
@@ -376,7 +382,8 @@ threats:
       isolation. Defenses must be structural: circuit breakers, per-step
       validation, step budgets, and explicit stop conditions.
     key_risk_indicators:
-      - Agent chains where output of one feeds into another
+      - text: Agent chains where output of one feeds into another
+        requires: [multi_agent_system]
       - No circuit breakers or error isolation between agents
       - No per-step validation in multi-step workflows
       - Agents operating without output verification gates
@@ -450,7 +457,8 @@ threats:
         requires: [mcp_servers_present]
       - No record of context changes in agent memory
       - Logs mutable or accessible to agents themselves
-      - No anomaly detection on tool usage patterns
+      - text: No anomaly detection on tool usage patterns
+        requires: [tool_use_present]
       - No integration with SIEM or security monitoring
       - Human reviewers overwhelmed by alert volume
     attack_patterns:

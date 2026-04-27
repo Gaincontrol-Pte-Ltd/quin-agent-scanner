@@ -15,6 +15,15 @@ from dataclasses import dataclass, field
 from typing import Callable
 
 
+# Providers whose models are consumption-billed cloud APIs. Used by the
+# `cloud_llm_usage` predicate. Self-hosted/local providers (ollama,
+# huggingface for local inference) are intentionally excluded.
+CLOUD_LLM_PROVIDERS: frozenset[str] = frozenset({
+    "openai", "anthropic", "google", "mistral", "groq", "cohere",
+    "together", "bedrock", "azure", "replicate", "databricks",
+})
+
+
 @dataclass(frozen=True)
 class EvidenceFacts:
     """Frozen snapshot of scanner evidence used for KRI precondition gating."""
@@ -24,6 +33,7 @@ class EvidenceFacts:
     agent_instances_count: int = 0
     tool_definitions_count: int = 0
     external_service_categories: frozenset[str] = frozenset()
+    cloud_llm_count: int = 0
 
 
 _REGISTRY: dict[str, Callable[[EvidenceFacts], bool]] = {
@@ -33,6 +43,12 @@ _REGISTRY: dict[str, Callable[[EvidenceFacts], bool]] = {
         lambda f: "multi_agent" in f.system_types,
     "memory_capability_present":
         lambda f: "memory" in f.capability_tags,
+    "tool_use_present":
+        lambda f: f.tool_definitions_count > 0 or "tool-use" in f.capability_tags,
+    "code_execution_capability":
+        lambda f: "code_execution" in f.external_service_categories,
+    "cloud_llm_usage":
+        lambda f: f.cloud_llm_count > 0,
 }
 
 
