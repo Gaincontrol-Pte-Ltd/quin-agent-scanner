@@ -314,10 +314,10 @@ window.__REPORT_DATA__ = {{REPORT_DATA_JSON}};
   var HELP={
     verdict:"Shows whether this repo contains AI agent code and how confident the scan is. Confirms upfront that AI-specific threats (prompt injection, tool misuse, agent identity) apply here — not just traditional app security.",
     framework:"Identifies the agent framework in use (LangChain, LangGraph, CrewAI, etc.). Each framework has its own attack surface — use this to apply framework-specific hardening guides and match known CVEs.",
-    risk:"Aggregated risk level derived from detected system-wide and agent-specific signals. Use it to prioritize: High means review before production; Medium means targeted hardening; Low means verify your defenses still hold.",
+    risk:"Aggregated risk level derived from detected cross-cutting and agent-specific signals. Use it to prioritize: High means review before production; Medium means targeted hardening; Low means verify your defenses still hold.",
     capabilities:"High-level capabilities detected across the codebase (LLM calls, tool use, file I/O, network, etc.). Narrower capability surface means a narrower blast radius if an agent is compromised.",
     summary:"LLM-generated plain-English summary of what this repo does. Gives reviewers shared context before diving into specific agents, tools, or risk findings.",
-    riskSignals:"Repo/architecture-level security concerns — not tied to one agent. Each signal is assessed against our framework combining OWASP LLM Top 10, OWASP Agentic AI Top 10, and OWASP MCP Top 10; click a signal to expand and see the recommended controls mapped to that finding.",
+    riskSignals:"Cross-cutting risks that apply to the system as a whole — supply chain, observability, governance, system-wide data exposure — not attributable to any single agent. Each signal is assessed against our framework combining OWASP LLM Top 10, OWASP Agentic AI Top 10, and OWASP MCP Top 10; click a signal to expand the recommended controls and the scanner findings that triggered it.",
     vulnerabilities:"Known CVEs matching the framework and dependency versions detected. Patch Critical/High items before running agents in production — AI frameworks have had serious RCE and prompt-leak issues."
   };
 
@@ -431,7 +431,7 @@ window.__REPORT_DATA__ = {{REPORT_DATA_JSON}};
 
     var risk=deriveRisk();
     var riskBorder=risk.color==="red"?"hero-card--red":risk.color==="yellow"?"hero-card--yellow":"hero-card--green";
-    var riskSub=risk.repoCount+" system-wide, "+risk.agentCount+" agent-specific";
+    var riskSub=risk.repoCount+" cross-cutting, "+risk.agentCount+" agent-specific";
 
     var html="";
     html+='<div class="hero-card '+verdictBorder+'">';
@@ -475,7 +475,7 @@ window.__REPORT_DATA__ = {{REPORT_DATA_JSON}};
   (function renderRepoRisks(){
     var signals=D.risk_signals||[];
     if(!signals.length){$("repo-risks").style.display="none";return}
-    var html='<div style="margin:1.2rem 0"><div style="font-size:.85rem;font-weight:600;margin-bottom:.5rem">System-Wide Risk Signals'+helpIcon(HELP.riskSignals)+'</div>';
+    var html='<div style="margin:1.2rem 0"><div style="font-size:.85rem;font-weight:600;margin-bottom:.5rem">Cross-Cutting Risks'+helpIcon(HELP.riskSignals)+'</div>';
     html+=renderRiskSignals(signals);
     html+='</div>';
     $("repo-risks").innerHTML=html;
