@@ -25,7 +25,7 @@ from quin_scanner.models import (
     SynthesisResult,
     Vulnerability,
 )
-from quin_scanner.vuln_checker import VulnChecker
+from quin_scanner.vuln_checker import VulnChecker, parse_framework_ref
 from quin_scanner.repo_accessor import RepoAccessor
 from quin_scanner.scanners.base import BaseScanner
 from quin_scanner.scanners.ci_scanner import CIScanner
@@ -1001,16 +1001,23 @@ class ScanOrchestrator:
         if pp_framework == "unknown" and framework_candidate != "unknown":
             pp_framework = framework_candidate
 
-        # Rule 1b: append framework version from dependency manifests
-        fw_version = _extract_framework_version(pp_framework, all_findings)
-        if fw_version:
-            pp_framework = f"{pp_framework} {fw_version}"
+        # Rule 1b: append framework version from dependency manifests, but only
+        # if the LLM didn't already include one in pp_framework (e.g. "CrewAI 0.130.0").
+        # parse_framework_ref returns a FrameworkRef when the string already has
+        # a parseable version + a known ecosystem mapping; in that case skip
+        # the dep-based lookup which would otherwise miss the package-name key.
+        if parse_framework_ref(pp_framework) is None:
+            fw_version = _extract_framework_version(pp_framework, all_findings)
+            if fw_version:
+                pp_framework = f"{pp_framework} {fw_version}"
 
         # Rule 1c: check detected framework+version against OSV.dev and
         # (optionally) an LLM web search for CVEs / advisories. Failures
-        # degrade gracefully (warning only).
+        # degrade gracefully (warning only). Gate on the same parser that
+        # VulnChecker uses internally — if it can't produce a FrameworkRef,
+        # the check would no-op anyway.
         pp_vulnerabilities: list[Vulnerability] = []
-        if config.vuln_check_enabled and fw_version:
+        if config.vuln_check_enabled and parse_framework_ref(pp_framework) is not None:
             if verbose:
                 has_web = bool(config.vuln_search_provider)
                 sources = "OSV.dev + web search" if has_web else "OSV.dev"

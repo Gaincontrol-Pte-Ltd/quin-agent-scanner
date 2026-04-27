@@ -44,6 +44,26 @@ class TestParseFrameworkRef:
             assert ref.version == "0.1.14"
 
 
+class TestVulnCheckGate:
+    """Regression: vuln check must run for both LLM output forms — bare name OR
+    name+version. Earlier the orchestrator gated on whether the dep-based
+    version-extractor ran, which silently no-op'd when the LLM already baked
+    the version into framework (e.g. 'CrewAI 0.130.0')."""
+
+    def test_versioned_framework_string_is_recognized(self):
+        # When the LLM emits "CrewAI 0.130.0" directly, the orchestrator's
+        # gate (parse_framework_ref) must still recognize it as actionable.
+        ref = parse_framework_ref("CrewAI 0.130.0")
+        assert ref is not None
+        assert ref.name == "CrewAI"
+        assert ref.version == "0.130.0"
+
+    def test_bare_framework_string_is_not_actionable(self):
+        # Bare name has no version → the orchestrator must rely on the
+        # dep-based version extractor before reaching the gate.
+        assert parse_framework_ref("CrewAI") is None
+
+
 class TestCvssToSeverity:
     @pytest.mark.parametrize("score,expected", [
         (9.5, "critical"),
