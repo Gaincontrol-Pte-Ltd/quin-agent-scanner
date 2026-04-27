@@ -469,19 +469,47 @@ class VulnChecker:
         except Exception as exc:  # noqa: BLE001
             _warn(f"OSV query failed for {ref.package}@{ref.version}: {exc}")
 
-        # Optional LLM web search
+        # Optional LLM web search, with retry-on-empty and retry-on-exception
+        # to dampen LLM/web-search non-determinism.
         provider = self.config.vuln_search_provider
         if provider:
-            try:
-                all_vulns.extend(
-                    query_web_search(
-                        ref,
-                        provider,
-                        timeout=self.config.vuln_web_timeout,
-                        model_override=self.config.vuln_search_model,
-                    )
-                )
-            except Exception as exc:  # noqa: BLE001
-                _warn(f"{provider} web search failed for {ref.name} {ref.version}: {exc}")
+            all_vulns.extend(self._query_web_with_retry(ref, provider))
 
         return _dedupe_vulns(all_vulns)
+
+    def _query_web_with_retry(self, ref: FrameworkRef, provider: str) -> list[Vulnerability]:
+        """Call query_web_search with up to (vuln_web_retries + 1) attempts.
+
+        Retries when the provider returns an empty list (transient miss) or
+        when it raises (network blip, rate limit). Returns the first
+        non-empty result, or [] if every attempt is empty/errored.
+        """
+        retries = max(0, int(self.config.vuln_web_retries))
+        last_exc: Exception | None = None
+        for attempt in range(retries + 1):
+            try:
+                result = query_web_search(
+                    ref,
+                    provider,
+                    timeout=self.config.vuln_web_timeout,
+                    model_override=self.config.vuln_search_model,
+                )
+                if result:
+                    return result
+                # Empty result — retry if budget remains
+                if attempt < retries:
+                    _warn(
+                        f"{provider} web search returned 0 vulns for {ref.name} "
+                        f"{ref.version} (attempt {attempt + 1}/{retries + 1}); retrying"
+                    )
+            except Exception as exc:  # noqa: BLE001
+                last_exc = exc
+                if attempt < retries:
+                    _warn(
+                        f"{provider} web search attempt {attempt + 1}/{retries + 1} "
+                        f"failed for {ref.name} {ref.version}: {exc}; retrying"
+                    )
+        # Exhausted budget: log final state if last attempt errored
+        if last_exc is not None:
+            _warn(f"{provider} web search failed for {ref.name} {ref.version}: {last_exc}")
+        return []

@@ -54,6 +54,11 @@ vuln_check:
   osv_timeout_seconds: 30
   web_timeout_seconds: 60
 
+  # Retries for the LLM web-search lookup. Total attempts = web_retries + 1.
+  # Mitigates LLM/web-search non-determinism (sometimes returns 0 results
+  # even when CVEs exist). Set to 0 to disable retry.
+  web_retries: 1
+
 # ── Scanners ─────────────────────────────────────────────────────────────────
 scanners:
   # List only the scanners you want to run.

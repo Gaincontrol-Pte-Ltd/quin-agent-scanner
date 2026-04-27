@@ -232,3 +232,189 @@ class TestPreSummarise:
         findings = [_finding("ScannerA", long_text)]
         summaries = _pre_summarise(findings)
         assert len(summaries[0]["top_artifacts"][0]["text"]) == 500
+
+
+class TestDedupRepoSignals:
+    """_dedup_repo_signals drops repo-level KRIs already attributed per-agent."""
+
+    def _ri(self, signal, threat_id):
+        from quin_scanner.models import RiskIndicator
+        return RiskIndicator(signal=signal, recommended_controls=[], threat_id=threat_id)
+
+    def _agent(self, name, risk_signals):
+        from quin_scanner.models import AgentProfile
+        return AgentProfile(
+            name=name, agent_type="worker", goal="", capabilities=[],
+            risk_signals=risk_signals, skills=[], tools=[], source_file="",
+        )
+
+    def test_drops_signal_already_on_an_agent(self):
+        from quin_scanner.orchestrator import _dedup_repo_signals
+        repo = [
+            self._ri("Agent retrieves external content (RAG, web, email, documents)", "T001"),
+            self._ri("No centralized logging of MCP tool invocations", "T012"),
+        ]
+        agents = [self._agent("Researcher", [
+            self._ri("Agent retrieves external content (RAG, web, email, documents)", "T001"),
+        ])]
+        result = _dedup_repo_signals(repo, agents)
+        assert len(result) == 1
+        assert result[0].threat_id == "T012"
+
+    def test_keeps_signal_when_only_threat_id_matches(self):
+        """Different signal text under same threat should NOT be dropped."""
+        from quin_scanner.orchestrator import _dedup_repo_signals
+        repo = [self._ri("Hard-coded credentials in MCP server configurations", "T002")]
+        agents = [self._agent("A", [
+            self._ri("System prompts containing credentials, connection strings, or internal URLs", "T002"),
+        ])]
+        assert _dedup_repo_signals(repo, agents) == repo
+
+    def test_dedup_is_case_and_whitespace_insensitive(self):
+        from quin_scanner.orchestrator import _dedup_repo_signals
+        repo = [self._ri("  AGENT retrieves external content  ", "t001")]
+        agents = [self._agent("A", [
+            self._ri("Agent retrieves external content", "T001"),
+        ])]
+        assert _dedup_repo_signals(repo, agents) == []
+
+    def test_no_agents_returns_input_unchanged(self):
+        from quin_scanner.orchestrator import _dedup_repo_signals
+        repo = [self._ri("any signal", "T003")]
+        assert _dedup_repo_signals(repo, []) == repo
+
+    def test_empty_threat_id_dedups_on_signal_text_only(self):
+        """Two signals with empty threat_id and identical text dedup."""
+        from quin_scanner.orchestrator import _dedup_repo_signals
+        repo = [self._ri("foo", "")]
+        agents = [self._agent("A", [self._ri("foo", "")])]
+        assert _dedup_repo_signals(repo, agents) == []
+
+
+class TestSortedRepoSignals:
+    """Severity-aware stable sort puts critical/high first."""
+
+    def _ri(self, signal, severity):
+        from quin_scanner.models import RiskIndicator
+        return RiskIndicator(signal=signal, recommended_controls=[], threat_id="T003", severity=severity)
+
+    def test_severity_order(self):
+        from quin_scanner.orchestrator import _sorted_repo_signals
+        signals = [
+            self._ri("low item", "low"),
+            self._ri("medium item", "medium"),
+            self._ri("critical item", "critical"),
+            self._ri("high item", "high"),
+            self._ri("info item", "info"),
+        ]
+        result = _sorted_repo_signals(signals)
+        assert [s.severity for s in result] == ["critical", "high", "medium", "low", "info"]
+
+    def test_stable_within_severity(self):
+        """Items with same severity preserve insertion order."""
+        from quin_scanner.orchestrator import _sorted_repo_signals
+        signals = [
+            self._ri("first medium", "medium"),
+            self._ri("critical", "critical"),
+            self._ri("second medium", "medium"),
+        ]
+        result = _sorted_repo_signals(signals)
+        assert [s.signal for s in result] == ["critical", "first medium", "second medium"]
+
+    def test_unknown_severity_treated_as_medium(self):
+        from quin_scanner.orchestrator import _sorted_repo_signals
+        signals = [
+            self._ri("bogus", "weird-tier"),
+            self._ri("crit", "critical"),
+        ]
+        result = _sorted_repo_signals(signals)
+        assert result[0].severity == "critical"
+
+
+class TestRepoSignalCap:
+    """Cap is applied AFTER sort so it keeps the highest-severity entries."""
+
+    def _ri(self, signal, severity):
+        from quin_scanner.models import RiskIndicator
+        return RiskIndicator(signal=signal, recommended_controls=[], threat_id="T003", severity=severity)
+
+    def test_cap_keeps_highest_severity_after_sort(self):
+        from quin_scanner.orchestrator import _sorted_repo_signals
+        signals = _sorted_repo_signals([
+            self._ri("low1", "low"),
+            self._ri("crit1", "critical"),
+            self._ri("med1", "medium"),
+            self._ri("high1", "high"),
+            self._ri("info1", "info"),
+            self._ri("crit2", "critical"),
+        ])
+        capped = signals[:3]
+        assert [s.severity for s in capped] == ["critical", "critical", "high"]
+
+    def test_config_default_is_ten(self):
+        from quin_scanner.config import ScannerConfig
+        assert ScannerConfig().max_repo_risk_signals == 10
+
+    def test_config_yaml_zero_disables_cap(self):
+        from quin_scanner.config import _parse_max_signals
+        assert _parse_max_signals(0) is None
+        assert _parse_max_signals(-5) is None
+        assert _parse_max_signals(None) is None
+
+    def test_config_yaml_invalid_falls_back_to_ten(self):
+        from quin_scanner.config import _parse_max_signals
+        assert _parse_max_signals("not-a-number") == 10
+
+    def test_config_yaml_positive_int(self):
+        from quin_scanner.config import _parse_max_signals
+        assert _parse_max_signals(5) == 5
+        assert _parse_max_signals("7") == 7
+
+
+class TestValidateEvidenceRefs:
+    """_validate_evidence_refs drops refs whose file_path isn't in scanned paths."""
+
+    def _ri(self, signal, refs):
+        from quin_scanner.models import RiskIndicator
+        return RiskIndicator(signal=signal, evidence_refs=refs)
+
+    def _ref(self, file_path="", source_url=""):
+        from quin_scanner.models import EvidenceRef
+        return EvidenceRef(file_path=file_path, source_url=source_url)
+
+    def test_drops_hallucinated_path(self):
+        from quin_scanner.orchestrator import _validate_evidence_refs
+        signals = [self._ri("s", [
+            self._ref(file_path="src/real.py"),
+            self._ref(file_path="src/hallucinated.py"),
+        ])]
+        _validate_evidence_refs(signals, scanned_paths={"src/real.py"})
+        assert len(signals[0].evidence_refs) == 1
+        assert signals[0].evidence_refs[0].file_path == "src/real.py"
+
+    def test_keeps_refs_with_source_url_even_if_path_missing(self):
+        """CVE-style refs (no path, has URL) are always kept — they aren't grounded in scanned files."""
+        from quin_scanner.orchestrator import _validate_evidence_refs
+        signals = [self._ri("s", [
+            self._ref(source_url="https://example.com/advisory"),
+        ])]
+        _validate_evidence_refs(signals, scanned_paths=set())
+        assert len(signals[0].evidence_refs) == 1
+
+    def test_signal_kept_even_when_all_refs_dropped(self):
+        """Validation is a precision floor on refs, not a recall gate on signals."""
+        from quin_scanner.orchestrator import _validate_evidence_refs
+        signals = [self._ri("s", [self._ref(file_path="bogus.py")])]
+        _validate_evidence_refs(signals, scanned_paths=set())
+        assert len(signals) == 1
+        assert signals[0].evidence_refs == []
+
+    def test_signal_with_no_refs_unchanged(self):
+        from quin_scanner.orchestrator import _validate_evidence_refs
+        signals = [self._ri("s", [])]
+        _validate_evidence_refs(signals, scanned_paths={"a.py"})
+        assert signals[0].evidence_refs == []
+
+    def test_empty_signal_list_safe(self):
+        from quin_scanner.orchestrator import _validate_evidence_refs
+        _validate_evidence_refs([], scanned_paths={"a.py"})  # no error

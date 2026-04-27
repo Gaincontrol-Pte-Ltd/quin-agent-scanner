@@ -28,17 +28,42 @@ class ScanFinding:
 
 
 @dataclass
+class EvidenceRef:
+    """Pointer back to the scanner finding (or external source) that triggered a risk signal.
+
+    For LLM-emitted KRIs: file_path / line_number / scanner come from a ScanFinding.
+    For CVE-promoted entries: file_path is empty, source_url carries the advisory URL.
+    """
+    file_path: str = ""
+    line_number: int | None = None
+    scanner: str = ""
+    source_url: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "file_path": self.file_path,
+            "line_number": self.line_number,
+            "scanner": self.scanner,
+            "source_url": self.source_url,
+        }
+
+
+@dataclass
 class RiskIndicator:
     """A single risk indicator grounded in the threat taxonomy."""
     signal: str                          # KRI text from taxonomy
     recommended_controls: list[str] = field(default_factory=list)  # e.g. ["C003: Access Control & Least Privilege"]
     threat_id: str | None = None         # e.g. "T001" — the originating threat in the taxonomy
+    severity: str = "medium"             # "critical" | "high" | "medium" | "low" | "info"
+    evidence_refs: list[EvidenceRef] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "signal": self.signal,
             "recommended_controls": self.recommended_controls,
             "threat_id": self.threat_id,
+            "severity": self.severity,
+            "evidence_refs": [e.to_dict() for e in self.evidence_refs],
         }
 
 

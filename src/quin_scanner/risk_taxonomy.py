@@ -7,6 +7,8 @@ from pathlib import Path
 
 import yaml
 
+from quin_scanner.rules.kri_predicates import EvidenceFacts, evaluate as eval_predicate
+
 
 @dataclass
 class ExternalRef:
@@ -16,6 +18,24 @@ class ExternalRef:
     local: str | None = None
 
 
+@dataclass(frozen=True)
+class KRI:
+    """A Key Risk Indicator with optional precondition predicates.
+
+    `requires` lists predicate names from kri_predicates._REGISTRY. All
+    listed predicates must hold (AND semantics) for the KRI to be a
+    candidate. An empty `requires` means the KRI is always a candidate,
+    matching the legacy bare-string YAML form.
+    """
+    text: str
+    requires: tuple[str, ...] = ()
+
+    def __str__(self) -> str:
+        # Doc generator and existing call sites stringify KRIs directly;
+        # preserving __str__ == text keeps rendered output byte-identical.
+        return self.text
+
+
 @dataclass
 class Threat:
     """A threat entry from the risk taxonomy."""
@@ -23,7 +43,7 @@ class Threat:
     name: str
     category: str
     applies_to: list[str]
-    key_risk_indicators: list[str]
+    key_risk_indicators: list[KRI]
     recommended_controls: list[str]
     description: str = ""
     why_it_matters: str = ""
@@ -69,13 +89,23 @@ def load_taxonomy(path: Path | None = None) -> Taxonomy:
                 out.append(ExternalRef(title=r["title"], url=r["url"], local=r.get("local")))
         return out
 
+    def _parse_kri(raw) -> KRI:
+        # Accept legacy bare-string KRIs and structured dict form.
+        if isinstance(raw, str):
+            return KRI(text=raw)
+        if isinstance(raw, dict):
+            text = raw.get("text", "")
+            requires = tuple(raw.get("requires", []) or [])
+            return KRI(text=text, requires=requires)
+        return KRI(text=str(raw))
+
     threats = [
         Threat(
             id=t["id"],
             name=t["name"],
             category=t["category"],
             applies_to=t.get("applies_to", []),
-            key_risk_indicators=t.get("key_risk_indicators", []),
+            key_risk_indicators=[_parse_kri(k) for k in t.get("key_risk_indicators", [])],
             recommended_controls=t.get("recommended_controls", []),
             description=t.get("description", ""),
             why_it_matters=t.get("why_it_matters", ""),
@@ -126,15 +156,33 @@ def get_control_label(control_id: str, taxonomy: Taxonomy | None = None) -> str:
     return control_id
 
 
-def build_threat_reference(threats: list[Threat], taxonomy: Taxonomy | None = None) -> str:
-    """Build a compact THREAT REFERENCE block for injection into the LLM prompt."""
+def build_threat_reference(
+    threats: list[Threat],
+    taxonomy: Taxonomy | None = None,
+    facts: EvidenceFacts | None = None,
+) -> str:
+    """Build a compact THREAT REFERENCE block for injection into the LLM prompt.
+
+    When `facts` is provided, KRIs are filtered by their `requires` preconditions:
+    a KRI is included only if every listed predicate holds. Threats whose KRIs
+    are all filtered out are dropped from the reference entirely.
+
+    When `facts` is None, all KRIs are included (backward-compatible behavior).
+    """
     tax = taxonomy or load_taxonomy()
     lines: list[str] = ["--- THREAT REFERENCE (evaluate these KRIs against the evidence) ---"]
     for t in threats:
+        if facts is not None:
+            kept = [k for k in t.key_risk_indicators
+                    if all(eval_predicate(req, facts) for req in k.requires)]
+        else:
+            kept = list(t.key_risk_indicators)
+        if not kept:
+            continue
         control_labels = [get_control_label(cid, tax) for cid in t.recommended_controls]
         controls_str = "; ".join(control_labels)
         lines.append(f"\n{t.id} {t.name} [{controls_str}]:")
-        for kri in t.key_risk_indicators:
+        for kri in kept:
             lines.append(f"  - {kri}")
     return "\n".join(lines)
 

@@ -37,10 +37,12 @@ threats:
       against you once an attacker seeds an instruction.
     key_risk_indicators:
       - User input reaches the model without sanitization
-      - Agent retrieves external content (RAG, web, email, documents)
+      - text: Agent retrieves external content (RAG, web, email, documents)
+        requires: [rag_capability_present]
       - Model output triggers downstream actions or tool calls
       - Retrieved content treated as instructions rather than passive data
-      - No validation that planned tool calls align with original user goals
+      - text: No validation that planned tool calls align with original user goals
+        requires: [tool_use_present]
       - System instructions and untrusted content merged indistinguishably in context
     attack_patterns:
       - Direct prompt injection ("Ignore previous instructions and…")
@@ -77,8 +79,10 @@ threats:
     key_risk_indicators:
       - PII or sensitive data in training data, fine-tuning datasets, or RAG knowledge bases
       - System prompts containing credentials, connection strings, or internal URLs
-      - Hard-coded credentials in MCP server configurations
-      - API keys or tokens stored in conversational memory across sessions
+      - text: Hard-coded credentials in MCP server configurations
+        requires: [mcp_servers_present]
+      - text: API keys or tokens stored in conversational memory across sessions
+        requires: [memory_capability_present]
       - Debug logs containing unredacted secrets
       - Shared context stores across users or tenants without isolation
     attack_patterns:
@@ -157,8 +161,10 @@ threats:
       - RAG knowledge base populated without content validation
       - No data provenance tracking or integrity verification
       - Persistent agent memory across sessions without sanitization
-      - Shared vector stores across users/tenants without namespace isolation
-      - No anomaly detection on embedding drift
+      - text: Shared vector stores across users/tenants without namespace isolation
+        requires: [vector_database_present]
+      - text: No anomaly detection on embedding drift
+        requires: [vector_database_present]
     attack_patterns:
       - Targeted backdoor triggers inserted into fine-tuning data
       - RAG poisoning via publicly editable sources (wikis, support forums)
@@ -194,8 +200,10 @@ threats:
       - LLM output rendered directly in browsers without encoding
       - LLM-generated SQL or commands executed without parameterization
       - Agent constructs shell commands by concatenating user/external input
-      - Code execution capability without sandboxing
-      - Tool wrappers using eval(), exec(), or shell=True
+      - text: Code execution capability without sandboxing
+        requires: [code_execution_capability]
+      - text: Tool wrappers using eval(), exec(), or shell=True
+        requires: [tool_use_present]
       - No allowlisting of permitted commands at tool boundaries
     attack_patterns:
       - Stored XSS via LLM responses rendered in a web UI
@@ -227,14 +235,19 @@ threats:
       privilege therefore must be enforced at the credential boundary, not
       trusted to the model.
     key_risk_indicators:
-      - Agent has access to tools beyond its defined purpose
-      - Extensions with broad permissions (read+write+delete when only read needed)
+      - text: Agent has access to tools beyond its defined purpose
+        requires: [tool_use_present]
+      - text: Extensions with broad permissions (read+write+delete when only read needed)
+        requires: [tool_use_present]
       - No human-in-the-loop for high-impact or irreversible actions
       - Agent uses high-privileged service accounts rather than user-scoped credentials
-      - MCP tool permissions broader than required
+      - text: MCP tool permissions broader than required
+        requires: [mcp_servers_present]
       - Dev/test permissions left active in production
-      - No mutual authentication between agents and MCP servers
-      - Shared service accounts across multiple agents
+      - text: No mutual authentication between agents and MCP servers
+        requires: [mcp_servers_present]
+      - text: Shared service accounts across multiple agents
+        requires: [multi_agent_system]
     attack_patterns:
       - Confused deputy attacks exploiting shared service accounts
       - Privilege escalation through tool chaining
@@ -269,9 +282,11 @@ threats:
     key_risk_indicators:
       - Customer-facing applications where outputs influence decisions
       - High-stakes contexts (financial, medical, legal, operational)
-      - No RAG grounding or verification of model outputs
+      - text: No RAG grounding or verification of model outputs
+        requires: [rag_capability_present]
       - AI-generated code integrated without review
-      - Agent outputs fed into other agents without validation
+      - text: Agent outputs fed into other agents without validation
+        requires: [multi_agent_system]
       - No clear labeling of AI-generated content
     attack_patterns:
       - Package hallucination leading to dependency-confusion attacks
@@ -302,7 +317,8 @@ threats:
       as availability monitoring.
     key_risk_indicators:
       - Externally accessible APIs without rate limiting
-      - Cloud-hosted models on consumption-based billing
+      - text: Cloud-hosted models on consumption-based billing
+        requires: [cloud_llm_usage]
       - No input size limits or processing timeouts
       - Logprobs or logit_bias exposed in API responses
       - Unrestricted output volume enabling model extraction
@@ -337,9 +353,11 @@ threats:
       at the message boundary.
     key_risk_indicators:
       - Multi-agent systems with A2A delegation
-      - No mutual authentication between agents
+      - text: No mutual authentication between agents
+        requires: [multi_agent_system, mcp_servers_present]
       - Agents sharing context without authorization controls
-      - MCP server chains without per-step permission validation
+      - text: MCP server chains without per-step permission validation
+        requires: [mcp_servers_present]
       - No agent identity verification in orchestrator-to-sub-agent communication
     attack_patterns:
       - Agent impersonation via spoofed identity tokens
@@ -372,8 +390,10 @@ threats:
       isolation. Defenses must be structural: circuit breakers, per-step
       validation, step budgets, and explicit stop conditions.
     key_risk_indicators:
-      - Agent chains where output of one feeds into another
-      - No circuit breakers or error isolation between agents
+      - text: Agent chains where output of one feeds into another
+        requires: [multi_agent_system]
+      - text: No circuit breakers or error isolation between agents
+        requires: [multi_agent_system]
       - No per-step validation in multi-step workflows
       - Agents operating without output verification gates
       - Cyclical agent execution paths (Level 3 autonomy)
@@ -407,7 +427,8 @@ threats:
       equivalent to a revocable credential for traditional systems is a
       scoped, monitored, kill-switchable agent identity.
     key_risk_indicators:
-      - Fine-tuned models from untrusted sources
+      - text: Fine-tuned models from untrusted sources
+        requires: [fine_tuning_present]
       - Third-party agents integrated without behavioral validation
       - Limited runtime behavioral monitoring
       - No kill switch or forced shutdown mechanism
@@ -442,10 +463,12 @@ threats:
       all read from the same trace. Without it, every other control is
       operating blind.
     key_risk_indicators:
-      - No centralized logging of MCP tool invocations
+      - text: No centralized logging of MCP tool invocations
+        requires: [mcp_servers_present]
       - No record of context changes in agent memory
       - Logs mutable or accessible to agents themselves
-      - No anomaly detection on tool usage patterns
+      - text: No anomaly detection on tool usage patterns
+        requires: [tool_use_present]
       - No integration with SIEM or security monitoring
       - Human reviewers overwhelmed by alert volume
     attack_patterns:
@@ -514,7 +537,8 @@ threats:
       - Customer-facing agents with persuasive output capability
       - Agents handling financial transactions or official communications
       - No human-in-the-loop for high-impact actions
-      - Agent can send external communications as the organization
+      - text: Agent can send external communications as the organization
+        requires: [external_communications_present]
       - Users trained to trust AI outputs without verification
       - HITL reviewers overloaded, creating approval fatigue
     attack_patterns:

@@ -7,12 +7,14 @@ from quin_scanner.llm.base import BaseLLMProvider
 from quin_scanner.models import (
     AgentProfile,
     ClassificationResult,
+    EvidenceRef,
     ModelUsage,
     RiskIndicator,
     SynthesisResult,
     ToolUsage,
 )
 from quin_scanner.risk_taxonomy import build_threat_reference, filter_threats
+from quin_scanner.rules.kri_predicates import EvidenceFacts
 
 _SYSTEM_PROMPT = """\
 You are an AI application analyst. Given scanner evidence from a repository, produce a \
@@ -27,7 +29,10 @@ Output schema:
     {
       "signal": "<Key Risk Indicator text from the THREAT REFERENCE>",
       "threat_id": "<T0NN — the threat this KRI belongs to>",
-      "recommended_controls": ["<control ID: control name>"]
+      "recommended_controls": ["<control ID: control name>"],
+      "evidence_refs": [
+        {"file_path": "<scanner-found path>", "line_number": <int or null>, "scanner": "<scanner name>"}
+      ]
     }
   ],
   "agents": [
@@ -40,7 +45,10 @@ Output schema:
         {
           "signal": "<Key Risk Indicator text from the THREAT REFERENCE>",
           "threat_id": "<T0NN — the threat this KRI belongs to>",
-          "recommended_controls": ["<control ID: control name>"]
+          "recommended_controls": ["<control ID: control name>"],
+          "evidence_refs": [
+            {"file_path": "<scanner-found path>", "line_number": <int or null>, "scanner": "<scanner name>"}
+          ]
         }
       ],
       "skills": ["<skill/playbook name — instructional workflows only>"],
@@ -80,13 +88,45 @@ Rules:
   a summary that mentions the scanner itself. Do not write "insufficient evidence" —
   always produce a best-effort description.
 
-- risk_signals (repo-level): System-wide risks that do NOT belong to any single agent —
-  supply chain, observability, infrastructure, governance-level risks.
-  Use ONLY Key Risk Indicators from the THREAT REFERENCE below.
-  Do NOT invent indicators outside the reference.
+- risk_signals (repo-level): Cross-cutting risks that apply to the system as a whole and
+  cannot be meaningfully attributed to any single agent. Use ONLY Key Risk Indicators
+  from the THREAT REFERENCE below. Do NOT invent indicators outside the reference.
   Only flag a KRI when there is supporting evidence in the scanner findings.
   For each KRI: (1) set threat_id to the T0NN heading under which the KRI appears in the
   THREAT REFERENCE, and (2) include the recommended_controls listed for that threat.
+
+  ALLOWED at repo level (cross-cutting in nature):
+    * Supply chain (T003): pinning, SBOM, provenance, dependency hygiene
+    * Resource abuse (T008): rate limiting, consumption-based billing exposure, model extraction
+    * Observability (T012): centralized logging, anomaly detection, SIEM integration
+    * Governance / unmanaged AI (T013): registry of agents, deploy review, port sprawl
+    * System-wide data exposure (T002): system prompts containing secrets, hard-coded credentials in
+      MCP/configuration, shared context stores without tenant isolation
+    * System-wide infrastructure (T005): code execution capability without sandboxing as a platform property
+
+  FORBIDDEN at repo level (must be per-agent only):
+    * Any KRI whose subject is "Agent <verb>" — these belong on the specific agent doing the verb.
+      Examples NOT allowed at repo level: "Agent retrieves external content", "Agent constructs
+      shell commands by concatenating user/external input", "Agent has access to tools beyond its
+      defined purpose", "Agent outputs fed into other agents without validation",
+      "Agents handling financial transactions or official communications".
+    * Any KRI describing a per-agent capability or output behavior — "Customer-facing applications
+      where outputs influence decisions", "No RAG grounding or verification of model outputs",
+      "Model output triggers downstream actions or tool calls", "Agent chains where output of one
+      feeds into another", "No per-step validation in multi-step workflows".
+
+  DO NOT DUPLICATE: If a KRI is going to appear on a specific agent's risk_signals (because that
+  agent's evidence triggered it), do NOT also include it at the repo level. The repo-level list is
+  reserved for risks that exist independently of any single agent.
+
+- evidence_refs: For EVERY risk_signal you emit (repo-level and per-agent), include at least one
+  evidence_ref pointing to a scanner finding from the Evidence block. Each ref MUST cite a
+  file_path that appears in the Evidence (under "Scanner summaries", "AGENT INSTANCES",
+  "TOOL DEFINITIONS", or "EXTERNAL SERVICES"). Do NOT invent file paths. The line_number is
+  optional but use it when the Evidence block provides one. The scanner field is the name shown
+  in brackets in the Evidence block (e.g. "ToolDefinitionScanner", "PromptDiscoveryScanner",
+  "AgentInstanceScanner"). If you cannot ground a signal in a specific finding, omit the signal
+  rather than fabricating an evidence_ref.
 
 - risk_signals (per-agent): Agent-specific risks based on that agent's capabilities,
   tools, and permissions. Use ONLY Key Risk Indicators from the THREAT REFERENCE below.
@@ -227,6 +267,39 @@ def _build_evidence_block(
     return "\n".join(lines)
 
 
+_VALID_SEVERITIES = {"critical", "high", "medium", "low", "info"}
+
+
+def _parse_evidence_refs(raw: list | None) -> list[EvidenceRef]:
+    """Parse evidence_refs from LLM JSON. Tolerant: drops malformed entries silently."""
+    if not isinstance(raw, list):
+        return []
+    out: list[EvidenceRef] = []
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        file_path = (item.get("file_path") or "").strip()
+        scanner = (item.get("scanner") or "").strip()
+        source_url = (item.get("source_url") or "").strip()
+        line = item.get("line_number")
+        try:
+            line_number = int(line) if line is not None else None
+            if line_number is not None and line_number <= 0:
+                line_number = None
+        except (TypeError, ValueError):
+            line_number = None
+        # An evidence ref needs at least a file path or a source URL to be useful.
+        if not file_path and not source_url:
+            continue
+        out.append(EvidenceRef(
+            file_path=file_path,
+            line_number=line_number,
+            scanner=scanner,
+            source_url=source_url,
+        ))
+    return out
+
+
 def _parse_risk_signals(raw_signals: list) -> list[RiskIndicator]:
     """Parse risk_signals from LLM JSON — handles both new dict format and legacy string format."""
     result: list[RiskIndicator] = []
@@ -235,11 +308,16 @@ def _parse_risk_signals(raw_signals: list) -> list[RiskIndicator]:
             signal = item.get("signal", "")
             controls = item.get("recommended_controls", [])
             threat_id = item.get("threat_id") or None
+            sev_raw = (item.get("severity") or "medium").strip().lower()
+            severity = sev_raw if sev_raw in _VALID_SEVERITIES else "medium"
+            evidence_refs = _parse_evidence_refs(item.get("evidence_refs"))
             if signal:
                 result.append(RiskIndicator(
                     signal=signal,
                     recommended_controls=controls,
                     threat_id=threat_id,
+                    severity=severity,
+                    evidence_refs=evidence_refs,
                 ))
         elif isinstance(item, str) and item:
             # Legacy format: plain string
@@ -334,6 +412,7 @@ class SynthesisAgent:
         tool_definitions: list[dict] | None = None,
         external_services: list[dict] | None = None,
         classification: ClassificationResult | None = None,
+        evidence_facts: EvidenceFacts | None = None,
     ) -> SynthesisResult:
         if on_progress:
             on_progress("Building evidence bundle...")
@@ -346,7 +425,7 @@ class SynthesisAgent:
                 threat_ids=classification.relevant_threats,
             )
             if filtered:
-                threat_reference = build_threat_reference(filtered)
+                threat_reference = build_threat_reference(filtered, facts=evidence_facts)
 
         evidence = _build_evidence_block(
             scanner_summaries,

@@ -44,6 +44,26 @@ class TestParseFrameworkRef:
             assert ref.version == "0.1.14"
 
 
+class TestVulnCheckGate:
+    """Regression: vuln check must run for both LLM output forms — bare name OR
+    name+version. Earlier the orchestrator gated on whether the dep-based
+    version-extractor ran, which silently no-op'd when the LLM already baked
+    the version into framework (e.g. 'CrewAI 0.130.0')."""
+
+    def test_versioned_framework_string_is_recognized(self):
+        # When the LLM emits "CrewAI 0.130.0" directly, the orchestrator's
+        # gate (parse_framework_ref) must still recognize it as actionable.
+        ref = parse_framework_ref("CrewAI 0.130.0")
+        assert ref is not None
+        assert ref.name == "CrewAI"
+        assert ref.version == "0.130.0"
+
+    def test_bare_framework_string_is_not_actionable(self):
+        # Bare name has no version → the orchestrator must rely on the
+        # dep-based version extractor before reaching the gate.
+        assert parse_framework_ref("CrewAI") is None
+
+
 class TestCvssToSeverity:
     @pytest.mark.parametrize("score,expected", [
         (9.5, "critical"),
@@ -248,3 +268,104 @@ class TestDedupeVulns:
 
     def test_empty_input(self):
         assert _dedupe_vulns([]) == []
+
+
+class TestWebSearchRetry:
+    """VulnChecker retries web-search on empty/exception per vuln_web_retries."""
+
+    def _ref(self):
+        return FrameworkRef(name="CrewAI", version="0.130.0", ecosystem="PyPI", package="crewai")
+
+    def _vuln(self, cve_id="CVE-X"):
+        return Vulnerability(
+            cve_id=cve_id, severity="critical", cvss_score=9.0,
+            published="2026-01-01", summary="x", source="web:test", source_url=None,
+        )
+
+    def _checker(self, retries=1):
+        from quin_scanner.config import ScannerConfig
+        from quin_scanner.vuln_checker import VulnChecker
+        cfg = ScannerConfig(
+            vuln_check_enabled=True,
+            vuln_search_provider="anthropic",
+            vuln_web_timeout=1.0,
+            vuln_web_retries=retries,
+        )
+        return VulnChecker(cfg)
+
+    def test_retry_on_empty_returns_second_attempt(self, monkeypatch):
+        """First call returns []; second returns [v]. Result should be [v]."""
+        from quin_scanner import vuln_checker as vc
+        calls: list[int] = []
+        good = [self._vuln()]
+        def fake_query(ref, provider, *, timeout, model_override):
+            calls.append(1)
+            return [] if len(calls) == 1 else good
+        monkeypatch.setattr(vc, "query_web_search", fake_query)
+        result = self._checker(retries=1)._query_web_with_retry(self._ref(), "anthropic")
+        assert result == good
+        assert len(calls) == 2  # one retry happened
+
+    def test_no_retry_when_first_attempt_succeeds(self, monkeypatch):
+        from quin_scanner import vuln_checker as vc
+        calls: list[int] = []
+        good = [self._vuln()]
+        def fake_query(ref, provider, *, timeout, model_override):
+            calls.append(1)
+            return good
+        monkeypatch.setattr(vc, "query_web_search", fake_query)
+        result = self._checker(retries=1)._query_web_with_retry(self._ref(), "anthropic")
+        assert result == good
+        assert len(calls) == 1
+
+    def test_returns_empty_when_all_attempts_empty(self, monkeypatch):
+        from quin_scanner import vuln_checker as vc
+        calls: list[int] = []
+        def fake_query(ref, provider, *, timeout, model_override):
+            calls.append(1)
+            return []
+        monkeypatch.setattr(vc, "query_web_search", fake_query)
+        result = self._checker(retries=1)._query_web_with_retry(self._ref(), "anthropic")
+        assert result == []
+        assert len(calls) == 2  # initial + 1 retry
+
+    def test_retries_on_exception(self, monkeypatch):
+        from quin_scanner import vuln_checker as vc
+        calls: list[int] = []
+        good = [self._vuln()]
+        def fake_query(ref, provider, *, timeout, model_override):
+            calls.append(1)
+            if len(calls) == 1:
+                raise httpx_timeout()
+            return good
+        monkeypatch.setattr(vc, "query_web_search", fake_query)
+        result = self._checker(retries=1)._query_web_with_retry(self._ref(), "anthropic")
+        assert result == good
+        assert len(calls) == 2
+
+    def test_retries_zero_disables_retry(self, monkeypatch):
+        from quin_scanner import vuln_checker as vc
+        calls: list[int] = []
+        def fake_query(ref, provider, *, timeout, model_override):
+            calls.append(1)
+            return []
+        monkeypatch.setattr(vc, "query_web_search", fake_query)
+        result = self._checker(retries=0)._query_web_with_retry(self._ref(), "anthropic")
+        assert result == []
+        assert len(calls) == 1  # only one attempt total
+
+    def test_negative_retries_clamped_to_zero(self, monkeypatch):
+        from quin_scanner import vuln_checker as vc
+        calls: list[int] = []
+        def fake_query(ref, provider, *, timeout, model_override):
+            calls.append(1)
+            return []
+        monkeypatch.setattr(vc, "query_web_search", fake_query)
+        self._checker(retries=-3)._query_web_with_retry(self._ref(), "anthropic")
+        assert len(calls) == 1
+
+
+def httpx_timeout():
+    """Helper: build a transient-looking exception."""
+    import httpx
+    return httpx.TimeoutException("fake timeout")

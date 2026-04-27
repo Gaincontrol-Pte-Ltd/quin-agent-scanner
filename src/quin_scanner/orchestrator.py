@@ -12,8 +12,11 @@ from quin_scanner.config import ScannerConfig
 from quin_scanner.file_index import FileIndex
 from quin_scanner.llm.classification_agent import ClassificationAgent
 from quin_scanner.llm.synthesis_agent import SynthesisAgent
+from quin_scanner.risk_taxonomy import get_control_label
+from quin_scanner.rules.kri_predicates import CLOUD_LLM_PROVIDERS, EvidenceFacts
 from quin_scanner.models import (
     ClassificationResult,
+    EvidenceRef,
     InfraProfile,
     MCPServer,
     RiskIndicator,
@@ -22,7 +25,7 @@ from quin_scanner.models import (
     SynthesisResult,
     Vulnerability,
 )
-from quin_scanner.vuln_checker import VulnChecker
+from quin_scanner.vuln_checker import VulnChecker, parse_framework_ref
 from quin_scanner.repo_accessor import RepoAccessor
 from quin_scanner.scanners.base import BaseScanner
 from quin_scanner.scanners.ci_scanner import CIScanner
@@ -654,6 +657,80 @@ def _extract_framework_version(
     return max(versions, key=_parse_version_tuple)
 
 
+_SEVERITY_RANK: dict[str, int] = {
+    "critical": 0,
+    "high": 1,
+    "medium": 2,
+    "low": 3,
+    "info": 4,
+}
+
+
+def _sort_by_severity(signals: list) -> list:
+    """Return signals sorted by severity (critical first), preserving original order within a tier."""
+    return sorted(
+        enumerate(signals),
+        key=lambda pair: (_SEVERITY_RANK.get(getattr(pair[1], "severity", "medium"), 2), pair[0]),
+    )
+
+def _sorted_repo_signals(signals: list) -> list:
+    """Stable sort by severity rank ascending (critical → info)."""
+    return [s for _, s in _sort_by_severity(signals)]
+
+
+def _dedup_repo_signals(repo_signals: list, agents: list) -> list:
+    """Drop repo-level risk signals that are already attributed to a specific agent.
+
+    Dedup key: (lowercased+stripped signal text, threat_id). The synthesis prompt
+    instructs the LLM not to duplicate per-agent KRIs at repo level; this is the
+    deterministic backstop in case it does.
+    """
+    agent_keys: set[tuple[str, str]] = set()
+    for a in agents:
+        for s in getattr(a, "risk_signals", []) or []:
+            sig = (getattr(s, "signal", "") or "").strip().lower()
+            tid = (getattr(s, "threat_id", "") or "").strip().upper()
+            if sig:
+                agent_keys.add((sig, tid))
+
+    deduped: list = []
+    for s in repo_signals:
+        sig = (getattr(s, "signal", "") or "").strip().lower()
+        tid = (getattr(s, "threat_id", "") or "").strip().upper()
+        if (sig, tid) in agent_keys:
+            continue
+        deduped.append(s)
+    return deduped
+
+
+def _validate_evidence_refs(signals: list, scanned_paths: set[str]) -> None:
+    """Drop hallucinated evidence_refs in-place.
+
+    A ref's file_path must appear in `scanned_paths` (the union of all
+    file paths that produced a scanner finding) OR carry a non-empty
+    source_url (CVE-style refs from VulnChecker). Refs failing both
+    checks are removed. The signal itself is kept — empty evidence_refs
+    just means the LLM didn't ground the signal in a specific finding.
+
+    This is a precision floor on refs, not a recall gate on signals:
+    we never silently drop a signal here.
+    """
+    for s in signals:
+        refs = getattr(s, "evidence_refs", None)
+        if not refs:
+            continue
+        kept = []
+        for r in refs:
+            path = (getattr(r, "file_path", "") or "").strip()
+            url = (getattr(r, "source_url", "") or "").strip()
+            if url:
+                kept.append(r)
+                continue
+            if path and path in scanned_paths:
+                kept.append(r)
+        s.evidence_refs = kept
+
+
 def _sanitise_model_usages(
     usages: list,
 ) -> tuple[list, int]:
@@ -848,6 +925,21 @@ class ScanOrchestrator:
                 for t in tool_services
             ][:_EVIDENCE_CAP]
 
+            evidence_facts = EvidenceFacts(
+                system_types=frozenset(classification.system_types if classification else []),
+                capability_tags=frozenset(capability_tags),
+                mcp_servers_count=len(mcp_servers),
+                agent_instances_count=len(agent_instances),
+                tool_definitions_count=len(tool_definitions),
+                external_service_categories=frozenset(
+                    s["category"] for s in external_services if s.get("category")
+                ),
+                cloud_llm_count=sum(
+                    1 for m in model_usages
+                    if (m.provider or "").lower() in CLOUD_LLM_PROVIDERS
+                ),
+            )
+
             try:
                 synthesis = agent.synthesize(
                     scanner_summaries=summaries,
@@ -859,6 +951,7 @@ class ScanOrchestrator:
                     tool_definitions=tool_definitions or None,
                     external_services=external_services or None,
                     classification=classification,
+                    evidence_facts=evidence_facts,
                 )
                 # Apply LLM confidence adjustment
                 if synthesis.confidence_adjustment:
@@ -908,16 +1001,23 @@ class ScanOrchestrator:
         if pp_framework == "unknown" and framework_candidate != "unknown":
             pp_framework = framework_candidate
 
-        # Rule 1b: append framework version from dependency manifests
-        fw_version = _extract_framework_version(pp_framework, all_findings)
-        if fw_version:
-            pp_framework = f"{pp_framework} {fw_version}"
+        # Rule 1b: append framework version from dependency manifests, but only
+        # if the LLM didn't already include one in pp_framework (e.g. "CrewAI 0.130.0").
+        # parse_framework_ref returns a FrameworkRef when the string already has
+        # a parseable version + a known ecosystem mapping; in that case skip
+        # the dep-based lookup which would otherwise miss the package-name key.
+        if parse_framework_ref(pp_framework) is None:
+            fw_version = _extract_framework_version(pp_framework, all_findings)
+            if fw_version:
+                pp_framework = f"{pp_framework} {fw_version}"
 
         # Rule 1c: check detected framework+version against OSV.dev and
         # (optionally) an LLM web search for CVEs / advisories. Failures
-        # degrade gracefully (warning only).
+        # degrade gracefully (warning only). Gate on the same parser that
+        # VulnChecker uses internally — if it can't produce a FrameworkRef,
+        # the check would no-op anyway.
         pp_vulnerabilities: list[Vulnerability] = []
-        if config.vuln_check_enabled and fw_version:
+        if config.vuln_check_enabled and parse_framework_ref(pp_framework) is not None:
             if verbose:
                 has_web = bool(config.vuln_search_provider)
                 sources = "OSV.dev + web search" if has_web else "OSV.dev"
@@ -1057,20 +1157,58 @@ class ScanOrchestrator:
                 pp_summary = f"AI application with detected capabilities: {tags_str}."
         # ── End post-processing ────────────────────────────────────────────────
 
-        # Repo-level risk signals from synthesis
-        pp_risk_signals = list(synthesis.risk_signals) if synthesis else []
+        # Validate evidence_refs against actual scanner findings before any
+        # signal-level processing — drops file paths the LLM hallucinated so
+        # downstream consumers (HTML report deep-links) only see real paths.
+        _scanned_paths: set[str] = {f.file_path for f in all_findings if f.file_path}
+        if synthesis:
+            _validate_evidence_refs(synthesis.risk_signals, _scanned_paths)
+        for _a in pp_agents:
+            _validate_evidence_refs(getattr(_a, "risk_signals", []), _scanned_paths)
+
+        # Repo-level risk signals from synthesis, with dedup against per-agent signals.
+        pp_risk_signals = _dedup_repo_signals(
+            list(synthesis.risk_signals) if synthesis else [],
+            pp_agents,
+        )
 
         # Promote critical / high vulnerabilities into the repo-level risk signals
         # so they surface in the main risk narrative alongside other findings.
+        # CVE severity is preserved on the RiskIndicator so the report can sort
+        # by it and the developer sees criticals before governance truisms.
+        # Pull the supply-chain control label from the taxonomy (single source
+        # of truth) instead of hardcoding — the prior "C002: Patch & Dependency
+        # Hygiene" string was wrong on two counts: C002 is "Output Validation
+        # & Handling", and "Patch & Dependency Hygiene" is not a control name
+        # that exists in the taxonomy. The canonical control for CVEs is C004.
+        _cve_control_label = get_control_label("C004")
         for _v in pp_vulnerabilities:
             if _v.severity in ("critical", "high"):
                 _cve = _v.cve_id or "CVE-unknown"
                 _sum = (_v.summary or "")[:160]
+                # Backfill evidence_refs from the CVE advisory URL — gives
+                # the developer a click-through to the canonical source.
+                _refs = (
+                    [EvidenceRef(scanner="VulnChecker", source_url=_v.source_url)]
+                    if _v.source_url else []
+                )
                 pp_risk_signals.append(RiskIndicator(
                     signal=f"{_v.severity.upper()} vulnerability {_cve}: {_sum}",
-                    recommended_controls=["C002: Patch & Dependency Hygiene"],
+                    recommended_controls=[_cve_control_label],
                     threat_id="T003",
+                    severity=_v.severity,
+                    evidence_refs=_refs,
                 ))
+
+        # Final pass: stable sort by severity so critical/high CVEs surface first.
+        pp_risk_signals = _sorted_repo_signals(pp_risk_signals)
+
+        # Cap to a precision-floor — the cut keeps the highest-severity entries
+        # because the sort already moved them to the front. Configurable via
+        # ScannerConfig.max_repo_risk_signals; None / <=0 disables the cap.
+        cap = config.max_repo_risk_signals
+        if cap is not None and cap > 0 and len(pp_risk_signals) > cap:
+            pp_risk_signals = pp_risk_signals[:cap]
 
         return ScanReport(
             repo_path=accessor.repo_identifier(),

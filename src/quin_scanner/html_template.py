@@ -80,6 +80,14 @@ body{font-family:var(--font-sans);background:var(--color-bg);color:var(--color-t
 .pill--orange{background:#fff7ed;color:#9a3412;border-color:#fed7aa}
 .pill--gray{background:#f9fafb;color:#4b5563;border-color:#e5e7eb}
 .risk-signal{display:block;padding:6px 10px;border-radius:var(--radius-sm);font-size:.78rem;font-weight:500;line-height:1.5;background:#fef2f2;color:#991b1b;border:1px solid #fecaca;word-wrap:break-word;overflow-wrap:break-word}
+.risk-signal--critical{background:#7f1d1d;color:#fff5f5;border-color:#7f1d1d}
+.risk-signal--high{background:#fef2f2;color:#991b1b;border-color:#fecaca}
+.risk-signal--medium{background:#fffbeb;color:#92400e;border-color:#fde68a}
+.risk-signal--low{background:#f9fafb;color:#4b5563;border-color:#e5e7eb}
+.risk-signal--info{background:#eff6ff;color:#1e40af;border-color:#bfdbfe}
+.risk-signal__sev{display:inline-block;padding:1px 6px;margin-right:6px;border-radius:3px;font-size:.65rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;background:rgba(0,0,0,.12);color:inherit;vertical-align:1px}
+.risk-detail__label{font-size:.7rem;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--color-muted);margin-bottom:.25rem}
+.risk-detail__scanner{font-size:.65rem;opacity:.6;font-style:italic}
 .doc-link{color:inherit;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:2px}
 .doc-link:hover{color:var(--color-accent);text-decoration-style:solid}
 .doc-link--icon{display:inline-block;margin-left:6px;font-size:.78rem;text-decoration:none;opacity:.7}
@@ -306,10 +314,10 @@ window.__REPORT_DATA__ = {{REPORT_DATA_JSON}};
   var HELP={
     verdict:"Shows whether this repo contains AI agent code and how confident the scan is. Confirms upfront that AI-specific threats (prompt injection, tool misuse, agent identity) apply here — not just traditional app security.",
     framework:"Identifies the agent framework in use (LangChain, LangGraph, CrewAI, etc.). Each framework has its own attack surface — use this to apply framework-specific hardening guides and match known CVEs.",
-    risk:"Aggregated risk level derived from detected system-wide and agent-specific signals. Use it to prioritize: High means review before production; Medium means targeted hardening; Low means verify your defenses still hold.",
+    risk:"Aggregated risk level derived from detected cross-cutting and agent-specific signals. Use it to prioritize: High means review before production; Medium means targeted hardening; Low means verify your defenses still hold.",
     capabilities:"High-level capabilities detected across the codebase (LLM calls, tool use, file I/O, network, etc.). Narrower capability surface means a narrower blast radius if an agent is compromised.",
     summary:"LLM-generated plain-English summary of what this repo does. Gives reviewers shared context before diving into specific agents, tools, or risk findings.",
-    riskSignals:"Repo/architecture-level security concerns — not tied to one agent. Each signal is assessed against our framework combining OWASP LLM Top 10, OWASP Agentic AI Top 10, and OWASP MCP Top 10; click a signal to expand and see the recommended controls mapped to that finding.",
+    riskSignals:"Cross-cutting risks that apply to the system as a whole — supply chain, observability, governance, system-wide data exposure — not attributable to any single agent. Each signal is assessed against our framework combining OWASP LLM Top 10, OWASP Agentic AI Top 10, and OWASP MCP Top 10; click a signal to expand the recommended controls and the scanner findings that triggered it.",
     vulnerabilities:"Known CVEs matching the framework and dependency versions detected. Patch Critical/High items before running agents in production — AI frameworks have had serious RCE and prompt-leak issues."
   };
 
@@ -326,6 +334,42 @@ window.__REPORT_DATA__ = {{REPORT_DATA_JSON}};
   function riskThreatId(r){
     if(r&&typeof r==="object"&&typeof r.threat_id==="string") return r.threat_id;
     return null;
+  }
+  function riskSeverity(r){
+    var allowed={critical:1,high:1,medium:1,low:1,info:1};
+    if(r&&typeof r==="object"&&typeof r.severity==="string"){
+      var s=r.severity.toLowerCase();
+      if(allowed[s]) return s;
+    }
+    return "medium";
+  }
+  function riskEvidenceRefs(r){
+    if(r&&typeof r==="object"&&Array.isArray(r.evidence_refs)) return r.evidence_refs;
+    return [];
+  }
+  /* Build a click-through href for an evidence_ref. CVE refs use source_url
+     directly; file_path refs try to construct a GitHub blob URL from
+     repo_path, falling back to no link for local paths. */
+  function evidenceRefHref(ref){
+    if(!ref) return "";
+    if(ref.source_url) return ref.source_url;
+    if(!ref.file_path) return "";
+    var repo=(D.repo_path||"").replace(/\.git$/,"");
+    var m=repo.match(/^https?:\/\/github\.com\/[^\/\s]+\/[^\/\s]+/);
+    if(m){
+      var line=ref.line_number?"#L"+ref.line_number:"";
+      return m[0]+"/blob/main/"+ref.file_path+line;
+    }
+    return "";
+  }
+  function evidenceRefLabel(ref){
+    if(!ref) return "";
+    if(ref.source_url){
+      var m=ref.source_url.match(/^https?:\/\/([^\/]+)/);
+      return m?m[1]:ref.source_url;
+    }
+    var p=ref.file_path||"";
+    return p+(ref.line_number?":"+ref.line_number:"");
   }
 
   /* ---- Risk derivation ---- */
@@ -387,7 +431,7 @@ window.__REPORT_DATA__ = {{REPORT_DATA_JSON}};
 
     var risk=deriveRisk();
     var riskBorder=risk.color==="red"?"hero-card--red":risk.color==="yellow"?"hero-card--yellow":"hero-card--green";
-    var riskSub=risk.repoCount+" system-wide, "+risk.agentCount+" agent-specific";
+    var riskSub=risk.repoCount+" cross-cutting, "+risk.agentCount+" agent-specific";
 
     var html="";
     html+='<div class="hero-card '+verdictBorder+'">';
@@ -431,7 +475,7 @@ window.__REPORT_DATA__ = {{REPORT_DATA_JSON}};
   (function renderRepoRisks(){
     var signals=D.risk_signals||[];
     if(!signals.length){$("repo-risks").style.display="none";return}
-    var html='<div style="margin:1.2rem 0"><div style="font-size:.85rem;font-weight:600;margin-bottom:.5rem">System-Wide Risk Signals'+helpIcon(HELP.riskSignals)+'</div>';
+    var html='<div style="margin:1.2rem 0"><div style="font-size:.85rem;font-weight:600;margin-bottom:.5rem">Cross-Cutting Risks'+helpIcon(HELP.riskSignals)+'</div>';
     html+=renderRiskSignals(signals);
     html+='</div>';
     $("repo-risks").innerHTML=html;
@@ -656,24 +700,44 @@ window.__REPORT_DATA__ = {{REPORT_DATA_JSON}};
     signals.forEach(function(r){
       var text=riskSignalText(r);
       var ctrls=riskControls(r);
+      var refs=riskEvidenceRefs(r);
       var tid=riskThreatId(r);
       var tHref=threatAnchor(tid);
+      var sev=riskSeverity(r);
       if(!text) return;
+      var hasDetail=ctrls.length||refs.length;
       html+='<div style="margin-bottom:.5rem">';
-      html+='<div class="risk-signal risk-toggle" style="cursor:'+(ctrls.length?'pointer':'default')+'">';
+      html+='<div class="risk-signal risk-signal--'+sev+' risk-toggle" style="cursor:'+(hasDetail?'pointer':'default')+'">';
+      html+='<span class="risk-signal__sev">'+sev+'</span>';
       html+='<span class="risk-signal__text">'+esc(text)+'</span>';
       if(tHref){
         /* Link-arrow icon opens the threat detail; stop-propagation keeps the
            row toggle from firing when the user clicks the icon. */
         html+=' <a href="'+esc(tHref)+'" target="_blank" rel="noopener" class="doc-link doc-link--icon" title="Open '+esc(tid)+' in risk framework" onclick="event.stopPropagation()">\\u2197</a>';
       }
-      if(ctrls.length){
+      if(hasDetail){
         html+=' <span style="float:right;margin-left:6px;font-size:.7rem;opacity:.6">&#9662;</span>';
       }
       html+='</div>';
-      if(ctrls.length){
+      if(hasDetail){
         html+='<div class="risk-controls" style="display:none;margin:.35rem 0 .35rem 10px;font-size:.75rem;color:var(--color-muted)">';
-        ctrls.forEach(function(c){html+='<div style="margin-bottom:.2rem">&#8594; '+controlLink(c)+'</div>'});
+        if(ctrls.length){
+          html+='<div class="risk-detail__label">Recommended controls</div>';
+          ctrls.forEach(function(c){html+='<div style="margin-bottom:.2rem">&#8594; '+controlLink(c)+'</div>'});
+        }
+        if(refs.length){
+          html+='<div class="risk-detail__label" style="margin-top:'+(ctrls.length?'.5rem':'0')+'">Evidence</div>';
+          refs.forEach(function(ref){
+            var href=evidenceRefHref(ref);
+            var label=evidenceRefLabel(ref);
+            var sc=ref.scanner?' <span class="risk-detail__scanner">('+esc(ref.scanner)+')</span>':'';
+            if(href){
+              html+='<div style="margin-bottom:.2rem">&#8594; <a href="'+esc(href)+'" target="_blank" rel="noopener" class="doc-link" onclick="event.stopPropagation()"><code>'+esc(label)+'</code></a>'+sc+'</div>';
+            }else{
+              html+='<div style="margin-bottom:.2rem">&#8594; <code>'+esc(label)+'</code>'+sc+'</div>';
+            }
+          });
+        }
         html+='</div>';
       }
       html+='</div>';
