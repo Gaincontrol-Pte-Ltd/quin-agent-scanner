@@ -12,6 +12,7 @@ from quin_scanner.config import ScannerConfig
 from quin_scanner.file_index import FileIndex
 from quin_scanner.llm.classification_agent import ClassificationAgent
 from quin_scanner.llm.synthesis_agent import SynthesisAgent
+from quin_scanner.risk_taxonomy import get_control_label
 from quin_scanner.rules.kri_predicates import CLOUD_LLM_PROVIDERS, EvidenceFacts
 from quin_scanner.models import (
     ClassificationResult,
@@ -1130,13 +1131,19 @@ class ScanOrchestrator:
         # so they surface in the main risk narrative alongside other findings.
         # CVE severity is preserved on the RiskIndicator so the report can sort
         # by it and the developer sees criticals before governance truisms.
+        # Pull the supply-chain control label from the taxonomy (single source
+        # of truth) instead of hardcoding — the prior "C002: Patch & Dependency
+        # Hygiene" string was wrong on two counts: C002 is "Output Validation
+        # & Handling", and "Patch & Dependency Hygiene" is not a control name
+        # that exists in the taxonomy. The canonical control for CVEs is C004.
+        _cve_control_label = get_control_label("C004")
         for _v in pp_vulnerabilities:
             if _v.severity in ("critical", "high"):
                 _cve = _v.cve_id or "CVE-unknown"
                 _sum = (_v.summary or "")[:160]
                 pp_risk_signals.append(RiskIndicator(
                     signal=f"{_v.severity.upper()} vulnerability {_cve}: {_sum}",
-                    recommended_controls=["C002: Patch & Dependency Hygiene"],
+                    recommended_controls=[_cve_control_label],
                     threat_id="T003",
                     severity=_v.severity,
                 ))

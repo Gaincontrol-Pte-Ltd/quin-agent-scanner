@@ -206,6 +206,11 @@ class TestThreatIdTaxonomyResolution:
         tax = load_taxonomy()
         threat_ids = {t.id for t in tax.threats}
         assert "T003" in threat_ids
+        # CVE control label is C004 — must exist and be one of T003's recommended controls
+        control_ids = {c.id for c in tax.controls}
+        assert "C004" in control_ids
+        t003 = next(t for t in tax.threats if t.id == "T003")
+        assert "C004" in t003.recommended_controls
         # Format guard: all taxonomy threats follow T0NN
         pattern = re.compile(r"^T\d{3}$")
         for tid in threat_ids:
