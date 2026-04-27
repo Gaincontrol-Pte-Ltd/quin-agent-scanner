@@ -172,7 +172,7 @@ class TestParseRiskSignals:
 
 
 class TestRiskIndicatorToDict:
-    def test_to_dict_includes_threat_id_and_severity(self):
+    def test_to_dict_includes_all_fields(self):
         from quin_scanner.models import RiskIndicator
         ri = RiskIndicator(signal="s", recommended_controls=["C001"], threat_id="T001")
         d = ri.to_dict()
@@ -181,6 +181,7 @@ class TestRiskIndicatorToDict:
             "recommended_controls": ["C001"],
             "threat_id": "T001",
             "severity": "medium",
+            "evidence_refs": [],
         }
 
     def test_to_dict_threat_id_defaults_to_none(self):
@@ -196,6 +197,66 @@ class TestRiskIndicatorToDict:
         from quin_scanner.models import RiskIndicator
         ri = RiskIndicator(signal="s", severity="critical")
         assert ri.to_dict()["severity"] == "critical"
+
+    def test_evidence_refs_default_to_empty_list(self):
+        from quin_scanner.models import RiskIndicator
+        assert RiskIndicator(signal="s").evidence_refs == []
+
+    def test_evidence_refs_round_trip(self):
+        from quin_scanner.models import RiskIndicator, EvidenceRef
+        ri = RiskIndicator(signal="s", evidence_refs=[
+            EvidenceRef(file_path="src/main.py", line_number=42, scanner="ToolDefinitionScanner"),
+            EvidenceRef(scanner="VulnChecker", source_url="https://example.com/advisory"),
+        ])
+        d = ri.to_dict()
+        assert len(d["evidence_refs"]) == 2
+        assert d["evidence_refs"][0]["file_path"] == "src/main.py"
+        assert d["evidence_refs"][0]["line_number"] == 42
+        assert d["evidence_refs"][1]["source_url"] == "https://example.com/advisory"
+
+
+class TestParseEvidenceRefs:
+    """LLM-output parser tolerates malformed evidence_refs."""
+
+    def _parse(self, raw):
+        from quin_scanner.llm.synthesis_agent import _parse_evidence_refs
+        return _parse_evidence_refs(raw)
+
+    def test_well_formed(self):
+        refs = self._parse([
+            {"file_path": "src/x.py", "line_number": 10, "scanner": "ToolDefinitionScanner"},
+        ])
+        assert len(refs) == 1
+        assert refs[0].file_path == "src/x.py"
+        assert refs[0].line_number == 10
+
+    def test_drops_entries_with_no_path_or_url(self):
+        refs = self._parse([
+            {"line_number": 5, "scanner": "X"},  # no file_path / source_url
+            {"file_path": "src/x.py"},
+        ])
+        assert len(refs) == 1
+        assert refs[0].file_path == "src/x.py"
+
+    def test_negative_line_number_becomes_none(self):
+        refs = self._parse([{"file_path": "x", "line_number": -1}])
+        assert refs[0].line_number is None
+
+    def test_string_line_number_parsed(self):
+        refs = self._parse([{"file_path": "x", "line_number": "42"}])
+        assert refs[0].line_number == 42
+
+    def test_invalid_line_number_becomes_none(self):
+        refs = self._parse([{"file_path": "x", "line_number": "not-a-number"}])
+        assert refs[0].line_number is None
+
+    def test_non_list_returns_empty(self):
+        assert self._parse(None) == []
+        assert self._parse("not a list") == []
+        assert self._parse({}) == []
+
+    def test_non_dict_items_skipped(self):
+        assert self._parse(["not a dict", 42, None]) == []
 
 
 class TestThreatIdTaxonomyResolution:

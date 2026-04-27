@@ -16,6 +16,7 @@ from quin_scanner.risk_taxonomy import get_control_label
 from quin_scanner.rules.kri_predicates import CLOUD_LLM_PROVIDERS, EvidenceFacts
 from quin_scanner.models import (
     ClassificationResult,
+    EvidenceRef,
     InfraProfile,
     MCPServer,
     RiskIndicator,
@@ -1141,11 +1142,18 @@ class ScanOrchestrator:
             if _v.severity in ("critical", "high"):
                 _cve = _v.cve_id or "CVE-unknown"
                 _sum = (_v.summary or "")[:160]
+                # Backfill evidence_refs from the CVE advisory URL — gives
+                # the developer a click-through to the canonical source.
+                _refs = (
+                    [EvidenceRef(scanner="VulnChecker", source_url=_v.source_url)]
+                    if _v.source_url else []
+                )
                 pp_risk_signals.append(RiskIndicator(
                     signal=f"{_v.severity.upper()} vulnerability {_cve}: {_sum}",
                     recommended_controls=[_cve_control_label],
                     threat_id="T003",
                     severity=_v.severity,
+                    evidence_refs=_refs,
                 ))
 
         # Final pass: stable sort by severity so critical/high CVEs surface first.

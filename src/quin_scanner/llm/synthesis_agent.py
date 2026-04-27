@@ -7,6 +7,7 @@ from quin_scanner.llm.base import BaseLLMProvider
 from quin_scanner.models import (
     AgentProfile,
     ClassificationResult,
+    EvidenceRef,
     ModelUsage,
     RiskIndicator,
     SynthesisResult,
@@ -254,6 +255,36 @@ def _build_evidence_block(
 _VALID_SEVERITIES = {"critical", "high", "medium", "low", "info"}
 
 
+def _parse_evidence_refs(raw: list | None) -> list[EvidenceRef]:
+    """Parse evidence_refs from LLM JSON. Tolerant: drops malformed entries silently."""
+    if not isinstance(raw, list):
+        return []
+    out: list[EvidenceRef] = []
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        file_path = (item.get("file_path") or "").strip()
+        scanner = (item.get("scanner") or "").strip()
+        source_url = (item.get("source_url") or "").strip()
+        line = item.get("line_number")
+        try:
+            line_number = int(line) if line is not None else None
+            if line_number is not None and line_number <= 0:
+                line_number = None
+        except (TypeError, ValueError):
+            line_number = None
+        # An evidence ref needs at least a file path or a source URL to be useful.
+        if not file_path and not source_url:
+            continue
+        out.append(EvidenceRef(
+            file_path=file_path,
+            line_number=line_number,
+            scanner=scanner,
+            source_url=source_url,
+        ))
+    return out
+
+
 def _parse_risk_signals(raw_signals: list) -> list[RiskIndicator]:
     """Parse risk_signals from LLM JSON — handles both new dict format and legacy string format."""
     result: list[RiskIndicator] = []
@@ -264,12 +295,14 @@ def _parse_risk_signals(raw_signals: list) -> list[RiskIndicator]:
             threat_id = item.get("threat_id") or None
             sev_raw = (item.get("severity") or "medium").strip().lower()
             severity = sev_raw if sev_raw in _VALID_SEVERITIES else "medium"
+            evidence_refs = _parse_evidence_refs(item.get("evidence_refs"))
             if signal:
                 result.append(RiskIndicator(
                     signal=signal,
                     recommended_controls=controls,
                     threat_id=threat_id,
                     severity=severity,
+                    evidence_refs=evidence_refs,
                 ))
         elif isinstance(item, str) and item:
             # Legacy format: plain string
