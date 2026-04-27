@@ -1,11 +1,23 @@
 from __future__ import annotations
 
+import base64
 import json
 from pathlib import Path
 
 import yaml
 
 from quin_scanner.models import ScanReport
+
+_LOGO_PATH = Path(__file__).parent / "logo.png"
+
+
+def _logo_data_uri() -> str:
+    """Return the bundled logo as a base64 data URI, or empty string if missing."""
+    try:
+        encoded = base64.b64encode(_LOGO_PATH.read_bytes()).decode("ascii")
+        return f"data:image/png;base64,{encoded}"
+    except OSError:
+        return ""
 
 
 class ReportGenerator:
@@ -26,7 +38,8 @@ class ReportGenerator:
         data_json = json.dumps(report.to_dict(), indent=2, default=str)
         # Escape </script> sequences to prevent XSS when embedding in a <script> tag
         safe_json = data_json.replace("</", "<\\/")
-        return HTML_TEMPLATE.replace("{{REPORT_DATA_JSON}}", safe_json)
+        rendered = HTML_TEMPLATE.replace("{{REPORT_DATA_JSON}}", safe_json)
+        return rendered.replace("{{LOGO_DATA_URI}}", _logo_data_uri())
 
     @classmethod
     def to_string(cls, report: ScanReport, fmt: str) -> str:
