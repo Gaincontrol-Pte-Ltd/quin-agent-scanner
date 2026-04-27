@@ -53,6 +53,11 @@ class ScannerConfig:
     vuln_search_model: str | None = None     # optional override (e.g. "sonar-pro")
     vuln_osv_timeout: float = 10.0
     vuln_web_timeout: float = 5.0
+    # Web-search retries when the provider returns an empty list or throws.
+    # Total attempts = vuln_web_retries + 1. Default 1 (one retry → 2 attempts)
+    # mitigates LLM/web-search non-determinism without doubling cost on every
+    # scan. Set to 0 to disable retry entirely.
+    vuln_web_retries: int = 1
     # Cap on repo-level risk signals shown to the user. Applied AFTER the
     # severity-aware sort so the cap keeps the highest-severity entries.
     # Set to 0 or None to disable the cap.
@@ -95,6 +100,7 @@ class ScannerConfig:
             vuln_search_model=vuln_cfg.get("search_model"),
             vuln_osv_timeout=float(vuln_cfg.get("osv_timeout_seconds", 10.0)),
             vuln_web_timeout=float(vuln_cfg.get("web_timeout_seconds", 5.0)),
+            vuln_web_retries=max(0, int(vuln_cfg.get("web_retries", 1))),
             max_repo_risk_signals=_parse_max_signals(out_cfg.get("max_repo_risk_signals", 10)),
         )
 
