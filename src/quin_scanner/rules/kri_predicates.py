@@ -49,6 +49,14 @@ _REGISTRY: dict[str, Callable[[EvidenceFacts], bool]] = {
         lambda f: "code_execution" in f.external_service_categories,
     "cloud_llm_usage":
         lambda f: f.cloud_llm_count > 0,
+    "rag_capability_present":
+        lambda f: "rag" in f.capability_tags,
+    "vector_database_present":
+        lambda f: "vector_database" in f.external_service_categories,
+    "fine_tuning_present":
+        lambda f: "fine-tuning" in f.capability_tags,
+    "external_communications_present":
+        lambda f: "communication" in f.external_service_categories,
 }
 
 
