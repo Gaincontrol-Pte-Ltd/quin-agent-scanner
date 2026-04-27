@@ -703,6 +703,34 @@ def _dedup_repo_signals(repo_signals: list, agents: list) -> list:
     return deduped
 
 
+def _validate_evidence_refs(signals: list, scanned_paths: set[str]) -> None:
+    """Drop hallucinated evidence_refs in-place.
+
+    A ref's file_path must appear in `scanned_paths` (the union of all
+    file paths that produced a scanner finding) OR carry a non-empty
+    source_url (CVE-style refs from VulnChecker). Refs failing both
+    checks are removed. The signal itself is kept — empty evidence_refs
+    just means the LLM didn't ground the signal in a specific finding.
+
+    This is a precision floor on refs, not a recall gate on signals:
+    we never silently drop a signal here.
+    """
+    for s in signals:
+        refs = getattr(s, "evidence_refs", None)
+        if not refs:
+            continue
+        kept = []
+        for r in refs:
+            path = (getattr(r, "file_path", "") or "").strip()
+            url = (getattr(r, "source_url", "") or "").strip()
+            if url:
+                kept.append(r)
+                continue
+            if path and path in scanned_paths:
+                kept.append(r)
+        s.evidence_refs = kept
+
+
 def _sanitise_model_usages(
     usages: list,
 ) -> tuple[list, int]:
@@ -1121,6 +1149,15 @@ class ScanOrchestrator:
             elif is_ai:
                 pp_summary = f"AI application with detected capabilities: {tags_str}."
         # ── End post-processing ────────────────────────────────────────────────
+
+        # Validate evidence_refs against actual scanner findings before any
+        # signal-level processing — drops file paths the LLM hallucinated so
+        # downstream consumers (HTML report deep-links) only see real paths.
+        _scanned_paths: set[str] = {f.file_path for f in all_findings if f.file_path}
+        if synthesis:
+            _validate_evidence_refs(synthesis.risk_signals, _scanned_paths)
+        for _a in pp_agents:
+            _validate_evidence_refs(getattr(_a, "risk_signals", []), _scanned_paths)
 
         # Repo-level risk signals from synthesis, with dedup against per-agent signals.
         pp_risk_signals = _dedup_repo_signals(

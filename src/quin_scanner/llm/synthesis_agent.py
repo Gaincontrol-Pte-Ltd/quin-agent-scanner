@@ -29,7 +29,10 @@ Output schema:
     {
       "signal": "<Key Risk Indicator text from the THREAT REFERENCE>",
       "threat_id": "<T0NN — the threat this KRI belongs to>",
-      "recommended_controls": ["<control ID: control name>"]
+      "recommended_controls": ["<control ID: control name>"],
+      "evidence_refs": [
+        {"file_path": "<scanner-found path>", "line_number": <int or null>, "scanner": "<scanner name>"}
+      ]
     }
   ],
   "agents": [
@@ -42,7 +45,10 @@ Output schema:
         {
           "signal": "<Key Risk Indicator text from the THREAT REFERENCE>",
           "threat_id": "<T0NN — the threat this KRI belongs to>",
-          "recommended_controls": ["<control ID: control name>"]
+          "recommended_controls": ["<control ID: control name>"],
+          "evidence_refs": [
+            {"file_path": "<scanner-found path>", "line_number": <int or null>, "scanner": "<scanner name>"}
+          ]
         }
       ],
       "skills": ["<skill/playbook name — instructional workflows only>"],
@@ -112,6 +118,15 @@ Rules:
   DO NOT DUPLICATE: If a KRI is going to appear on a specific agent's risk_signals (because that
   agent's evidence triggered it), do NOT also include it at the repo level. The repo-level list is
   reserved for risks that exist independently of any single agent.
+
+- evidence_refs: For EVERY risk_signal you emit (repo-level and per-agent), include at least one
+  evidence_ref pointing to a scanner finding from the Evidence block. Each ref MUST cite a
+  file_path that appears in the Evidence (under "Scanner summaries", "AGENT INSTANCES",
+  "TOOL DEFINITIONS", or "EXTERNAL SERVICES"). Do NOT invent file paths. The line_number is
+  optional but use it when the Evidence block provides one. The scanner field is the name shown
+  in brackets in the Evidence block (e.g. "ToolDefinitionScanner", "PromptDiscoveryScanner",
+  "AgentInstanceScanner"). If you cannot ground a signal in a specific finding, omit the signal
+  rather than fabricating an evidence_ref.
 
 - risk_signals (per-agent): Agent-specific risks based on that agent's capabilities,
   tools, and permissions. Use ONLY Key Risk Indicators from the THREAT REFERENCE below.

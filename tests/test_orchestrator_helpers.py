@@ -369,3 +369,52 @@ class TestRepoSignalCap:
         from quin_scanner.config import _parse_max_signals
         assert _parse_max_signals(5) == 5
         assert _parse_max_signals("7") == 7
+
+
+class TestValidateEvidenceRefs:
+    """_validate_evidence_refs drops refs whose file_path isn't in scanned paths."""
+
+    def _ri(self, signal, refs):
+        from quin_scanner.models import RiskIndicator
+        return RiskIndicator(signal=signal, evidence_refs=refs)
+
+    def _ref(self, file_path="", source_url=""):
+        from quin_scanner.models import EvidenceRef
+        return EvidenceRef(file_path=file_path, source_url=source_url)
+
+    def test_drops_hallucinated_path(self):
+        from quin_scanner.orchestrator import _validate_evidence_refs
+        signals = [self._ri("s", [
+            self._ref(file_path="src/real.py"),
+            self._ref(file_path="src/hallucinated.py"),
+        ])]
+        _validate_evidence_refs(signals, scanned_paths={"src/real.py"})
+        assert len(signals[0].evidence_refs) == 1
+        assert signals[0].evidence_refs[0].file_path == "src/real.py"
+
+    def test_keeps_refs_with_source_url_even_if_path_missing(self):
+        """CVE-style refs (no path, has URL) are always kept — they aren't grounded in scanned files."""
+        from quin_scanner.orchestrator import _validate_evidence_refs
+        signals = [self._ri("s", [
+            self._ref(source_url="https://example.com/advisory"),
+        ])]
+        _validate_evidence_refs(signals, scanned_paths=set())
+        assert len(signals[0].evidence_refs) == 1
+
+    def test_signal_kept_even_when_all_refs_dropped(self):
+        """Validation is a precision floor on refs, not a recall gate on signals."""
+        from quin_scanner.orchestrator import _validate_evidence_refs
+        signals = [self._ri("s", [self._ref(file_path="bogus.py")])]
+        _validate_evidence_refs(signals, scanned_paths=set())
+        assert len(signals) == 1
+        assert signals[0].evidence_refs == []
+
+    def test_signal_with_no_refs_unchanged(self):
+        from quin_scanner.orchestrator import _validate_evidence_refs
+        signals = [self._ri("s", [])]
+        _validate_evidence_refs(signals, scanned_paths={"a.py"})
+        assert signals[0].evidence_refs == []
+
+    def test_empty_signal_list_safe(self):
+        from quin_scanner.orchestrator import _validate_evidence_refs
+        _validate_evidence_refs([], scanned_paths={"a.py"})  # no error
