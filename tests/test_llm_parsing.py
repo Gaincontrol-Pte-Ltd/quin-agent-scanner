@@ -172,16 +172,30 @@ class TestParseRiskSignals:
 
 
 class TestRiskIndicatorToDict:
-    def test_to_dict_includes_threat_id(self):
+    def test_to_dict_includes_threat_id_and_severity(self):
         from quin_scanner.models import RiskIndicator
         ri = RiskIndicator(signal="s", recommended_controls=["C001"], threat_id="T001")
         d = ri.to_dict()
-        assert d == {"signal": "s", "recommended_controls": ["C001"], "threat_id": "T001"}
+        assert d == {
+            "signal": "s",
+            "recommended_controls": ["C001"],
+            "threat_id": "T001",
+            "severity": "medium",
+        }
 
     def test_to_dict_threat_id_defaults_to_none(self):
         from quin_scanner.models import RiskIndicator
         ri = RiskIndicator(signal="s")
         assert ri.to_dict()["threat_id"] is None
+
+    def test_severity_defaults_to_medium(self):
+        from quin_scanner.models import RiskIndicator
+        assert RiskIndicator(signal="s").severity == "medium"
+
+    def test_severity_round_trips_through_to_dict(self):
+        from quin_scanner.models import RiskIndicator
+        ri = RiskIndicator(signal="s", severity="critical")
+        assert ri.to_dict()["severity"] == "critical"
 
 
 class TestThreatIdTaxonomyResolution:

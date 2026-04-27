@@ -655,6 +655,27 @@ def _extract_framework_version(
     return max(versions, key=_parse_version_tuple)
 
 
+_SEVERITY_RANK: dict[str, int] = {
+    "critical": 0,
+    "high": 1,
+    "medium": 2,
+    "low": 3,
+    "info": 4,
+}
+
+
+def _sort_by_severity(signals: list) -> list:
+    """Return signals sorted by severity (critical first), preserving original order within a tier."""
+    return sorted(
+        enumerate(signals),
+        key=lambda pair: (_SEVERITY_RANK.get(getattr(pair[1], "severity", "medium"), 2), pair[0]),
+    )
+
+def _sorted_repo_signals(signals: list) -> list:
+    """Stable sort by severity rank ascending (critical → info)."""
+    return [s for _, s in _sort_by_severity(signals)]
+
+
 def _dedup_repo_signals(repo_signals: list, agents: list) -> list:
     """Drop repo-level risk signals that are already attributed to a specific agent.
 
@@ -1107,6 +1128,8 @@ class ScanOrchestrator:
 
         # Promote critical / high vulnerabilities into the repo-level risk signals
         # so they surface in the main risk narrative alongside other findings.
+        # CVE severity is preserved on the RiskIndicator so the report can sort
+        # by it and the developer sees criticals before governance truisms.
         for _v in pp_vulnerabilities:
             if _v.severity in ("critical", "high"):
                 _cve = _v.cve_id or "CVE-unknown"
@@ -1115,7 +1138,11 @@ class ScanOrchestrator:
                     signal=f"{_v.severity.upper()} vulnerability {_cve}: {_sum}",
                     recommended_controls=["C002: Patch & Dependency Hygiene"],
                     threat_id="T003",
+                    severity=_v.severity,
                 ))
+
+        # Final pass: stable sort by severity so critical/high CVEs surface first.
+        pp_risk_signals = _sorted_repo_signals(pp_risk_signals)
 
         return ScanReport(
             repo_path=accessor.repo_identifier(),

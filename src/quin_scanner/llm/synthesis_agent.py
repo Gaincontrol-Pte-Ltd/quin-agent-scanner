@@ -251,6 +251,9 @@ def _build_evidence_block(
     return "\n".join(lines)
 
 
+_VALID_SEVERITIES = {"critical", "high", "medium", "low", "info"}
+
+
 def _parse_risk_signals(raw_signals: list) -> list[RiskIndicator]:
     """Parse risk_signals from LLM JSON — handles both new dict format and legacy string format."""
     result: list[RiskIndicator] = []
@@ -259,11 +262,14 @@ def _parse_risk_signals(raw_signals: list) -> list[RiskIndicator]:
             signal = item.get("signal", "")
             controls = item.get("recommended_controls", [])
             threat_id = item.get("threat_id") or None
+            sev_raw = (item.get("severity") or "medium").strip().lower()
+            severity = sev_raw if sev_raw in _VALID_SEVERITIES else "medium"
             if signal:
                 result.append(RiskIndicator(
                     signal=signal,
                     recommended_controls=controls,
                     threat_id=threat_id,
+                    severity=severity,
                 ))
         elif isinstance(item, str) and item:
             # Legacy format: plain string

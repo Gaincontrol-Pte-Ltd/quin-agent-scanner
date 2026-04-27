@@ -289,3 +289,43 @@ class TestDedupRepoSignals:
         repo = [self._ri("foo", "")]
         agents = [self._agent("A", [self._ri("foo", "")])]
         assert _dedup_repo_signals(repo, agents) == []
+
+
+class TestSortedRepoSignals:
+    """Severity-aware stable sort puts critical/high first."""
+
+    def _ri(self, signal, severity):
+        from quin_scanner.models import RiskIndicator
+        return RiskIndicator(signal=signal, recommended_controls=[], threat_id="T003", severity=severity)
+
+    def test_severity_order(self):
+        from quin_scanner.orchestrator import _sorted_repo_signals
+        signals = [
+            self._ri("low item", "low"),
+            self._ri("medium item", "medium"),
+            self._ri("critical item", "critical"),
+            self._ri("high item", "high"),
+            self._ri("info item", "info"),
+        ]
+        result = _sorted_repo_signals(signals)
+        assert [s.severity for s in result] == ["critical", "high", "medium", "low", "info"]
+
+    def test_stable_within_severity(self):
+        """Items with same severity preserve insertion order."""
+        from quin_scanner.orchestrator import _sorted_repo_signals
+        signals = [
+            self._ri("first medium", "medium"),
+            self._ri("critical", "critical"),
+            self._ri("second medium", "medium"),
+        ]
+        result = _sorted_repo_signals(signals)
+        assert [s.signal for s in result] == ["critical", "first medium", "second medium"]
+
+    def test_unknown_severity_treated_as_medium(self):
+        from quin_scanner.orchestrator import _sorted_repo_signals
+        signals = [
+            self._ri("bogus", "weird-tier"),
+            self._ri("crit", "critical"),
+        ]
+        result = _sorted_repo_signals(signals)
+        assert result[0].severity == "critical"
