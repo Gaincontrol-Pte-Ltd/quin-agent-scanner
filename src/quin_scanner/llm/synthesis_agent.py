@@ -13,6 +13,7 @@ from quin_scanner.models import (
     ToolUsage,
 )
 from quin_scanner.risk_taxonomy import build_threat_reference, filter_threats
+from quin_scanner.rules.kri_predicates import EvidenceFacts
 
 _SYSTEM_PROMPT = """\
 You are an AI application analyst. Given scanner evidence from a repository, produce a \
@@ -334,6 +335,7 @@ class SynthesisAgent:
         tool_definitions: list[dict] | None = None,
         external_services: list[dict] | None = None,
         classification: ClassificationResult | None = None,
+        evidence_facts: EvidenceFacts | None = None,
     ) -> SynthesisResult:
         if on_progress:
             on_progress("Building evidence bundle...")
@@ -346,7 +348,7 @@ class SynthesisAgent:
                 threat_ids=classification.relevant_threats,
             )
             if filtered:
-                threat_reference = build_threat_reference(filtered)
+                threat_reference = build_threat_reference(filtered, facts=evidence_facts)
 
         evidence = _build_evidence_block(
             scanner_summaries,

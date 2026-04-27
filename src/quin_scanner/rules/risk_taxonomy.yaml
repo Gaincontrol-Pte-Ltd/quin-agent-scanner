@@ -77,8 +77,10 @@ threats:
     key_risk_indicators:
       - PII or sensitive data in training data, fine-tuning datasets, or RAG knowledge bases
       - System prompts containing credentials, connection strings, or internal URLs
-      - Hard-coded credentials in MCP server configurations
-      - API keys or tokens stored in conversational memory across sessions
+      - text: Hard-coded credentials in MCP server configurations
+        requires: [mcp_servers_present]
+      - text: API keys or tokens stored in conversational memory across sessions
+        requires: [memory_capability_present]
       - Debug logs containing unredacted secrets
       - Shared context stores across users or tenants without isolation
     attack_patterns:
@@ -337,9 +339,11 @@ threats:
       at the message boundary.
     key_risk_indicators:
       - Multi-agent systems with A2A delegation
-      - No mutual authentication between agents
+      - text: No mutual authentication between agents
+        requires: [multi_agent_system, mcp_servers_present]
       - Agents sharing context without authorization controls
-      - MCP server chains without per-step permission validation
+      - text: MCP server chains without per-step permission validation
+        requires: [mcp_servers_present]
       - No agent identity verification in orchestrator-to-sub-agent communication
     attack_patterns:
       - Agent impersonation via spoofed identity tokens
@@ -442,7 +446,8 @@ threats:
       all read from the same trace. Without it, every other control is
       operating blind.
     key_risk_indicators:
-      - No centralized logging of MCP tool invocations
+      - text: No centralized logging of MCP tool invocations
+        requires: [mcp_servers_present]
       - No record of context changes in agent memory
       - Logs mutable or accessible to agents themselves
       - No anomaly detection on tool usage patterns

@@ -12,6 +12,7 @@ from quin_scanner.config import ScannerConfig
 from quin_scanner.file_index import FileIndex
 from quin_scanner.llm.classification_agent import ClassificationAgent
 from quin_scanner.llm.synthesis_agent import SynthesisAgent
+from quin_scanner.rules.kri_predicates import EvidenceFacts
 from quin_scanner.models import (
     ClassificationResult,
     InfraProfile,
@@ -848,6 +849,17 @@ class ScanOrchestrator:
                 for t in tool_services
             ][:_EVIDENCE_CAP]
 
+            evidence_facts = EvidenceFacts(
+                system_types=frozenset(classification.system_types if classification else []),
+                capability_tags=frozenset(capability_tags),
+                mcp_servers_count=len(mcp_servers),
+                agent_instances_count=len(agent_instances),
+                tool_definitions_count=len(tool_definitions),
+                external_service_categories=frozenset(
+                    s["category"] for s in external_services if s.get("category")
+                ),
+            )
+
             try:
                 synthesis = agent.synthesize(
                     scanner_summaries=summaries,
@@ -859,6 +871,7 @@ class ScanOrchestrator:
                     tool_definitions=tool_definitions or None,
                     external_services=external_services or None,
                     classification=classification,
+                    evidence_facts=evidence_facts,
                 )
                 # Apply LLM confidence adjustment
                 if synthesis.confidence_adjustment:
