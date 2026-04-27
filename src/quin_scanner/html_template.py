@@ -23,6 +23,10 @@ HTML_TEMPLATE: str = """\
   --color-medium:#f59e0b;
   --color-low:#22c55e;
   --color-accent:#6366f1;
+  --color-brand:#e25e47;
+  --color-brand-soft:#fbece4;
+  --color-cream:#fdf6ec;
+  --color-cream-deep:#f5e6d3;
   --font-sans:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
   --font-mono:ui-monospace,SFMono-Regular,'SF Mono',Menlo,Consolas,monospace;
   --radius-sm:4px;
@@ -37,12 +41,22 @@ body{font-family:var(--font-sans);background:var(--color-bg);color:var(--color-t
 .container{max-width:1120px;margin:0 auto;padding:0 24px}
 
 /* ---------- Header ---------- */
-.header{border-bottom:1px solid var(--color-border);background:var(--color-surface);padding:16px 0}
-.header-inner{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
-.header h1{font-size:1.15rem;font-weight:700;letter-spacing:-.02em}
-.header-meta{font-size:.8rem;color:var(--color-muted);text-align:right;word-break:break-all}
-.header-meta a{color:var(--color-muted);text-decoration:underline}
-.header-meta a:hover{color:var(--color-text)}
+.header{position:relative;background:radial-gradient(circle at 88% 120%,rgba(226,94,71,.22) 0%,transparent 55%),linear-gradient(135deg,#1a1d24 0%,#22262f 55%,#2a2118 100%);border-bottom:1px solid #0e1014;padding:30px 0 28px;overflow:hidden}
+.header::before{content:"";position:absolute;inset:0;background:radial-gradient(circle at 8% 20%,rgba(245,230,211,.08) 0%,transparent 50%);pointer-events:none}
+.header::after{content:"";position:absolute;left:0;right:0;bottom:0;height:2px;background:linear-gradient(90deg,transparent 0%,var(--color-brand) 30%,var(--color-cream-deep) 70%,transparent 100%);opacity:.75}
+.header-inner{position:relative;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:20px}
+.brand{display:flex;align-items:center;gap:18px;min-width:0}
+.brand-logo{height:42px;width:auto;display:block;flex-shrink:0;filter:drop-shadow(0 1px 2px rgba(0,0,0,.25))}
+.brand-divider{width:1px;height:36px;background:linear-gradient(180deg,transparent,rgba(245,230,211,.35),transparent);flex-shrink:0}
+.brand-text{display:flex;flex-direction:column;gap:3px;min-width:0}
+.brand-wordmark{font-size:1.32rem;font-weight:700;letter-spacing:-.025em;color:var(--color-cream);line-height:1.1}
+.brand-wordmark .brand-accent{color:var(--color-brand);font-weight:700}
+.brand-tagline{font-size:.7rem;font-weight:600;color:rgba(245,230,211,.65);letter-spacing:.12em;text-transform:uppercase}
+.header-meta{font-size:.8rem;color:rgba(245,230,211,.7);text-align:right;word-break:break-all;display:flex;flex-direction:column;gap:4px;align-items:flex-end}
+.header-meta__repo{font-weight:600;color:var(--color-cream)}
+.header-meta__repo a{color:var(--color-cream);text-decoration:none;border-bottom:1px dotted var(--color-brand)}
+.header-meta__repo a:hover{color:var(--color-brand);border-bottom-color:var(--color-brand)}
+.header-meta__time{font-size:.7rem;color:rgba(245,230,211,.55);font-family:var(--font-mono);letter-spacing:.02em}
 
 /* ---------- Hero Cards ---------- */
 .hero{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:28px}
@@ -166,8 +180,11 @@ tr:hover td{background:#fafbfc}
 @media(max-width:768px){
   .hero{grid-template-columns:1fr}
   .agent-grid{grid-template-columns:1fr}
+  .header{padding:22px 0 20px}
   .header-inner{flex-direction:column;align-items:flex-start}
-  .header-meta{text-align:left}
+  .header-meta{text-align:left;align-items:flex-start}
+  .brand-wordmark{font-size:1.1rem}
+  .brand-logo{height:34px}
   .tab-btn{padding:10px 12px;font-size:.78rem}
   td,th{padding:7px 10px;font-size:.76rem}
 }
@@ -178,7 +195,14 @@ tr:hover td{background:#fafbfc}
 <!-- Header -->
 <div class="header">
   <div class="container header-inner">
-    <h1>Quin Scanner Report</h1>
+    <div class="brand">
+      <img class="brand-logo" src="{{LOGO_DATA_URI}}" alt="Gain Control" />
+      <div class="brand-divider" aria-hidden="true"></div>
+      <div class="brand-text">
+        <div class="brand-wordmark">Quin <span class="brand-accent">Scanner</span></div>
+        <div class="brand-tagline">AI Agent Security &amp; Risk Report</div>
+      </div>
+    </div>
     <div class="header-meta" id="header-meta"></div>
   </div>
 </div>
@@ -345,7 +369,9 @@ window.__REPORT_DATA__ = {{REPORT_DATA_JSON}};
     }
     var repoHtml=href?'<a href="'+esc(href)+'" target="_blank" rel="noopener">'+esc(display)+'</a>':esc(display);
     var ts=D.scan_timestamp||"";
-    $("header-meta").innerHTML=repoHtml+(ts?" &middot; "+esc(ts):"");
+    var html='<div class="header-meta__repo">'+repoHtml+'</div>';
+    if(ts) html+='<div class="header-meta__time">'+esc(ts)+'</div>';
+    $("header-meta").innerHTML=html;
   })();
 
   /* ---- Hero ---- */
