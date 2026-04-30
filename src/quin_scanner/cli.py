@@ -5,14 +5,14 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import click
-from dotenv import load_dotenv
+from dotenv import find_dotenv, load_dotenv
 
 from quin_scanner.config import ScannerConfig
 from quin_scanner.orchestrator import ScanOrchestrator
 from quin_scanner.repo_accessor import RepoAccessorFactory
 from quin_scanner.report import ReportGenerator
 
-load_dotenv()
+load_dotenv(find_dotenv(usecwd=True))
 
 
 def _output_filename(target: str, fmt: str) -> str:

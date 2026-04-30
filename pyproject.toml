@@ -1,6 +1,6 @@
 [project]
 name = "quin-scanner"
-version = "0.1.0b1"
+version = "0.1.0b2"
 description = "Scan repositories to detect GenAI and Agentic AI applications, identify LLM usage, and analyze agent intent"
 readme = "README.md"
 license = "Apache-2.0"
