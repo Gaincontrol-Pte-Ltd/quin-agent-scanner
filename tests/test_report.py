@@ -111,6 +111,21 @@ class TestToString:
         result = ReportGenerator.to_string(report, "html")
         assert "<html" in result
 
+    def test_sarif_format(self):
+        report = _minimal_report()
+        result = ReportGenerator.to_string(report, "sarif")
+        data = json.loads(result)
+        assert data["version"] == "2.1.0"
+
+
+class TestToSarif:
+    def test_valid_sarif_output(self):
+        report = _minimal_report()
+        result = ReportGenerator.to_sarif(report)
+        data = json.loads(result)
+        assert data["version"] == "2.1.0"
+        assert data["runs"][0]["tool"]["driver"]["name"] == "quin-scanner"
+
 
 class TestWriteToFile:
     def test_writes_file(self, tmp_path):

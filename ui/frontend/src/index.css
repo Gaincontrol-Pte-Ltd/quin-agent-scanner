@@ -1,0 +1,155 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Fira+Code:wght@400;500;600;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-mono: 'Fira Code', ui-monospace, monospace;
+
+  --color-brand:     #F3A216;
+  --color-brand-dim: rgba(243,162,22,0.12);
+  --color-surface:   #0B0F1E;
+  --color-card:      #12172B;
+  --color-border:    rgba(234,234,241,0.08);
+
+  --color-critical: #ef4444;
+  --color-high:     #f97316;
+  --color-medium:   #f59e0b;
+  --color-low:      #22c55e;
+  --color-info:     #6366f1;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html {
+  font-size: 15px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  background: #0B0F1E;
+  color: #EAEAF1;
+  font-family: var(--font-sans);
+  min-height: 100dvh;
+}
+
+#root {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+
+/* Focus rings */
+:focus-visible {
+  outline: 2px solid #F3A216;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* ── Entrance animations ─────────────────────────── */
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(24px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.fade-up   { animation: fade-up 0.6s cubic-bezier(0.16,1,0.3,1) both; }
+.delay-100 { animation-delay: 0.1s; }
+.delay-200 { animation-delay: 0.2s; }
+.delay-300 { animation-delay: 0.3s; }
+.delay-400 { animation-delay: 0.45s; }
+.delay-500 { animation-delay: 0.6s; }
+
+/* ── 3D Sphere float ─────────────────────────────── */
+@keyframes sphere-float {
+  0%, 100% { transform: translateY(0px); }
+  50%       { transform: translateY(-14px); }
+}
+.sphere-float { animation: sphere-float 5s ease-in-out infinite; }
+
+/* ── Orbital rings ───────────────────────────────── */
+@keyframes ring-spin-1 {
+  from { transform: rotateX(72deg) rotateZ(0deg);   }
+  to   { transform: rotateX(72deg) rotateZ(360deg); }
+}
+@keyframes ring-spin-2 {
+  from { transform: rotateX(55deg) rotateZ(120deg);    }
+  to   { transform: rotateX(55deg) rotateZ(-240deg);   }
+}
+@keyframes ring-spin-3 {
+  from { transform: rotateX(38deg) rotateZ(240deg);  }
+  to   { transform: rotateX(38deg) rotateZ(600deg);  }
+}
+.ring-1 { animation: ring-spin-1 9s  linear infinite; }
+.ring-2 { animation: ring-spin-2 13s linear infinite; }
+.ring-3 { animation: ring-spin-3 18s linear infinite; }
+
+/* ── Orbit dot ───────────────────────────────────── */
+@keyframes orbit-dot {
+  from { transform: rotateX(72deg) rotateZ(0deg)   translateX(160px) rotateZ(0deg)   rotateX(-72deg); }
+  to   { transform: rotateX(72deg) rotateZ(360deg) translateX(160px) rotateZ(-360deg) rotateX(-72deg); }
+}
+@keyframes orbit-dot-2 {
+  from { transform: rotateX(40deg) rotateZ(60deg)   translateX(200px) rotateZ(-60deg)   rotateX(-40deg); }
+  to   { transform: rotateX(40deg) rotateZ(420deg)  translateX(200px) rotateZ(-420deg)  rotateX(-40deg); }
+}
+
+/* ── Glow pulse ──────────────────────────────────── */
+@keyframes glow-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(243,162,22,0), 0 8px 40px rgba(0,0,0,0.5); }
+  50%       { box-shadow: 0 0 48px 8px rgba(243,162,22,0.15), 0 8px 40px rgba(0,0,0,0.5); }
+}
+.glow-pulse { animation: glow-pulse 3.5s ease-in-out infinite; }
+
+/* ── Brand ambient glow ──────────────────────────── */
+@keyframes ambient-glow {
+  0%, 100% { opacity: 0.35; transform: scale(1); }
+  50%       { opacity: 0.55; transform: scale(1.08); }
+}
+
+/* ── Particle drift ──────────────────────────────── */
+@keyframes particle-rise {
+  0%   { transform: translateY(0)    translateX(0)   opacity(1); opacity: 0;   }
+  10%  { opacity: 0.7; }
+  90%  { opacity: 0.4; }
+  100% { transform: translateY(-120px) translateX(20px); opacity: 0; }
+}
+
+/* ── Scan line ───────────────────────────────────── */
+@keyframes scan-sweep {
+  0%   { transform: translateY(-4px); opacity: 0; }
+  10%  { opacity: 0.9; }
+  90%  { opacity: 0.6; }
+  100% { transform: translateY(200px); opacity: 0; }
+}
+.scan-sweep { animation: scan-sweep 2.5s ease-in-out infinite; }
+
+/* ── Spinner ─────────────────────────────────────── */
+@keyframes spin-slow { to { transform: rotate(360deg); } }
+.spin-slow { animation: spin-slow 1.8s linear infinite; }
+
+@keyframes spin-reverse { to { transform: rotate(-360deg); } }
+.spin-reverse { animation: spin-reverse 3s linear infinite; }
+
+/* ── Shimmer skeleton ────────────────────────────── */
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position:  200% 0; }
+}
+.shimmer {
+  background: linear-gradient(90deg,rgba(255,255,255,0.04) 25%,rgba(255,255,255,0.1) 50%,rgba(255,255,255,0.04) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+/* ── Reduced motion ──────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

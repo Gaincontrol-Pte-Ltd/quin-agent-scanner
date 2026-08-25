@@ -23,7 +23,7 @@ def _output_filename(target: str, fmt: str) -> str:
     ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
     return f"{name}_{ts}.{fmt}"
 
-_OUTPUT_CHOICES = click.Choice(["json", "yaml", "html"])
+_OUTPUT_CHOICES = click.Choice(["json", "yaml", "html", "sarif"])
 
 
 @click.group(context_settings={"help_option_names": ["-h", "--help"]})
