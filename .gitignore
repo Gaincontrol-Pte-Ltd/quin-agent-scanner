@@ -49,3 +49,5 @@ report/*.html
 report/*.json
 report/*.yaml
 report/*.yml
+
+.worktrees/
