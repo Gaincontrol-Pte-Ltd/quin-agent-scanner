@@ -153,3 +153,57 @@ class TestResultFromIndicator:
         indicator = RiskIndicator(signal="Agent-specific risk", severity="medium")
         result = _result_from_indicator(indicator, agent_name="Router")
         assert result["message"]["text"] == "[agent: Router] Agent-specific risk"
+
+
+from quin_scanner.risk_taxonomy import ExternalRef, Threat
+from quin_scanner.sarif import _rule_from_indicator
+
+
+class TestRuleFromIndicator:
+    def test_enriches_from_taxonomy_when_threat_found(self):
+        indicator = RiskIndicator(signal="raw signal text", severity="critical", threat_id="T999")
+        threat = Threat(
+            id="T999",
+            name="Excessive Agent Autonomy",
+            category="autonomy",
+            applies_to=["agentic_ai"],
+            key_risk_indicators=[],
+            recommended_controls=["C003"],
+            description="Agents acting without oversight.",
+            why_it_matters="Can cause unbounded damage.",
+            external_refs=[ExternalRef(title="OWASP", url="https://owasp.org/t999")],
+        )
+        rule = _rule_from_indicator(indicator, {"T999": threat})
+        assert rule["id"] == "T999"
+        assert rule["shortDescription"]["text"] == "Excessive Agent Autonomy"
+        assert rule["fullDescription"]["text"] == "Agents acting without oversight.\n\nCan cause unbounded damage."
+        assert rule["helpUri"] == "https://owasp.org/t999"
+        assert rule["defaultConfiguration"]["level"] == "error"
+
+    def test_omits_help_uri_when_no_external_refs(self):
+        indicator = RiskIndicator(signal="raw signal text", severity="medium", threat_id="T998")
+        threat = Threat(
+            id="T998",
+            name="Some Threat",
+            category="x",
+            applies_to=[],
+            key_risk_indicators=[],
+            recommended_controls=[],
+            description="A description.",
+        )
+        rule = _rule_from_indicator(indicator, {"T998": threat})
+        assert "helpUri" not in rule
+
+    def test_falls_back_to_signal_text_when_no_threat_id(self):
+        indicator = RiskIndicator(signal="raw signal text", severity="low")
+        rule = _rule_from_indicator(indicator, {})
+        assert rule["id"] == "raw-signal-text"
+        assert rule["shortDescription"]["text"] == "raw signal text"
+        assert rule["fullDescription"]["text"] == "raw signal text"
+        assert "helpUri" not in rule
+
+    def test_falls_back_when_threat_id_not_in_taxonomy(self):
+        indicator = RiskIndicator(signal="raw signal text", severity="low", threat_id="T404")
+        rule = _rule_from_indicator(indicator, {})
+        assert rule["id"] == "T404"
+        assert rule["shortDescription"]["text"] == "raw signal text"

@@ -63,3 +63,31 @@ def _result_from_indicator(indicator: RiskIndicator, agent_name: str | None = No
         "message": {"text": _message_text(indicator, agent_name)},
         "locations": locations,
     }
+
+
+from quin_scanner.risk_taxonomy import Threat
+
+
+def _rule_from_indicator(indicator: RiskIndicator, threats_by_id: dict[str, Threat]) -> dict[str, Any]:
+    rule_id = _rule_id(indicator)
+    level = _severity_to_level(indicator.severity)
+    threat = threats_by_id.get(indicator.threat_id) if indicator.threat_id else None
+
+    if threat is not None:
+        full_desc_parts = [p for p in (threat.description, threat.why_it_matters) if p]
+        rule: dict[str, Any] = {
+            "id": rule_id,
+            "shortDescription": {"text": threat.name},
+            "fullDescription": {"text": "\n\n".join(full_desc_parts) or threat.name},
+            "defaultConfiguration": {"level": level},
+        }
+        if threat.external_refs:
+            rule["helpUri"] = threat.external_refs[0].url
+        return rule
+
+    return {
+        "id": rule_id,
+        "shortDescription": {"text": indicator.signal},
+        "fullDescription": {"text": indicator.signal},
+        "defaultConfiguration": {"level": level},
+    }
