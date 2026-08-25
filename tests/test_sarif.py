@@ -207,3 +207,80 @@ class TestRuleFromIndicator:
         rule = _rule_from_indicator(indicator, {})
         assert rule["id"] == "T404"
         assert rule["shortDescription"]["text"] == "raw signal text"
+
+
+import json
+
+from quin_scanner.models import AgentProfile, ScanReport
+from quin_scanner.sarif import to_sarif
+
+
+def _minimal_report(**kwargs) -> ScanReport:
+    defaults = dict(
+        repo_path="/tmp/test-repo",
+        scan_timestamp="2025-01-01T00:00:00Z",
+        is_ai_application=True,
+        confidence=0.95,
+    )
+    defaults.update(kwargs)
+    return ScanReport(**defaults)
+
+
+class TestToSarif:
+    def test_valid_json_envelope(self):
+        report = _minimal_report()
+        doc = json.loads(to_sarif(report))
+        assert doc["version"] == "2.1.0"
+        assert doc["runs"][0]["tool"]["driver"]["name"] == "quin-scanner"
+        assert doc["runs"][0]["results"] == []
+        assert doc["runs"][0]["tool"]["driver"]["rules"] == []
+
+    def test_includes_repo_level_signal_with_real_taxonomy_entry(self):
+        report = _minimal_report(
+            risk_signals=[
+                RiskIndicator(
+                    signal="Agent retrieves external content (RAG, web, email, documents)",
+                    severity="high",
+                    threat_id="T001",
+                    evidence_refs=[EvidenceRef(file_path="src/agent.py", line_number=3, scanner="AgentScanner")],
+                )
+            ]
+        )
+        doc = json.loads(to_sarif(report))
+        results = doc["runs"][0]["results"]
+        assert len(results) == 1
+        assert results[0]["ruleId"] == "T001"
+        assert results[0]["level"] == "error"
+        rules = doc["runs"][0]["tool"]["driver"]["rules"]
+        assert len(rules) == 1
+        assert rules[0]["id"] == "T001"
+        # Real taxonomy entry — shortDescription should not just echo the raw signal
+        assert rules[0]["shortDescription"]["text"] != ""
+
+    def test_includes_agent_level_signal_with_prefix(self):
+        report = _minimal_report(
+            agents=[
+                AgentProfile(
+                    name="Router",
+                    agent_type="supervisor",
+                    goal="Route requests",
+                    risk_signals=[RiskIndicator(signal="Unbounded delegation", severity="medium")],
+                )
+            ]
+        )
+        doc = json.loads(to_sarif(report))
+        results = doc["runs"][0]["results"]
+        assert len(results) == 1
+        assert results[0]["message"]["text"] == "[agent: Router] Unbounded delegation"
+
+    def test_dedupes_rules_by_rule_id(self):
+        report = _minimal_report(
+            risk_signals=[
+                RiskIndicator(signal="Dup signal one", severity="low", threat_id="T001"),
+                RiskIndicator(signal="Dup signal two", severity="high", threat_id="T001"),
+            ]
+        )
+        doc = json.loads(to_sarif(report))
+        rules = doc["runs"][0]["tool"]["driver"]["rules"]
+        assert len(rules) == 1
+        assert len(doc["runs"][0]["results"]) == 2

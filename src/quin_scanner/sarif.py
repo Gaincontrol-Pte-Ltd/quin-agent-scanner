@@ -91,3 +91,48 @@ def _rule_from_indicator(indicator: RiskIndicator, threats_by_id: dict[str, Thre
         "fullDescription": {"text": indicator.signal},
         "defaultConfiguration": {"level": level},
     }
+
+
+import json
+
+from quin_scanner.models import ScanReport
+
+
+def to_sarif(report: ScanReport) -> str:
+    from quin_scanner import __version__
+    from quin_scanner.risk_taxonomy import load_taxonomy
+
+    threats_by_id = {t.id: t for t in load_taxonomy().threats}
+
+    indicators: list[tuple[RiskIndicator, str | None]] = [
+        (indicator, None) for indicator in report.risk_signals
+    ]
+    for agent in report.agents:
+        indicators.extend((indicator, agent.name) for indicator in agent.risk_signals)
+
+    results = [_result_from_indicator(indicator, agent_name) for indicator, agent_name in indicators]
+
+    rules_by_id: dict[str, dict[str, Any]] = {}
+    for indicator, _ in indicators:
+        rule_id = _rule_id(indicator)
+        if rule_id not in rules_by_id:
+            rules_by_id[rule_id] = _rule_from_indicator(indicator, threats_by_id)
+
+    sarif_doc = {
+        "$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json",
+        "version": "2.1.0",
+        "runs": [
+            {
+                "tool": {
+                    "driver": {
+                        "name": "quin-scanner",
+                        "informationUri": "https://github.com/Gaincontrol-Pte-Ltd/quin-agent-scanner",
+                        "version": __version__,
+                        "rules": list(rules_by_id.values()),
+                    }
+                },
+                "results": results,
+            }
+        ],
+    }
+    return json.dumps(sarif_doc, indent=2, default=str)
