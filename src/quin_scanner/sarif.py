@@ -1,7 +1,12 @@
 """Serializes ScanReport risk_signals to SARIF 2.1.0 for GitHub code scanning."""
 from __future__ import annotations
 
+import json
 import re
+from typing import Any
+
+from quin_scanner.models import EvidenceRef, RiskIndicator, ScanReport
+from quin_scanner.risk_taxonomy import Threat
 
 _SEVERITY_TO_LEVEL = {
     "critical": "error",
@@ -20,11 +25,6 @@ def _slugify(text: str, max_words: int = 6) -> str:
     words = re.findall(r"[A-Za-z0-9]+", text)[:max_words]
     slug = "-".join(w.lower() for w in words)
     return slug or "risk-signal"
-
-
-from typing import Any
-
-from quin_scanner.models import EvidenceRef, RiskIndicator
 
 
 def _rule_id(indicator: RiskIndicator) -> str:
@@ -65,9 +65,6 @@ def _result_from_indicator(indicator: RiskIndicator, agent_name: str | None = No
     }
 
 
-from quin_scanner.risk_taxonomy import Threat
-
-
 def _rule_from_indicator(indicator: RiskIndicator, threats_by_id: dict[str, Threat]) -> dict[str, Any]:
     rule_id = _rule_id(indicator)
     level = _severity_to_level(indicator.severity)
@@ -91,11 +88,6 @@ def _rule_from_indicator(indicator: RiskIndicator, threats_by_id: dict[str, Thre
         "fullDescription": {"text": indicator.signal},
         "defaultConfiguration": {"level": level},
     }
-
-
-import json
-
-from quin_scanner.models import ScanReport
 
 
 def to_sarif(report: ScanReport) -> str:
