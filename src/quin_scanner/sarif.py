@@ -49,3 +49,17 @@ def _message_text(indicator: RiskIndicator, agent_name: str | None = None) -> st
     if indicator.recommended_controls:
         text += f"\n\nRecommended: {'; '.join(indicator.recommended_controls)}"
     return text
+
+
+def _result_from_indicator(indicator: RiskIndicator, agent_name: str | None = None) -> dict[str, Any]:
+    locations = [
+        loc
+        for loc in (_location_from_evidence(ref) for ref in indicator.evidence_refs)
+        if loc is not None
+    ]
+    return {
+        "ruleId": _rule_id(indicator),
+        "level": _severity_to_level(indicator.severity),
+        "message": {"text": _message_text(indicator, agent_name)},
+        "locations": locations,
+    }

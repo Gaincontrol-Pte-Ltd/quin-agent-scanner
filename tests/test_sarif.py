@@ -101,3 +101,55 @@ class TestMessageText:
         )
         result = _message_text(indicator)
         assert result == "Plain signal\n\nRecommended: C001: Foo; C002: Bar"
+
+
+from quin_scanner.sarif import _result_from_indicator
+
+
+class TestResultFromIndicator:
+    def test_result_with_one_location(self):
+        indicator = RiskIndicator(
+            signal="Excessive tool access",
+            severity="high",
+            threat_id="T001",
+            evidence_refs=[EvidenceRef(file_path="src/agent.py", line_number=10, scanner="AgentScanner")],
+        )
+        result = _result_from_indicator(indicator)
+        assert result["ruleId"] == "T001"
+        assert result["level"] == "error"
+        assert result["message"]["text"] == "Excessive tool access"
+        assert result["locations"] == [
+            {
+                "physicalLocation": {
+                    "artifactLocation": {"uri": "src/agent.py"},
+                    "region": {"startLine": 10},
+                }
+            }
+        ]
+
+    def test_result_with_no_file_locations(self):
+        indicator = RiskIndicator(
+            signal="CVE-derived risk",
+            severity="medium",
+            evidence_refs=[EvidenceRef(file_path="", source_url="https://osv.dev/vuln/GHSA-xxxx")],
+        )
+        result = _result_from_indicator(indicator)
+        assert result["locations"] == []
+
+    def test_result_filters_mixed_locations(self):
+        indicator = RiskIndicator(
+            signal="Mixed evidence",
+            severity="low",
+            evidence_refs=[
+                EvidenceRef(file_path="", source_url="https://example.com"),
+                EvidenceRef(file_path="src/tool.py", line_number=5, scanner="ToolScanner"),
+            ],
+        )
+        result = _result_from_indicator(indicator)
+        assert len(result["locations"]) == 1
+        assert result["locations"][0]["physicalLocation"]["artifactLocation"]["uri"] == "src/tool.py"
+
+    def test_result_with_agent_name(self):
+        indicator = RiskIndicator(signal="Agent-specific risk", severity="medium")
+        result = _result_from_indicator(indicator, agent_name="Router")
+        assert result["message"]["text"] == "[agent: Router] Agent-specific risk"
