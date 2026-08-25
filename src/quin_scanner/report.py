@@ -41,13 +41,21 @@ class ReportGenerator:
         rendered = HTML_TEMPLATE.replace("{{REPORT_DATA_JSON}}", safe_json)
         return rendered.replace("{{LOGO_DATA_URI}}", _logo_data_uri())
 
+    @staticmethod
+    def to_sarif(report: ScanReport) -> str:
+        from quin_scanner.sarif import to_sarif as _to_sarif
+
+        return _to_sarif(report)
+
     @classmethod
     def to_string(cls, report: ScanReport, fmt: str) -> str:
-        """Return report as a string in the given format ('json', 'yaml', or 'html')."""
+        """Return report as a string in the given format ('json', 'yaml', 'html', or 'sarif')."""
         if fmt == "yaml":
             return cls.to_yaml(report)
         if fmt == "html":
             return cls.to_html(report)
+        if fmt == "sarif":
+            return cls.to_sarif(report)
         return cls.to_json(report)
 
     @classmethod
