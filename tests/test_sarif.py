@@ -284,3 +284,185 @@ class TestToSarif:
         rules = doc["runs"][0]["tool"]["driver"]["rules"]
         assert len(rules) == 1
         assert len(doc["runs"][0]["results"]) == 2
+
+
+from quin_scanner.models import ScanFinding
+from quin_scanner.sarif import _vulnerability_location
+
+
+def _dependency_finding(match_text: str, file_path: str = "requirements.txt", line_number: int = 3) -> ScanFinding:
+    return ScanFinding(
+        scanner_name="DependencyScanner",
+        category="dependency",
+        file_path=file_path,
+        line_number=line_number,
+        match_text=match_text,
+        capability_tag="llm-api",
+        confidence=0.95,
+    )
+
+
+class TestVulnerabilityLocation:
+    def test_returns_location_when_framework_parses_and_artifact_matches(self):
+        report = _minimal_report(
+            framework="CrewAI 0.80.0",
+            artifacts=[_dependency_finding("crewai==0.80.0")],
+        )
+        loc = _vulnerability_location(report)
+        assert loc == {
+            "physicalLocation": {
+                "artifactLocation": {"uri": "requirements.txt"},
+                "region": {"startLine": 3},
+            }
+        }
+
+    def test_returns_none_when_framework_does_not_parse(self):
+        report = _minimal_report(
+            framework="unknown",
+            artifacts=[_dependency_finding("crewai==0.80.0")],
+        )
+        assert _vulnerability_location(report) is None
+
+    def test_returns_none_when_no_matching_artifact(self):
+        report = _minimal_report(
+            framework="CrewAI 0.80.0",
+            artifacts=[_dependency_finding("langchain==0.3.0")],
+        )
+        assert _vulnerability_location(report) is None
+
+    def test_returns_none_when_no_dependency_category_artifact(self):
+        finding = _dependency_finding("crewai==0.80.0")
+        finding.category = "code_pattern"
+        report = _minimal_report(framework="CrewAI 0.80.0", artifacts=[finding])
+        assert _vulnerability_location(report) is None
+
+
+from quin_scanner.models import Vulnerability
+from quin_scanner.sarif import _result_from_vulnerability, _rule_from_vulnerability, _vuln_rule_id
+
+
+def _vuln(**kwargs) -> Vulnerability:
+    defaults = dict(
+        cve_id="CVE-2024-12345",
+        severity="high",
+        cvss_score=8.1,
+        published="2024-08-15",
+        summary="Remote code execution via unsafe deserialization.",
+        source="osv",
+        source_url="https://osv.dev/vulnerability/GHSA-xxxx-xxxx-xxxx",
+    )
+    defaults.update(kwargs)
+    return Vulnerability(**defaults)
+
+
+class TestVulnRuleId:
+    def test_uses_cve_id_when_present(self):
+        assert _vuln_rule_id(_vuln(cve_id="CVE-2024-12345")) == "CVE-2024-12345"
+
+    def test_uses_ghsa_id_when_present(self):
+        assert _vuln_rule_id(_vuln(cve_id="GHSA-xxxx-xxxx-xxxx")) == "GHSA-xxxx-xxxx-xxxx"
+
+    def test_falls_back_to_summary_slug_when_no_cve_id(self):
+        vuln = _vuln(cve_id=None, summary="Remote code execution in template engine")
+        assert _vuln_rule_id(vuln) == "remote-code-execution-in-template-engine"
+
+
+class TestResultFromVulnerability:
+    def test_full_result_with_location(self):
+        vuln = _vuln(severity="high", affected_versions=">=0.80.0,<0.90.0")
+        location = {
+            "physicalLocation": {
+                "artifactLocation": {"uri": "requirements.txt"},
+                "region": {"startLine": 3},
+            }
+        }
+        result = _result_from_vulnerability(vuln, location, framework="CrewAI 0.80.0")
+        assert result["ruleId"] == "CVE-2024-12345"
+        assert result["level"] == "error"
+        assert result["message"]["text"] == (
+            "HIGH vulnerability in CrewAI 0.80.0: Remote code execution via unsafe deserialization."
+            "\n\nAffected versions: >=0.80.0,<0.90.0"
+        )
+        assert result["locations"] == [location]
+
+    def test_no_affected_versions_omits_line(self):
+        vuln = _vuln(affected_versions=None)
+        result = _result_from_vulnerability(vuln, None, framework="CrewAI 0.80.0")
+        assert "Affected versions" not in result["message"]["text"]
+        assert result["locations"] == []
+
+    def test_unknown_severity_maps_to_warning(self):
+        vuln = _vuln(severity="unknown")
+        result = _result_from_vulnerability(vuln, None, framework="CrewAI 0.80.0")
+        assert result["level"] == "warning"
+
+
+class TestRuleFromVulnerability:
+    def test_full_rule_with_cve_id(self):
+        vuln = _vuln()
+        rule = _rule_from_vulnerability(vuln)
+        assert rule["id"] == "CVE-2024-12345"
+        assert rule["shortDescription"]["text"] == "CVE-2024-12345"
+        assert rule["fullDescription"]["text"] == "Remote code execution via unsafe deserialization."
+        assert rule["helpUri"] == "https://osv.dev/vulnerability/GHSA-xxxx-xxxx-xxxx"
+        assert rule["defaultConfiguration"]["level"] == "error"
+
+    def test_omits_help_uri_when_no_source_url(self):
+        vuln = _vuln(source_url=None)
+        rule = _rule_from_vulnerability(vuln)
+        assert "helpUri" not in rule
+
+    def test_short_description_falls_back_when_no_cve_id(self):
+        vuln = _vuln(cve_id=None, summary="Remote code execution in template engine")
+        rule = _rule_from_vulnerability(vuln)
+        assert rule["id"] == "remote-code-execution-in-template-engine"
+        assert rule["shortDescription"]["text"] == "remote-code-execution-in-template-engine"
+
+
+class TestToSarifVulnerabilities:
+    def test_medium_severity_vulnerability_reaches_sarif(self):
+        """Orchestrator only promotes critical/high CVEs into risk_signals — this
+        proves SARIF now surfaces the full severity range independently."""
+        report = _minimal_report(
+            framework="CrewAI 0.80.0",
+            vulnerabilities=[_vuln(severity="medium", cve_id="CVE-2024-99999")],
+        )
+        doc = json.loads(to_sarif(report))
+        results = doc["runs"][0]["results"]
+        assert len(results) == 1
+        assert results[0]["ruleId"] == "CVE-2024-99999"
+        assert results[0]["level"] == "warning"
+
+    def test_does_not_double_report_orchestrator_promoted_cve(self):
+        """A critical CVE appears in both report.vulnerabilities (raw) and
+        report.risk_signals (orchestrator-promoted, tagged scanner=VulnChecker).
+        SARIF must report it exactly once, from the vulnerabilities pass."""
+        promoted_signal = RiskIndicator(
+            signal="CRITICAL vulnerability CVE-2024-11111: some summary",
+            threat_id="T003",
+            severity="critical",
+            evidence_refs=[EvidenceRef(scanner="VulnChecker", source_url="https://osv.dev/x")],
+        )
+        report = _minimal_report(
+            framework="CrewAI 0.80.0",
+            risk_signals=[promoted_signal],
+            vulnerabilities=[_vuln(severity="critical", cve_id="CVE-2024-11111")],
+        )
+        doc = json.loads(to_sarif(report))
+        results = doc["runs"][0]["results"]
+        assert len(results) == 1
+        assert results[0]["ruleId"] == "CVE-2024-11111"
+
+    def test_llm_authored_t003_signal_without_vulnchecker_ref_is_kept(self):
+        """A genuine LLM-synthesized supply-chain finding (threat_id=T003 but no
+        VulnChecker evidence_ref) must NOT be filtered out by the dedup logic."""
+        llm_signal = RiskIndicator(
+            signal="Unverified model weights pulled from a public hub at runtime",
+            threat_id="T003",
+            severity="medium",
+        )
+        report = _minimal_report(framework="unknown", risk_signals=[llm_signal])
+        doc = json.loads(to_sarif(report))
+        results = doc["runs"][0]["results"]
+        assert len(results) == 1
+        assert results[0]["ruleId"] == "T003"

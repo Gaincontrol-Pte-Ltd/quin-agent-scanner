@@ -5,8 +5,9 @@ import json
 import re
 from typing import Any
 
-from quin_scanner.models import EvidenceRef, RiskIndicator, ScanReport
+from quin_scanner.models import EvidenceRef, RiskIndicator, ScanReport, Vulnerability
 from quin_scanner.risk_taxonomy import Threat
+from quin_scanner.vuln_checker import parse_framework_ref
 
 _SEVERITY_TO_LEVEL = {
     "critical": "error",
@@ -40,6 +41,19 @@ def _location_from_evidence(ref: EvidenceRef) -> dict[str, Any] | None:
     if ref.line_number is not None:
         physical_location["region"] = {"startLine": ref.line_number}
     return {"physicalLocation": physical_location}
+
+
+def _vulnerability_location(report: ScanReport) -> dict[str, Any] | None:
+    ref = parse_framework_ref(report.framework)
+    if ref is None:
+        return None
+    pattern = re.compile(rf"\b{re.escape(ref.package.lower())}\b")
+    for finding in report.artifacts:
+        if finding.category == "dependency" and pattern.search(finding.match_text.lower()):
+            return _location_from_evidence(
+                EvidenceRef(file_path=finding.file_path, line_number=finding.line_number)
+            )
+    return None
 
 
 def _message_text(indicator: RiskIndicator, agent_name: str | None = None) -> str:
@@ -90,6 +104,40 @@ def _rule_from_indicator(indicator: RiskIndicator, threats_by_id: dict[str, Thre
     }
 
 
+def _vuln_rule_id(vuln: Vulnerability) -> str:
+    if vuln.cve_id:
+        return vuln.cve_id
+    return _slugify(vuln.summary)
+
+
+def _result_from_vulnerability(
+    vuln: Vulnerability, location: dict[str, Any] | None, framework: str
+) -> dict[str, Any]:
+    text = f"{vuln.severity.upper()} vulnerability in {framework}: {vuln.summary}"
+    if vuln.affected_versions:
+        text += f"\n\nAffected versions: {vuln.affected_versions}"
+    return {
+        "ruleId": _vuln_rule_id(vuln),
+        "level": _severity_to_level(vuln.severity),
+        "message": {"text": text},
+        "locations": [location] if location is not None else [],
+    }
+
+
+def _rule_from_vulnerability(vuln: Vulnerability) -> dict[str, Any]:
+    rule_id = _vuln_rule_id(vuln)
+    short_desc = vuln.cve_id or rule_id
+    rule: dict[str, Any] = {
+        "id": rule_id,
+        "shortDescription": {"text": short_desc},
+        "fullDescription": {"text": vuln.summary},
+        "defaultConfiguration": {"level": _severity_to_level(vuln.severity)},
+    }
+    if vuln.source_url:
+        rule["helpUri"] = vuln.source_url
+    return rule
+
+
 def to_sarif(report: ScanReport) -> str:
     from quin_scanner import __version__
     from quin_scanner.risk_taxonomy import load_taxonomy
@@ -97,10 +145,16 @@ def to_sarif(report: ScanReport) -> str:
     threats_by_id = {t.id: t for t in load_taxonomy().threats}
 
     indicators: list[tuple[RiskIndicator, str | None]] = [
-        (indicator, None) for indicator in report.risk_signals
+        (indicator, None)
+        for indicator in report.risk_signals
+        if not any(ref.scanner == "VulnChecker" for ref in indicator.evidence_refs)
     ]
     for agent in report.agents:
-        indicators.extend((indicator, agent.name) for indicator in agent.risk_signals)
+        indicators.extend(
+            (indicator, agent.name)
+            for indicator in agent.risk_signals
+            if not any(ref.scanner == "VulnChecker" for ref in indicator.evidence_refs)
+        )
 
     results = [_result_from_indicator(indicator, agent_name) for indicator, agent_name in indicators]
 
@@ -109,6 +163,13 @@ def to_sarif(report: ScanReport) -> str:
         rule_id = _rule_id(indicator)
         if rule_id not in rules_by_id:
             rules_by_id[rule_id] = _rule_from_indicator(indicator, threats_by_id)
+
+    vuln_location = _vulnerability_location(report)
+    for vuln in report.vulnerabilities:
+        results.append(_result_from_vulnerability(vuln, vuln_location, report.framework))
+        vuln_rule_id = _vuln_rule_id(vuln)
+        if vuln_rule_id not in rules_by_id:
+            rules_by_id[vuln_rule_id] = _rule_from_vulnerability(vuln)
 
     sarif_doc = {
         "$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json",
