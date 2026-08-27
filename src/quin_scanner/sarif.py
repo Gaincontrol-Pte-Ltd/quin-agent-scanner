@@ -104,6 +104,40 @@ def _rule_from_indicator(indicator: RiskIndicator, threats_by_id: dict[str, Thre
     }
 
 
+def _vuln_rule_id(vuln: Vulnerability) -> str:
+    if vuln.cve_id:
+        return vuln.cve_id
+    return _slugify(vuln.summary)
+
+
+def _result_from_vulnerability(
+    vuln: Vulnerability, location: dict[str, Any] | None, framework: str
+) -> dict[str, Any]:
+    text = f"{vuln.severity.upper()} vulnerability in {framework}: {vuln.summary}"
+    if vuln.affected_versions:
+        text += f"\n\nAffected versions: {vuln.affected_versions}"
+    return {
+        "ruleId": _vuln_rule_id(vuln),
+        "level": _severity_to_level(vuln.severity),
+        "message": {"text": text},
+        "locations": [location] if location is not None else [],
+    }
+
+
+def _rule_from_vulnerability(vuln: Vulnerability) -> dict[str, Any]:
+    rule_id = _vuln_rule_id(vuln)
+    short_desc = vuln.cve_id or rule_id
+    rule: dict[str, Any] = {
+        "id": rule_id,
+        "shortDescription": {"text": short_desc},
+        "fullDescription": {"text": vuln.summary},
+        "defaultConfiguration": {"level": _severity_to_level(vuln.severity)},
+    }
+    if vuln.source_url:
+        rule["helpUri"] = vuln.source_url
+    return rule
+
+
 def to_sarif(report: ScanReport) -> str:
     from quin_scanner import __version__
     from quin_scanner.risk_taxonomy import load_taxonomy

@@ -335,3 +335,85 @@ class TestVulnerabilityLocation:
         finding.category = "code_pattern"
         report = _minimal_report(framework="CrewAI 0.80.0", artifacts=[finding])
         assert _vulnerability_location(report) is None
+
+
+from quin_scanner.models import Vulnerability
+from quin_scanner.sarif import _result_from_vulnerability, _rule_from_vulnerability, _vuln_rule_id
+
+
+def _vuln(**kwargs) -> Vulnerability:
+    defaults = dict(
+        cve_id="CVE-2024-12345",
+        severity="high",
+        cvss_score=8.1,
+        published="2024-08-15",
+        summary="Remote code execution via unsafe deserialization.",
+        source="osv",
+        source_url="https://osv.dev/vulnerability/GHSA-xxxx-xxxx-xxxx",
+    )
+    defaults.update(kwargs)
+    return Vulnerability(**defaults)
+
+
+class TestVulnRuleId:
+    def test_uses_cve_id_when_present(self):
+        assert _vuln_rule_id(_vuln(cve_id="CVE-2024-12345")) == "CVE-2024-12345"
+
+    def test_uses_ghsa_id_when_present(self):
+        assert _vuln_rule_id(_vuln(cve_id="GHSA-xxxx-xxxx-xxxx")) == "GHSA-xxxx-xxxx-xxxx"
+
+    def test_falls_back_to_summary_slug_when_no_cve_id(self):
+        vuln = _vuln(cve_id=None, summary="Remote code execution in template engine")
+        assert _vuln_rule_id(vuln) == "remote-code-execution-in-template-engine"
+
+
+class TestResultFromVulnerability:
+    def test_full_result_with_location(self):
+        vuln = _vuln(severity="high", affected_versions=">=0.80.0,<0.90.0")
+        location = {
+            "physicalLocation": {
+                "artifactLocation": {"uri": "requirements.txt"},
+                "region": {"startLine": 3},
+            }
+        }
+        result = _result_from_vulnerability(vuln, location, framework="CrewAI 0.80.0")
+        assert result["ruleId"] == "CVE-2024-12345"
+        assert result["level"] == "error"
+        assert result["message"]["text"] == (
+            "HIGH vulnerability in CrewAI 0.80.0: Remote code execution via unsafe deserialization."
+            "\n\nAffected versions: >=0.80.0,<0.90.0"
+        )
+        assert result["locations"] == [location]
+
+    def test_no_affected_versions_omits_line(self):
+        vuln = _vuln(affected_versions=None)
+        result = _result_from_vulnerability(vuln, None, framework="CrewAI 0.80.0")
+        assert "Affected versions" not in result["message"]["text"]
+        assert result["locations"] == []
+
+    def test_unknown_severity_maps_to_warning(self):
+        vuln = _vuln(severity="unknown")
+        result = _result_from_vulnerability(vuln, None, framework="CrewAI 0.80.0")
+        assert result["level"] == "warning"
+
+
+class TestRuleFromVulnerability:
+    def test_full_rule_with_cve_id(self):
+        vuln = _vuln()
+        rule = _rule_from_vulnerability(vuln)
+        assert rule["id"] == "CVE-2024-12345"
+        assert rule["shortDescription"]["text"] == "CVE-2024-12345"
+        assert rule["fullDescription"]["text"] == "Remote code execution via unsafe deserialization."
+        assert rule["helpUri"] == "https://osv.dev/vulnerability/GHSA-xxxx-xxxx-xxxx"
+        assert rule["defaultConfiguration"]["level"] == "error"
+
+    def test_omits_help_uri_when_no_source_url(self):
+        vuln = _vuln(source_url=None)
+        rule = _rule_from_vulnerability(vuln)
+        assert "helpUri" not in rule
+
+    def test_short_description_falls_back_when_no_cve_id(self):
+        vuln = _vuln(cve_id=None, summary="Remote code execution in template engine")
+        rule = _rule_from_vulnerability(vuln)
+        assert rule["id"] == "remote-code-execution-in-template-engine"
+        assert rule["shortDescription"]["text"] == "remote-code-execution-in-template-engine"
