@@ -417,3 +417,52 @@ class TestRuleFromVulnerability:
         rule = _rule_from_vulnerability(vuln)
         assert rule["id"] == "remote-code-execution-in-template-engine"
         assert rule["shortDescription"]["text"] == "remote-code-execution-in-template-engine"
+
+
+class TestToSarifVulnerabilities:
+    def test_medium_severity_vulnerability_reaches_sarif(self):
+        """Orchestrator only promotes critical/high CVEs into risk_signals — this
+        proves SARIF now surfaces the full severity range independently."""
+        report = _minimal_report(
+            framework="CrewAI 0.80.0",
+            vulnerabilities=[_vuln(severity="medium", cve_id="CVE-2024-99999")],
+        )
+        doc = json.loads(to_sarif(report))
+        results = doc["runs"][0]["results"]
+        assert len(results) == 1
+        assert results[0]["ruleId"] == "CVE-2024-99999"
+        assert results[0]["level"] == "warning"
+
+    def test_does_not_double_report_orchestrator_promoted_cve(self):
+        """A critical CVE appears in both report.vulnerabilities (raw) and
+        report.risk_signals (orchestrator-promoted, tagged scanner=VulnChecker).
+        SARIF must report it exactly once, from the vulnerabilities pass."""
+        promoted_signal = RiskIndicator(
+            signal="CRITICAL vulnerability CVE-2024-11111: some summary",
+            threat_id="T003",
+            severity="critical",
+            evidence_refs=[EvidenceRef(scanner="VulnChecker", source_url="https://osv.dev/x")],
+        )
+        report = _minimal_report(
+            framework="CrewAI 0.80.0",
+            risk_signals=[promoted_signal],
+            vulnerabilities=[_vuln(severity="critical", cve_id="CVE-2024-11111")],
+        )
+        doc = json.loads(to_sarif(report))
+        results = doc["runs"][0]["results"]
+        assert len(results) == 1
+        assert results[0]["ruleId"] == "CVE-2024-11111"
+
+    def test_llm_authored_t003_signal_without_vulnchecker_ref_is_kept(self):
+        """A genuine LLM-synthesized supply-chain finding (threat_id=T003 but no
+        VulnChecker evidence_ref) must NOT be filtered out by the dedup logic."""
+        llm_signal = RiskIndicator(
+            signal="Unverified model weights pulled from a public hub at runtime",
+            threat_id="T003",
+            severity="medium",
+        )
+        report = _minimal_report(framework="unknown", risk_signals=[llm_signal])
+        doc = json.loads(to_sarif(report))
+        results = doc["runs"][0]["results"]
+        assert len(results) == 1
+        assert results[0]["ruleId"] == "T003"

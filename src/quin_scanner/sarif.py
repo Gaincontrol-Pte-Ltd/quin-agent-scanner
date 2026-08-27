@@ -145,10 +145,16 @@ def to_sarif(report: ScanReport) -> str:
     threats_by_id = {t.id: t for t in load_taxonomy().threats}
 
     indicators: list[tuple[RiskIndicator, str | None]] = [
-        (indicator, None) for indicator in report.risk_signals
+        (indicator, None)
+        for indicator in report.risk_signals
+        if not any(ref.scanner == "VulnChecker" for ref in indicator.evidence_refs)
     ]
     for agent in report.agents:
-        indicators.extend((indicator, agent.name) for indicator in agent.risk_signals)
+        indicators.extend(
+            (indicator, agent.name)
+            for indicator in agent.risk_signals
+            if not any(ref.scanner == "VulnChecker" for ref in indicator.evidence_refs)
+        )
 
     results = [_result_from_indicator(indicator, agent_name) for indicator, agent_name in indicators]
 
@@ -157,6 +163,13 @@ def to_sarif(report: ScanReport) -> str:
         rule_id = _rule_id(indicator)
         if rule_id not in rules_by_id:
             rules_by_id[rule_id] = _rule_from_indicator(indicator, threats_by_id)
+
+    vuln_location = _vulnerability_location(report)
+    for vuln in report.vulnerabilities:
+        results.append(_result_from_vulnerability(vuln, vuln_location, report.framework))
+        vuln_rule_id = _vuln_rule_id(vuln)
+        if vuln_rule_id not in rules_by_id:
+            rules_by_id[vuln_rule_id] = _rule_from_vulnerability(vuln)
 
     sarif_doc = {
         "$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json",
