@@ -284,3 +284,54 @@ class TestToSarif:
         rules = doc["runs"][0]["tool"]["driver"]["rules"]
         assert len(rules) == 1
         assert len(doc["runs"][0]["results"]) == 2
+
+
+from quin_scanner.models import ScanFinding
+from quin_scanner.sarif import _vulnerability_location
+
+
+def _dependency_finding(match_text: str, file_path: str = "requirements.txt", line_number: int = 3) -> ScanFinding:
+    return ScanFinding(
+        scanner_name="DependencyScanner",
+        category="dependency",
+        file_path=file_path,
+        line_number=line_number,
+        match_text=match_text,
+        capability_tag="llm-api",
+        confidence=0.95,
+    )
+
+
+class TestVulnerabilityLocation:
+    def test_returns_location_when_framework_parses_and_artifact_matches(self):
+        report = _minimal_report(
+            framework="CrewAI 0.80.0",
+            artifacts=[_dependency_finding("crewai==0.80.0")],
+        )
+        loc = _vulnerability_location(report)
+        assert loc == {
+            "physicalLocation": {
+                "artifactLocation": {"uri": "requirements.txt"},
+                "region": {"startLine": 3},
+            }
+        }
+
+    def test_returns_none_when_framework_does_not_parse(self):
+        report = _minimal_report(
+            framework="unknown",
+            artifacts=[_dependency_finding("crewai==0.80.0")],
+        )
+        assert _vulnerability_location(report) is None
+
+    def test_returns_none_when_no_matching_artifact(self):
+        report = _minimal_report(
+            framework="CrewAI 0.80.0",
+            artifacts=[_dependency_finding("langchain==0.3.0")],
+        )
+        assert _vulnerability_location(report) is None
+
+    def test_returns_none_when_no_dependency_category_artifact(self):
+        finding = _dependency_finding("crewai==0.80.0")
+        finding.category = "code_pattern"
+        report = _minimal_report(framework="CrewAI 0.80.0", artifacts=[finding])
+        assert _vulnerability_location(report) is None

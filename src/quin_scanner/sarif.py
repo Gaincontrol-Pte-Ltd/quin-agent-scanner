@@ -5,8 +5,9 @@ import json
 import re
 from typing import Any
 
-from quin_scanner.models import EvidenceRef, RiskIndicator, ScanReport
+from quin_scanner.models import EvidenceRef, RiskIndicator, ScanReport, Vulnerability
 from quin_scanner.risk_taxonomy import Threat
+from quin_scanner.vuln_checker import parse_framework_ref
 
 _SEVERITY_TO_LEVEL = {
     "critical": "error",
@@ -40,6 +41,19 @@ def _location_from_evidence(ref: EvidenceRef) -> dict[str, Any] | None:
     if ref.line_number is not None:
         physical_location["region"] = {"startLine": ref.line_number}
     return {"physicalLocation": physical_location}
+
+
+def _vulnerability_location(report: ScanReport) -> dict[str, Any] | None:
+    ref = parse_framework_ref(report.framework)
+    if ref is None:
+        return None
+    pattern = re.compile(rf"\b{re.escape(ref.package.lower())}\b")
+    for finding in report.artifacts:
+        if finding.category == "dependency" and pattern.search(finding.match_text.lower()):
+            return _location_from_evidence(
+                EvidenceRef(file_path=finding.file_path, line_number=finding.line_number)
+            )
+    return None
 
 
 def _message_text(indicator: RiskIndicator, agent_name: str | None = None) -> str:
