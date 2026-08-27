@@ -1,0 +1,19 @@
+name: Self Scan
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  security-events: write
+  contents: read
+
+jobs:
+  scan:
+    name: Quin self-scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run quin-scanner
+        uses: ./
