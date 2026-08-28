@@ -3,6 +3,7 @@ name: Self Scan
 on:
   push:
     branches: [main]
+  workflow_dispatch:
 
 permissions:
   security-events: write
