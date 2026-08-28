@@ -1,0 +1,55 @@
+name: 'Quin Agent Scanner'
+description: 'Scan this repository for AI agents, risks, and vulnerabilities; upload results as SARIF to GitHub code scanning.'
+author: 'Gaincontrol'
+branding:
+  icon: 'shield'
+  color: 'yellow'
+
+inputs:
+  llm-provider:
+    description: 'LLM provider for agent intent analysis (openai|anthropic|google|ollama|openai-compatible). Only used when llm-api-key is set.'
+    required: false
+    default: ''
+  llm-api-key:
+    description: 'API key for the chosen LLM provider. When set, enables LLM-based agent/risk analysis; when empty, the scan runs in --no-llm mode (static findings + CVE vulnerabilities only).'
+    required: false
+    default: ''
+  llm-model:
+    description: 'Override the default model for the provider. Only used when llm-api-key is set.'
+    required: false
+    default: ''
+  min-confidence:
+    description: 'Exclude artifacts below this confidence threshold (0.0-1.0).'
+    required: false
+    default: '0.0'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Install quin-scanner
+      shell: bash
+      run: pip install quin-scanner
+
+    - name: Run scan
+      shell: bash
+      run: |
+        if [ -n "${{ inputs.llm-api-key }}" ]; then
+          quin-scanner scan . -o sarif -f "${{ runner.temp }}/quin-scan.sarif" \
+            --llm-provider "${{ inputs.llm-provider }}" \
+            --llm-api-key "${{ inputs.llm-api-key }}" \
+            ${{ inputs.llm-model != '' && format('--llm-model {0}', inputs.llm-model) || '' }} \
+            --min-confidence "${{ inputs.min-confidence }}"
+        else
+          quin-scanner scan . -o sarif -f "${{ runner.temp }}/quin-scan.sarif" \
+            --no-llm --min-confidence "${{ inputs.min-confidence }}"
+        fi
+
+    - name: Upload SARIF
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: ${{ runner.temp }}/quin-scan.sarif

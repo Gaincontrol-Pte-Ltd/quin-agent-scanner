@@ -126,6 +126,52 @@ quin-scanner scan ./path/to/repo --config scanner-config.yaml --vuln-search-prov
 
 ---
 
+## GitHub Action
+
+Add Quin to your CI to scan every push and surface findings as PR annotations via GitHub code scanning:
+
+```yaml
+name: Quin Scan
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  security-events: write
+  contents: read
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: Gaincontrol-Pte-Ltd/quin-agent-scanner@v1
+```
+
+By default this runs in `--no-llm` mode — static findings plus CVE vulnerability checks (via OSV.dev), no API key required. For richer agent/risk analysis, pass an LLM API key:
+
+```yaml
+      - uses: Gaincontrol-Pte-Ltd/quin-agent-scanner@v1
+        with:
+          llm-provider: anthropic
+          llm-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+```
+
+**Inputs:**
+
+| Name | Default | Description |
+|---|---|---|
+| `llm-provider` | `''` | LLM provider (`openai`\|`anthropic`\|`google`\|`ollama`\|`openai-compatible`). Only used when `llm-api-key` is set. |
+| `llm-api-key` | `''` | API key for the chosen provider. Setting this enables LLM analysis; leaving it empty runs `--no-llm`. |
+| `llm-model` | `''` | Override the default model for the provider. |
+| `min-confidence` | `'0.0'` | Exclude artifacts below this confidence threshold (0.0–1.0). |
+
+The workflow's `permissions: security-events: write` is required for the SARIF upload step to succeed — GitHub Actions doesn't grant it by default.
+
+---
+
 ## Demo
 
 ![Quin Scanner Demo](docs/quin-demo.gif)
