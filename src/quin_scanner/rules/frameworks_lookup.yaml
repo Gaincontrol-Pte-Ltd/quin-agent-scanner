@@ -19,6 +19,18 @@ packages:
   openai-agents: "OpenAI Agents SDK"
   anthropic-agents: "Anthropic Agent SDK"
   google-adk: "Google ADK"
+  strands-agents: "Strands Agents"
+  strands-agents-tools: "Strands Agents"
+  agent-framework: "Microsoft Agent Framework"
+  agent-framework-core: "Microsoft Agent Framework"
+  agent-framework-foundry: "Microsoft Agent Framework"
+  agent-framework-copilotstudio: "Microsoft Agent Framework"
+  deepagents: "LangChain Deep Agents"
+  managed-deepagents: "LangChain Deep Agents"
+  agno: "Agno"
+  phidata: "Agno"
+  "@mastra/core": "Mastra"
+  mastra: "Mastra"
   llama-index: "LlamaIndex"
   llama_index: "LlamaIndex"
   llama-index-core: "LlamaIndex"
@@ -48,6 +60,7 @@ file_markers:
   crew.yaml: "CrewAI"
   flow.dag.yaml: "PromptFlow"
   adk.json: "Google ADK"
+  root_agent.yaml: "Google ADK"
   mcp.json: "MCP"
   .mcp.json: "MCP"
   langgraph.json: "LangGraph"
@@ -91,6 +104,21 @@ ecosystems:
   "Google ADK":
     ecosystem: "PyPI"
     package: "google-adk"
+  "Strands Agents":
+    ecosystem: "PyPI"
+    package: "strands-agents"
+  "Microsoft Agent Framework":
+    ecosystem: "PyPI"
+    package: "agent-framework"
+  "LangChain Deep Agents":
+    ecosystem: "PyPI"
+    package: "deepagents"
+  Agno:
+    ecosystem: "PyPI"
+    package: "agno"
+  Mastra:
+    ecosystem: "npm"
+    package: "@mastra/core"
   MCP:
     ecosystem: "PyPI"
     package: "mcp"

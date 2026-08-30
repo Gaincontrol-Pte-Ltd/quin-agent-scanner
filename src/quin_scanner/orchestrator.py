@@ -554,6 +554,24 @@ def _detect_framework(findings: list) -> str:
         (re.compile(r"from\s+autogen_agentchat", re.IGNORECASE), "AutoGen"),
         (re.compile(r"from\s+autogen_ext", re.IGNORECASE), "AutoGen"),
         (re.compile(r"from\s+autogen_core", re.IGNORECASE), "AutoGen"),
+        # Google ADK — self-imports (google.adk.* is a distinctive package path)
+        (re.compile(r"from\s+google\.adk\b", re.IGNORECASE), "Google ADK"),
+        (re.compile(r"import\s+google\.adk\b", re.IGNORECASE), "Google ADK"),
+        # AWS Strands Agents SDK — self-imports
+        (re.compile(r"from\s+strands\b", re.IGNORECASE), "Strands Agents"),
+        (re.compile(r"import\s+strands\b", re.IGNORECASE), "Strands Agents"),
+        (re.compile(r"from\s+strands_tools\b", re.IGNORECASE), "Strands Agents"),
+        # Microsoft Agent Framework — self-imports
+        (re.compile(r"from\s+agent_framework\b", re.IGNORECASE), "Microsoft Agent Framework"),
+        (re.compile(r"import\s+agent_framework\b", re.IGNORECASE), "Microsoft Agent Framework"),
+        # LangChain Deep Agents — self-imports
+        (re.compile(r"from\s+deepagents\b", re.IGNORECASE), "LangChain Deep Agents"),
+        (re.compile(r"import\s+deepagents\b", re.IGNORECASE), "LangChain Deep Agents"),
+        # Agno (formerly Phidata) — self-imports
+        (re.compile(r"from\s+agno\b", re.IGNORECASE), "Agno"),
+        (re.compile(r"import\s+agno\b", re.IGNORECASE), "Agno"),
+        # Mastra — self-imports
+        (re.compile(r"from\s+['\"]@mastra/core", re.IGNORECASE), "Mastra"),
     ]
     code_texts = [
         f.match_text
@@ -583,6 +601,8 @@ def _detect_framework(findings: list) -> str:
                 or text.startswith(pkg_lower + "<")
                 or text.startswith(pkg_lower + "~")
                 or text.startswith(pkg_lower + "[")
+                or text.startswith(pkg_lower + "^")
+                or text.startswith(pkg_lower + "@")
             ):
                 return framework
 
@@ -643,6 +663,7 @@ def _extract_framework_version(
                 or text.startswith(pkg + "~")
                 or text.startswith(pkg + "[")
                 or text.startswith(pkg + "^")
+                or text.startswith(pkg + "@")
                 or text.startswith('"' + pkg + '"')
                 or text.startswith(pkg + " ")
             ):

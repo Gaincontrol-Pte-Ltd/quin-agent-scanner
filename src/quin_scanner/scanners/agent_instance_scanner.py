@@ -21,8 +21,9 @@ _CODE_EXTENSIONS = {".py", ".ts", ".js", ".jsx", ".tsx", ".mjs"}
 _AGENT_CODE_PATTERNS = [
     # Multi-line aware patterns (re.DOTALL): Agent(... name="..." ...) spanning multiple lines.
     # Cap lookahead to 500 chars to avoid catastrophic backtracking.
-    # Generic Agent(name="...", ...)
-    re.compile(r'Agent\s*\([^)]{0,500}?name\s*=\s*["\']([^"\']+)["\']', re.IGNORECASE | re.DOTALL),
+    # Generic Agent(name="...", ...) — also matches TS/JS object-literal syntax
+    # new Agent({ name: "..." }), e.g. Mastra.
+    re.compile(r'Agent\s*\([^)]{0,500}?name\s*[:=]\s*["\']([^"\']+)["\']', re.IGNORECASE | re.DOTALL),
     # AssistantAgent(name="...", ...)
     re.compile(r'AssistantAgent\s*\([^)]{0,500}?name\s*=\s*["\']([^"\']+)["\']', re.IGNORECASE | re.DOTALL),
     # UserProxyAgent(name="...", ...)
@@ -50,6 +51,9 @@ _AGENT_CLASS_PATTERNS = [
 
 # Config file names that define agents
 _AGENT_CONFIG_NAMES = {"agents.yaml", "agents.yml", "crew.yaml", "crew.yml"}
+
+# Google ADK config-based agent files (adk create --type=config)
+_ADK_ROOT_AGENT_NAMES = {"root_agent.yaml", "root_agent.yml"}
 
 # Markdown agent spec patterns
 _MD_AGENT_TITLE_RE = re.compile(
@@ -102,6 +106,9 @@ class AgentInstanceScanner(BaseScanner):
                 elif fname in _AGENT_CONFIG_NAMES:
                     content = accessor.read_file(path)
                     findings.extend(self._scan_agent_yaml(content, path, seen))
+                elif fname in _ADK_ROOT_AGENT_NAMES:
+                    content = accessor.read_file(path)
+                    findings.extend(self._scan_adk_root_agent(content, path, seen))
                 elif fname == "flow.dag.yaml":
                     content = accessor.read_file(path)
                     findings.extend(self._scan_flow_dag(content, path, seen))
@@ -115,48 +122,50 @@ class AgentInstanceScanner(BaseScanner):
 
     def _scan_code(self, content: str, path: str, seen: set[str]) -> list[ScanFinding]:
         findings = []
-        lines = content.splitlines()
-        for lineno, line in enumerate(lines, start=1):
-            # Instantiation patterns: Agent(name="..."), @agent def ...
-            for pattern in _AGENT_CODE_PATTERNS:
-                m = pattern.search(line)
-                if m:
-                    agent_name = m.group(1).strip()
-                    if not agent_name or len(agent_name) > 80:
-                        continue
-                    key = f"{path}:{lineno}:{agent_name}"
-                    if key in seen:
-                        continue
-                    seen.add(key)
-                    findings.append(ScanFinding(
-                        scanner_name=self.name(),
-                        category="agent_instance",
-                        file_path=path,
-                        line_number=lineno,
-                        match_text=agent_name,
-                        capability_tag="multi-agent",
-                        confidence=0.85,
-                    ))
-            # Class inheritance patterns: class X(Role), class X(BaseAgent), etc.
-            for pattern, conf in _AGENT_CLASS_PATTERNS:
-                m = pattern.search(line)
-                if m:
-                    class_name = m.group(1).strip()
-                    if not class_name or len(class_name) > 80:
-                        continue
-                    key = f"{path}:{lineno}:{class_name}"
-                    if key in seen:
-                        continue
-                    seen.add(key)
-                    findings.append(ScanFinding(
-                        scanner_name=self.name(),
-                        category="agent_instance",
-                        file_path=path,
-                        line_number=lineno,
-                        match_text=class_name,
-                        capability_tag="multi-agent",
-                        confidence=conf,
-                    ))
+        # Scan full content (not per-line): _AGENT_CODE_PATTERNS are compiled with
+        # re.DOTALL specifically to match constructor calls formatted with one
+        # kwarg per line (Agent(\n  name="...",\n  ...\n)), which is the dominant
+        # style for well-formatted Python/TS. Per-line search would defeat DOTALL
+        # entirely, since a single line never contains the '\n' DOTALL exists for.
+        for pattern in _AGENT_CODE_PATTERNS:
+            for m in pattern.finditer(content):
+                agent_name = m.group(1).strip()
+                if not agent_name or len(agent_name) > 80:
+                    continue
+                lineno = content[:m.start()].count("\n") + 1
+                key = f"{path}:{lineno}:{agent_name}"
+                if key in seen:
+                    continue
+                seen.add(key)
+                findings.append(ScanFinding(
+                    scanner_name=self.name(),
+                    category="agent_instance",
+                    file_path=path,
+                    line_number=lineno,
+                    match_text=agent_name,
+                    capability_tag="multi-agent",
+                    confidence=0.85,
+                ))
+        # Class inheritance patterns: class X(Role), class X(BaseAgent), etc.
+        for pattern, conf in _AGENT_CLASS_PATTERNS:
+            for m in pattern.finditer(content):
+                class_name = m.group(1).strip()
+                if not class_name or len(class_name) > 80:
+                    continue
+                lineno = content[:m.start()].count("\n") + 1
+                key = f"{path}:{lineno}:{class_name}"
+                if key in seen:
+                    continue
+                seen.add(key)
+                findings.append(ScanFinding(
+                    scanner_name=self.name(),
+                    category="agent_instance",
+                    file_path=path,
+                    line_number=lineno,
+                    match_text=class_name,
+                    capability_tag="multi-agent",
+                    confidence=conf,
+                ))
         return findings
 
     def _scan_agent_yaml(self, content: str, path: str, seen: set[str]) -> list[ScanFinding]:
@@ -208,6 +217,46 @@ class AgentInstanceScanner(BaseScanner):
                                 capability_tag="multi-agent",
                                 confidence=0.90,
                             ))
+        return findings
+
+    def _scan_adk_root_agent(self, content: str, path: str, seen: set[str]) -> list[ScanFinding]:
+        """Parse Google ADK's config-based agent file (root_agent.yaml).
+
+        Schema (adk create --type=config): top-level 'name' field for the root
+        agent, plus an optional 'sub_agents' list of nested agent definitions.
+        """
+        findings = []
+        try:
+            data = yaml.safe_load(content)
+        except Exception:
+            return findings
+
+        if not isinstance(data, dict):
+            return findings
+
+        def _add(agent_name: object, confidence: float) -> None:
+            if not agent_name or not isinstance(agent_name, str):
+                return
+            key = f"{path}::{agent_name}"
+            if key in seen:
+                return
+            seen.add(key)
+            findings.append(ScanFinding(
+                scanner_name=self.name(),
+                category="agent_instance",
+                file_path=path,
+                line_number=0,
+                match_text=agent_name,
+                capability_tag="multi-agent",
+                confidence=confidence,
+            ))
+
+        _add(data.get("name"), 0.90)
+        sub_agents = data.get("sub_agents", [])
+        if isinstance(sub_agents, list):
+            for item in sub_agents:
+                if isinstance(item, dict):
+                    _add(item.get("name"), 0.88)
         return findings
 
     @staticmethod

@@ -59,6 +59,10 @@ frameworks:
     framework: google-adk
     capability_tags: [llm-api, orchestration, tool-use]
     confidence: 0.9
+  - file: root_agent.yaml
+    framework: google-adk
+    capability_tags: [llm-api, orchestration, tool-use, multi-agent]
+    confidence: 0.9
   - file: databricks_agent.yaml
     framework: databricks-agent-framework
     capability_tags: [llm-api, orchestration]

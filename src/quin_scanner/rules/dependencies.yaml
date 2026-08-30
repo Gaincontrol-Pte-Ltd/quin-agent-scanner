@@ -106,6 +106,26 @@ python:
     capability_tags: [llm-api, orchestration, tool-use, multi-agent]
   - package: google-adk
     capability_tags: [llm-api, orchestration, tool-use, multi-agent]
+  - package: strands-agents
+    capability_tags: [llm-api, orchestration, tool-use, multi-agent]
+  - package: strands-agents-tools
+    capability_tags: [tool-use]
+  - package: agent-framework
+    capability_tags: [llm-api, orchestration, tool-use, multi-agent]
+  - package: agent-framework-core
+    capability_tags: [llm-api, orchestration, tool-use, multi-agent]
+  - package: agent-framework-foundry
+    capability_tags: [llm-api, orchestration]
+  - package: agent-framework-copilotstudio
+    capability_tags: [llm-api, orchestration]
+  - package: deepagents
+    capability_tags: [multi-agent, orchestration, tool-use]
+  - package: managed-deepagents
+    capability_tags: [multi-agent, orchestration, tool-use]
+  - package: agno
+    capability_tags: [llm-api, orchestration, tool-use, multi-agent]
+  - package: phidata
+    capability_tags: [llm-api, orchestration, tool-use, multi-agent]
   - package: databricks-agents
     capability_tags: [llm-api, orchestration, fine-tuning]
   - package: databricks-sdk
@@ -140,6 +160,12 @@ nodejs:
     capability_tags: [rag, embeddings]
   - package: openclaw
     capability_tags: [llm-api, multi-agent, orchestration, tool-use]
+  - package: deepagents
+    capability_tags: [multi-agent, orchestration, tool-use]
+  - package: "@mastra/core"
+    capability_tags: [llm-api, orchestration, tool-use, multi-agent]
+  - package: mastra
+    capability_tags: [llm-api, orchestration, tool-use, multi-agent]
 
 go:
   - package: github.com/sashabaranov/go-openai

@@ -77,8 +77,11 @@ class DependencyScanner(BaseScanner):
         for path in file_index.files_matching("**/pyproject.toml"):
             content = accessor.read_file(path)
             for lineno, line in enumerate(content.splitlines(), start=1):
-                # Match quoted package names in toml dependency lists
-                m = re.search(r'"([a-zA-Z0-9_\-]+)', line)
+                # Match quoted dependency specs in toml dependency lists, e.g.
+                # "langchain>=1.0.2" -> pkg="langchain", spec="langchain>=1.0.2".
+                # match_text is stored unquoted so it has the same shape as a
+                # requirements.txt line for downstream framework/version matching.
+                m = re.search(r'"([a-zA-Z0-9_\-]+)([^"]*)"', line)
                 if m:
                     pkg = m.group(1).lower().replace("_", "-")
                     if pkg in self._rules.get("python", {}):
@@ -89,7 +92,7 @@ class DependencyScanner(BaseScanner):
                                 category="dependency",
                                 file_path=path,
                                 line_number=lineno,
-                                match_text=line.strip(),
+                                match_text=m.group(1) + m.group(2),
                                 capability_tag=_first_tag(tags),
                                 confidence=0.9,
                             )
@@ -132,7 +135,11 @@ class DependencyScanner(BaseScanner):
                             category="dependency",
                             file_path=path,
                             line_number=lineno,
-                            match_text=f'"{pkg_name}": "{version}"',
+                            # Unquoted, npm-install-style shape ("pkg@version") so
+                            # downstream framework/version matching (prefix checks
+                            # like text.startswith(pkg + "@")) works — the raw
+                            # '"pkg": "version"' JSON shape doesn't start with pkg.
+                            match_text=f"{pkg_name}@{version}",
                             capability_tag=_first_tag(tags),
                             confidence=0.95,
                         )

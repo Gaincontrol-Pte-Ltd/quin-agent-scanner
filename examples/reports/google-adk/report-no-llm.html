@@ -1,0 +1,1179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Quin Scanner Report</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --color-bg:#fafafa;
+  --color-surface:#ffffff;
+  --color-border:#e5e5e5;
+  --color-text:#171717;
+  --color-muted:#737373;
+  --color-high:#ef4444;
+  --color-medium:#f59e0b;
+  --color-low:#22c55e;
+  --color-accent:#6366f1;
+  --color-brand:#e25e47;
+  --color-brand-soft:#fbece4;
+  --color-cream:#fdf6ec;
+  --color-cream-deep:#f5e6d3;
+  --font-sans:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  --font-mono:ui-monospace,SFMono-Regular,'SF Mono',Menlo,Consolas,monospace;
+  --radius-sm:4px;
+  --radius-md:8px;
+  --radius-lg:12px;
+  --shadow-sm:0 1px 2px 0 rgba(0,0,0,.05);
+  --shadow-md:0 4px 6px -1px rgba(0,0,0,.07),0 2px 4px -2px rgba(0,0,0,.05);
+  --transition:150ms ease;
+}
+html{font-size:15px;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+body{font-family:var(--font-sans);background:var(--color-bg);color:var(--color-text);line-height:1.6}
+.container{max-width:1120px;margin:0 auto;padding:0 24px}
+
+/* ---------- Header ---------- */
+.header{position:relative;background:radial-gradient(circle at 88% 120%,rgba(226,94,71,.22) 0%,transparent 55%),linear-gradient(135deg,#1a1d24 0%,#22262f 55%,#2a2118 100%);border-bottom:1px solid #0e1014;padding:30px 0 28px;overflow:hidden}
+.header::before{content:"";position:absolute;inset:0;background:radial-gradient(circle at 8% 20%,rgba(245,230,211,.08) 0%,transparent 50%);pointer-events:none}
+.header::after{content:"";position:absolute;left:0;right:0;bottom:0;height:2px;background:linear-gradient(90deg,transparent 0%,var(--color-brand) 30%,var(--color-cream-deep) 70%,transparent 100%);opacity:.75}
+.header-inner{position:relative;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:20px}
+.brand{display:flex;align-items:center;gap:18px;min-width:0}
+.brand-logo{height:42px;width:auto;display:block;flex-shrink:0;filter:drop-shadow(0 1px 2px rgba(0,0,0,.25))}
+.brand-divider{width:1px;height:36px;background:linear-gradient(180deg,transparent,rgba(245,230,211,.35),transparent);flex-shrink:0}
+.brand-text{display:flex;flex-direction:column;gap:3px;min-width:0}
+.brand-wordmark{font-size:1.32rem;font-weight:700;letter-spacing:-.025em;color:var(--color-cream);line-height:1.1}
+.brand-wordmark .brand-accent{color:var(--color-brand);font-weight:700}
+.brand-tagline{font-size:.7rem;font-weight:600;color:rgba(245,230,211,.65);letter-spacing:.12em;text-transform:uppercase}
+.header-meta{font-size:.8rem;color:rgba(245,230,211,.7);text-align:right;word-break:break-all;display:flex;flex-direction:column;gap:4px;align-items:flex-end}
+.header-meta__repo{font-weight:600;color:var(--color-cream)}
+.header-meta__repo a{color:var(--color-cream);text-decoration:none;border-bottom:1px dotted var(--color-brand)}
+.header-meta__repo a:hover{color:var(--color-brand);border-bottom-color:var(--color-brand)}
+.header-meta__time{font-size:.7rem;color:rgba(245,230,211,.55);font-family:var(--font-mono);letter-spacing:.02em}
+
+/* ---------- Hero Cards ---------- */
+.hero{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:28px}
+.hero-card{background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-lg);padding:20px 24px;border-left:4px solid var(--color-border);transition:box-shadow var(--transition)}
+.hero-card:hover{box-shadow:var(--shadow-md)}
+.hero-card--green{border-left-color:var(--color-low)}
+.hero-card--yellow{border-left-color:var(--color-medium)}
+.hero-card--red{border-left-color:var(--color-high)}
+.hero-card--accent{border-left-color:var(--color-accent)}
+.hero-card__title{font-size:1.35rem;font-weight:700;letter-spacing:-.02em;margin-bottom:2px}
+.hero-card__sub{font-size:.8rem;color:var(--color-muted);font-weight:500}
+
+/* ---------- Capability Pills ---------- */
+.pills{display:flex;flex-wrap:wrap;gap:6px;margin-top:20px}
+.pill{display:inline-block;padding:3px 10px;border-radius:9999px;font-size:.75rem;font-weight:500;background:#f3f4f6;color:#374151;border:1px solid #e5e7eb;white-space:nowrap}
+.pill--red{background:#fef2f2;color:#991b1b;border-color:#fecaca}
+.pill--blue{background:#eff6ff;color:#1e40af;border-color:#bfdbfe}
+.pill--indigo{background:#eef2ff;color:#3730a3;border-color:#c7d2fe}
+.pill--emerald{background:#ecfdf5;color:#065f46;border-color:#a7f3d0}
+.pill--amber{background:#fffbeb;color:#92400e;border-color:#fde68a}
+.pill--orange{background:#fff7ed;color:#9a3412;border-color:#fed7aa}
+.pill--gray{background:#f9fafb;color:#4b5563;border-color:#e5e7eb}
+.risk-signal{display:block;padding:6px 10px;border-radius:var(--radius-sm);font-size:.78rem;font-weight:500;line-height:1.5;background:#fef2f2;color:#991b1b;border:1px solid #fecaca;word-wrap:break-word;overflow-wrap:break-word}
+.risk-signal--critical{background:#7f1d1d;color:#fff5f5;border-color:#7f1d1d}
+.risk-signal--high{background:#fef2f2;color:#991b1b;border-color:#fecaca}
+.risk-signal--medium{background:#fffbeb;color:#92400e;border-color:#fde68a}
+.risk-signal--low{background:#f9fafb;color:#4b5563;border-color:#e5e7eb}
+.risk-signal--info{background:#eff6ff;color:#1e40af;border-color:#bfdbfe}
+.risk-signal__sev{display:inline-block;padding:1px 6px;margin-right:6px;border-radius:3px;font-size:.65rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;background:rgba(0,0,0,.12);color:inherit;vertical-align:1px}
+.risk-detail__label{font-size:.7rem;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--color-muted);margin-bottom:.25rem}
+.risk-detail__scanner{font-size:.65rem;opacity:.6;font-style:italic}
+.doc-link{color:inherit;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:2px}
+.doc-link:hover{color:var(--color-accent);text-decoration-style:solid}
+.doc-link--icon{display:inline-block;margin-left:6px;font-size:.78rem;text-decoration:none;opacity:.7}
+.doc-link--icon:hover{opacity:1;text-decoration:none}
+
+/* ---------- Summary ---------- */
+.summary{margin-top:16px;padding:16px 20px;background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-md);font-size:.9rem;line-height:1.7;color:#404040}
+.summary--empty{color:var(--color-muted);font-style:italic}
+
+/* ---------- Tab Bar ---------- */
+.tab-bar{display:flex;gap:0;border-bottom:1px solid var(--color-border);margin-top:32px;overflow-x:auto;-webkit-overflow-scrolling:touch}
+.tab-btn{padding:10px 18px;font-size:.82rem;font-weight:500;color:var(--color-muted);background:none;border:none;border-bottom:2px solid transparent;cursor:pointer;white-space:nowrap;transition:color var(--transition),border-color var(--transition)}
+.tab-btn:hover{color:var(--color-text)}
+.tab-btn--active{color:var(--color-accent);border-bottom-color:var(--color-accent);font-weight:600}
+
+/* ---------- Tab Panels ---------- */
+.panel{display:none;margin-top:20px;margin-bottom:48px}
+.panel--active{display:block}
+
+/* ---------- Tables ---------- */
+.tbl-wrap{overflow-x:auto;border:1px solid var(--color-border);border-radius:var(--radius-md);background:var(--color-surface)}
+table{width:100%;border-collapse:collapse;font-size:.82rem}
+thead{background:#f9fafb}
+th{padding:10px 14px;text-align:left;font-weight:600;color:var(--color-muted);font-size:.75rem;text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid var(--color-border);cursor:pointer;user-select:none;white-space:nowrap}
+th:hover{color:var(--color-text)}
+th .sort-arrow{margin-left:4px;font-size:.65rem;opacity:.5}
+th .sort-arrow--active{opacity:1;color:var(--color-accent)}
+td{padding:9px 14px;border-bottom:1px solid #f3f4f6;vertical-align:top;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:#fafbfc}
+.cell-mono{font-family:var(--font-mono);font-size:.78rem}
+.confidence-pill{display:inline-block;padding:2px 8px;border-radius:9999px;font-size:.72rem;font-weight:600}
+.confidence-pill--high{background:#dcfce7;color:#166534}
+.confidence-pill--med{background:#fef9c3;color:#854d0e}
+.confidence-pill--low{background:#fee2e2;color:#991b1b}
+
+/* ---------- Pagination ---------- */
+.pagination{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-top:1px solid var(--color-border);font-size:.8rem;color:var(--color-muted)}
+.pagination button{padding:5px 14px;font-size:.78rem;border:1px solid var(--color-border);border-radius:var(--radius-sm);background:var(--color-surface);color:var(--color-text);cursor:pointer;transition:all var(--transition)}
+.pagination button:hover:not(:disabled){background:#f3f4f6;border-color:#d4d4d4}
+.pagination button:disabled{opacity:.4;cursor:not-allowed}
+.pagination-btns{display:flex;gap:6px}
+
+/* ---------- Agent Cards ---------- */
+.agent-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(480px,1fr));gap:16px}
+.agent-card{background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-md);padding:20px;transition:box-shadow var(--transition)}
+.agent-card:hover{box-shadow:var(--shadow-md)}
+.agent-card__header{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.agent-card__name{font-weight:700;font-size:1rem}
+.agent-card__goal{font-size:.85rem;color:#525252;margin-bottom:12px;line-height:1.6}
+.agent-card__section{margin-bottom:8px}
+.agent-card__label{font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--color-muted);margin-bottom:4px}
+.agent-card__footer{margin-top:12px;padding-top:10px;border-top:1px solid #f3f4f6;font-size:.75rem;color:var(--color-muted);font-family:var(--font-mono);word-break:break-all;overflow-wrap:break-word}
+
+/* ---------- Section Headers ---------- */
+.section-title{font-size:1rem;font-weight:700;margin-bottom:12px;letter-spacing:-.01em}
+.vuln-card{border:1px solid var(--color-border);border-left:4px solid var(--color-muted);border-radius:var(--radius-md);padding:12px 14px;margin-bottom:10px;background:var(--color-surface)}
+.vuln-card--critical{border-left-color:#b91c1c;background:#fef2f2}
+.vuln-card--high{border-left-color:#dc2626;background:#fef2f2}
+.vuln-card--medium{border-left-color:#d97706;background:#fffbeb}
+.vuln-card--low{border-left-color:#65a30d;background:#f7fee7}
+.vuln-card__head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px}
+.vuln-card__id{font-family:var(--font-mono);font-weight:700;font-size:.85rem}
+.vuln-card__sev{font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:2px 7px;border-radius:4px;background:#e5e7eb;color:#111827}
+.vuln-card__sev--critical{background:#b91c1c;color:#fff}
+.vuln-card__sev--high{background:#dc2626;color:#fff}
+.vuln-card__sev--medium{background:#d97706;color:#fff}
+.vuln-card__sev--low{background:#65a30d;color:#fff}
+.vuln-card__score{font-size:.75rem;color:var(--color-muted);font-family:var(--font-mono)}
+.vuln-card__summary{font-size:.85rem;color:#374151;line-height:1.5;margin-top:4px;word-break:break-word}
+.vuln-card__meta{font-size:.72rem;color:var(--color-muted);margin-top:6px}
+.vuln-card__meta a{color:var(--color-muted);text-decoration:underline}
+.section-gap{margin-top:28px}
+
+/* ---------- Infra ---------- */
+.infra-details{list-style:disc;padding-left:20px;font-size:.85rem;margin:8px 0;color:#404040}
+.infra-details li{margin-bottom:4px}
+.infra-files{font-size:.78rem;color:var(--color-muted);font-family:var(--font-mono);margin-top:8px}
+
+/* ---------- Raw JSON ---------- */
+.raw-block{background:#f8f9fa;border:1px solid var(--color-border);border-radius:var(--radius-md);padding:20px;overflow-x:auto;max-height:70vh;overflow-y:auto}
+.raw-block code{font-family:var(--font-mono);font-size:.78rem;line-height:1.6;white-space:pre;color:#374151}
+
+/* ---------- Empty State ---------- */
+.empty{text-align:center;padding:48px 20px;color:var(--color-muted);font-size:.9rem;font-style:italic}
+
+/* ---------- Footer ---------- */
+.footer{border-top:1px solid var(--color-border);padding:20px 0;margin-top:48px;text-align:center;font-size:.78rem;color:var(--color-muted)}
+
+/* ---------- Help Icon + Tooltip ---------- */
+.help-icon{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:50%;background:#e5e7eb;color:#6b7280;font-size:.68rem;font-weight:700;cursor:help;position:relative;margin-left:6px;vertical-align:middle;font-family:var(--font-sans);line-height:1;user-select:none;text-transform:none;letter-spacing:0;transition:background var(--transition),color var(--transition)}
+.help-icon:hover,.help-icon:focus{background:var(--color-accent);color:#fff;outline:none}
+.help-icon__tip{visibility:hidden;opacity:0;position:absolute;bottom:calc(100% + 8px);left:50%;transform:translateX(-50%);width:280px;max-width:calc(100vw - 48px);padding:10px 12px;background:#1f2937;color:#f9fafb;font-size:.74rem;font-weight:400;line-height:1.55;border-radius:var(--radius-sm);box-shadow:var(--shadow-md);z-index:100;text-align:left;letter-spacing:0;text-transform:none;pointer-events:none;white-space:normal;transition:opacity var(--transition),visibility var(--transition)}
+.help-icon__tip::after{content:"";position:absolute;top:100%;left:50%;transform:translateX(-50%);border:5px solid transparent;border-top-color:#1f2937}
+.help-icon:hover .help-icon__tip,.help-icon:focus .help-icon__tip{visibility:visible;opacity:1}
+
+/* ---------- Responsive ---------- */
+@media(max-width:768px){
+  .hero{grid-template-columns:1fr}
+  .agent-grid{grid-template-columns:1fr}
+  .header{padding:22px 0 20px}
+  .header-inner{flex-direction:column;align-items:flex-start}
+  .header-meta{text-align:left;align-items:flex-start}
+  .brand-wordmark{font-size:1.1rem}
+  .brand-logo{height:34px}
+  .tab-btn{padding:10px 12px;font-size:.78rem}
+  td,th{padding:7px 10px;font-size:.76rem}
+}
+</style>
+</head>
+<body>
+
+<div style="background:#fdf6ec;border-bottom:3px solid #f59e0b;padding:14px 24px;font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:.86rem;line-height:1.55;color:#171717">
+  <div style="max-width:1120px;margin:0 auto;display:flex;gap:12px;align-items:flex-start">
+    <span style="font-size:1.1rem;line-height:1.4;flex-shrink:0">&#9888;&#65039;</span>
+    <div>
+      <strong>Example report &mdash; not an audit.</strong>
+      This report was generated as-is by running Quin Scanner against the public repository
+      <a href="https://github.com/google/adk-samples" style="color:#e25e47">https://github.com/google/adk-samples</a> (path scanned: <code>python/agents/llm-auditor</code>)
+      on 2026-08-29, solely to demonstrate Quin's detection capabilities. It reflects that
+      repository's state at a single point in time, has not been reviewed by its maintainers,
+      and may not reflect the repository's current state. This scan ran in <strong>static-analysis-only mode</strong> (<code>--no-llm</code>) &mdash; detection is rule-based only, with no LLM-written summary, agent goals, or risk narratives.
+      <br>
+      If you are a maintainer of the scanned repository, or otherwise believe any finding in
+      this report is inaccurate, please
+      <a href="mailto:pixiedust@gaincontrol.ai" style="color:#e25e47">contact us</a>
+      or <a href="https://github.com/Gaincontrol-Pte-Ltd/quin-agent-scanner/issues" style="color:#e25e47">open an issue</a> &mdash; we want to know.
+    </div>
+  </div>
+</div>
+
+
+<!-- Header -->
+<div class="header">
+  <div class="container header-inner">
+    <div class="brand">
+      <img class="brand-logo" src="data:image/png;base64,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" alt="Gain Control" />
+      <div class="brand-divider" aria-hidden="true"></div>
+      <div class="brand-text">
+        <div class="brand-wordmark">Quin <span class="brand-accent">Scanner</span></div>
+        <div class="brand-tagline">AI Agent Security &amp; Risk Report</div>
+      </div>
+    </div>
+    <div class="header-meta" id="header-meta"></div>
+  </div>
+</div>
+
+<div class="container">
+  <!-- Hero Cards -->
+  <div class="hero" id="hero"></div>
+
+  <!-- Capability Pills -->
+  <div class="pills" id="pills"></div>
+
+  <!-- Summary -->
+  <div id="summary"></div>
+
+  <!-- Repo-level Risk Signals -->
+  <div id="repo-risks"></div>
+
+  <!-- Known Vulnerabilities (framework+version CVE lookup) -->
+  <div id="vulnerabilities"></div>
+
+  <!-- Tab Bar -->
+  <div class="tab-bar" id="tab-bar"></div>
+
+  <!-- Tab Panels -->
+  <div id="panels"></div>
+</div>
+
+<!-- Footer -->
+<div class="footer">
+  <div class="container" id="footer-text"></div>
+</div>
+
+<script>
+window.__REPORT_DATA__ = {
+  "repo_path": "/tmp/claude-1000/-home-rudy-Projects-drona-quin-agent-scanner/0a9429a8-9ed3-43dd-85c0-6c31f6d9efba/scratchpad/clones_full/adk-samples/python/agents/llm-auditor",
+  "scan_timestamp": "2026-08-29T06:09:40.931913+00:00",
+  "is_ai_application": true,
+  "confidence": 0.99,
+  "capability_tags": [
+    "llm-api",
+    "multi-agent",
+    "prompt-templates",
+    "tool-use"
+  ],
+  "framework": "Google ADK 1.31.0",
+  "summary": "Google ADK 1.31.0 repository detected as an AI application with capabilities: llm-api, multi-agent, prompt-templates, tool-use.",
+  "agents": [],
+  "tool_usages": [
+    {
+      "tool_name": "google_search",
+      "tool_type": "tool_definition",
+      "service_category": "",
+      "source_file": "llm_auditor/sub_agents/critic/agent.py",
+      "line_number": 67
+    }
+  ],
+  "risk_signals": [],
+  "mcp_servers": [],
+  "infra": null,
+  "vulnerabilities": [],
+  "artifacts": [
+    {
+      "scanner_name": "DependencyScanner",
+      "category": "dependency",
+      "file_path": "pyproject.toml",
+      "line_number": 17,
+      "match_text": "google-adk>=1.31.0",
+      "capability_tag": "llm-api",
+      "confidence": 0.9
+    },
+    {
+      "scanner_name": "DependencyScanner",
+      "category": "dependency",
+      "file_path": "pyproject.toml",
+      "line_number": 20,
+      "match_text": "google-genai>=1.9.0",
+      "capability_tag": "llm-api",
+      "confidence": 0.9
+    },
+    {
+      "scanner_name": "DependencyScanner",
+      "category": "dependency",
+      "file_path": "pyproject.toml",
+      "line_number": 27,
+      "match_text": "google-adk[eval]>=1.31.0",
+      "capability_tag": "llm-api",
+      "confidence": 0.9
+    },
+    {
+      "scanner_name": "ToolDefinitionScanner",
+      "category": "tool_definition",
+      "file_path": "llm_auditor/sub_agents/critic/agent.py",
+      "line_number": 67,
+      "match_text": "google_search",
+      "capability_tag": "tool-use",
+      "confidence": 0.75
+    },
+    {
+      "scanner_name": "CodePatternScanner",
+      "category": "code_pattern",
+      "file_path": "eval/test_eval.py",
+      "line_number": 21,
+      "match_text": "from google.adk.evaluation import AgentEvaluator",
+      "capability_tag": "llm-api",
+      "confidence": 0.85
+    },
+    {
+      "scanner_name": "CodePatternScanner",
+      "category": "code_pattern",
+      "file_path": "llm_auditor/agent.py",
+      "line_number": 17,
+      "match_text": "from google.adk.agents import SequentialAgent",
+      "capability_tag": "llm-api",
+      "confidence": 0.85
+    },
+    {
+      "scanner_name": "CodePatternScanner",
+      "category": "code_pattern",
+      "file_path": "llm_auditor/agent.py",
+      "line_number": 22,
+      "match_text": "llm_auditor = SequentialAgent(",
+      "capability_tag": "multi-agent",
+      "confidence": 0.85
+    },
+    {
+      "scanner_name": "CodePatternScanner",
+      "category": "code_pattern",
+      "file_path": "llm_auditor/sub_agents/critic/agent.py",
+      "line_number": 17,
+      "match_text": "from google.adk import Agent",
+      "capability_tag": "llm-api",
+      "confidence": 0.85
+    },
+    {
+      "scanner_name": "CodePatternScanner",
+      "category": "code_pattern",
+      "file_path": "llm_auditor/sub_agents/critic/agent.py",
+      "line_number": 18,
+      "match_text": "from google.adk.agents.callback_context import CallbackContext",
+      "capability_tag": "llm-api",
+      "confidence": 0.85
+    },
+    {
+      "scanner_name": "CodePatternScanner",
+      "category": "code_pattern",
+      "file_path": "llm_auditor/sub_agents/critic/agent.py",
+      "line_number": 19,
+      "match_text": "from google.adk.models import LlmResponse",
+      "capability_tag": "llm-api",
+      "confidence": 0.85
+    },
+    {
+      "scanner_name": "CodePatternScanner",
+      "category": "code_pattern",
+      "file_path": "llm_auditor/sub_agents/critic/agent.py",
+      "line_number": 20,
+      "match_text": "from google.adk.tools import google_search",
+      "capability_tag": "llm-api",
+      "confidence": 0.85
+    },
+    {
+      "scanner_name": "CodePatternScanner",
+      "category": "code_pattern",
+      "file_path": "llm_auditor/sub_agents/critic/agent.py",
+      "line_number": 63,
+      "match_text": "critic_agent = Agent(",
+      "capability_tag": "multi-agent",
+      "confidence": 0.85
+    },
+    {
+      "scanner_name": "CodePatternScanner",
+      "category": "code_pattern",
+      "file_path": "llm_auditor/sub_agents/reviser/agent.py",
+      "line_number": 17,
+      "match_text": "from google.adk import Agent",
+      "capability_tag": "llm-api",
+      "confidence": 0.85
+    },
+    {
+      "scanner_name": "CodePatternScanner",
+      "category": "code_pattern",
+      "file_path": "llm_auditor/sub_agents/reviser/agent.py",
+      "line_number": 18,
+      "match_text": "from google.adk.agents.callback_context import CallbackContext",
+      "capability_tag": "llm-api",
+      "confidence": 0.85
+    },
+    {
+      "scanner_name": "CodePatternScanner",
+      "category": "code_pattern",
+      "file_path": "llm_auditor/sub_agents/reviser/agent.py",
+      "line_number": 19,
+      "match_text": "from google.adk.models import LlmResponse",
+      "capability_tag": "llm-api",
+      "confidence": 0.85
+    },
+    {
+      "scanner_name": "CodePatternScanner",
+      "category": "code_pattern",
+      "file_path": "llm_auditor/sub_agents/reviser/agent.py",
+      "line_number": 40,
+      "match_text": "reviser_agent = Agent(",
+      "capability_tag": "multi-agent",
+      "confidence": 0.85
+    },
+    {
+      "scanner_name": "CodePatternScanner",
+      "category": "code_pattern",
+      "file_path": "tests/test_agents.py",
+      "line_number": 21,
+      "match_text": "from google.adk.runners import InMemoryRunner",
+      "capability_tag": "llm-api",
+      "confidence": 0.85
+    },
+    {
+      "scanner_name": "PromptDiscoveryScanner",
+      "category": "prompt",
+      "file_path": "README.md",
+      "line_number": 1,
+      "match_text": "# LLM Auditor\n\n**Recommended workflow:** install and run with **uv** and **[Google Agents CLI](https://github.com/google/agents-cli)** (see [Quick start](#quick-start-google-agents-cli--primary) below).\n\nThis agent functions as an automated fact-checking layer specifically designed to evaluate and enhance the factual grounding of responses generated by Large Language Models (LLMs). Its primary role is to bolster the reliability of LLM outputs by systematically analyzing them against real-world i",
+      "capability_tag": "prompt-templates",
+      "confidence": 0.8
+    }
+  ],
+  "model_usages": [
+    {
+      "provider": "google",
+      "model_name": "gemini-2.5-flash",
+      "source": "code",
+      "file_path": "llm_auditor/sub_agents/critic/agent.py",
+      "line_number": 64,
+      "role": "unknown"
+    }
+  ],
+  "metadata": {
+    "scan_duration_seconds": 0.052,
+    "file_count": 20,
+    "artifact_count": 18,
+    "artifacts_by_scanner": {
+      "DependencyScanner": 3,
+      "ToolDefinitionScanner": 1,
+      "CodePatternScanner": 13,
+      "PromptDiscoveryScanner": 1,
+      "AgentInstanceScanner": 3
+    },
+    "test_model_usages_count": 0,
+    "analysis": "static-only"
+  }
+};
+</script>
+<script>
+(function(){
+  "use strict";
+
+  var D = window.__REPORT_DATA__ || {};
+
+  /* ---- Deep-link base for the risk framework doc ----
+     Each control label in a risk signal becomes a link to the matching
+     anchor in docs/risk-framework.md, and each signal with a known
+     threat_id renders a \u2197 icon linking to the threat anchor.
+     Anchors (t0NN / c0NN) are guarded by tests in tests/test_risk_framework_docs.py. */
+  var DOCS_BASE = "https://github.com/Gaincontrol-Pte-Ltd/quin-agent-scanner/blob/main/docs/risk-framework.md";
+
+  function controlLink(label){
+    /* Accepts "C003: Access Control & Least Privilege" or just "C003".
+       Renders a clickable link to DOCS_BASE#c003; falls back to plain text. */
+    var s=String(label||"");
+    var m=s.match(/^(C\d{3})\b/i);
+    if(!m) return esc(s);
+    var cid=m[1].toUpperCase();
+    return '<a href="'+esc(DOCS_BASE+"#"+cid.toLowerCase())+'" target="_blank" rel="noopener" class="doc-link">'+esc(s)+'</a>';
+  }
+  function threatAnchor(tid){
+    var s=String(tid||"");
+    if(!/^T\d{3}$/i.test(s)) return null;
+    return DOCS_BASE+"#"+s.toLowerCase();
+  }
+
+  /* ---- Helpers ---- */
+  function esc(s){
+    if(s==null) return "";
+    return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+  }
+  function el(tag,attrs,html){
+    var e=document.createElement(tag);
+    if(attrs) Object.keys(attrs).forEach(function(k){e.setAttribute(k,attrs[k])});
+    if(html!=null) e.innerHTML=html;
+    return e;
+  }
+  function $(id){return document.getElementById(id)}
+  function truncPath(p,n){
+    if(!p) return "";
+    var parts=p.replace(/\\/g,"/").split("/");
+    if(parts.length<=n) return p;
+    return "\u2026/"+parts.slice(-n).join("/");
+  }
+  function confClass(c){
+    if(c>=0.8) return "high";
+    if(c>=0.5) return "med";
+    return "low";
+  }
+  function confLabel(c){
+    if(c>=0.8) return "High";
+    if(c>=0.5) return "Medium";
+    return "Low";
+  }
+  function titleCase(s){
+    if(!s) return "";
+    return s.replace(/[-_]/g," ").replace(/\b\w/g,function(c){return c.toUpperCase()});
+  }
+  function helpIcon(text){
+    return '<span class="help-icon" tabindex="0" role="img" aria-label="Help">?<span class="help-icon__tip">'+esc(text)+'</span></span>';
+  }
+
+  /* ---- Section help copy ---- */
+  var HELP={
+    verdict:"Shows whether this repo contains AI agent code and how confident the scan is. Confirms upfront that AI-specific threats (prompt injection, tool misuse, agent identity) apply here — not just traditional app security.",
+    framework:"Identifies the agent framework in use (LangChain, LangGraph, CrewAI, etc.). Each framework has its own attack surface — use this to apply framework-specific hardening guides and match known CVEs.",
+    risk:"Aggregated risk level derived from detected cross-cutting and agent-specific signals. Use it to prioritize: High means review before production; Medium means targeted hardening; Low means verify your defenses still hold.",
+    capabilities:"High-level capabilities detected across the codebase (LLM calls, tool use, file I/O, network, etc.). Narrower capability surface means a narrower blast radius if an agent is compromised.",
+    summary:"LLM-generated plain-English summary of what this repo does. Gives reviewers shared context before diving into specific agents, tools, or risk findings.",
+    riskSignals:"Cross-cutting risks that apply to the system as a whole — supply chain, observability, governance, system-wide data exposure — not attributable to any single agent. Each signal is assessed against our framework combining OWASP LLM Top 10, OWASP Agentic AI Top 10, and OWASP MCP Top 10; click a signal to expand the recommended controls and the scanner findings that triggered it.",
+    vulnerabilities:"Known CVEs matching the framework and dependency versions detected. Patch Critical/High items before running agents in production — AI frameworks have had serious RCE and prompt-leak issues."
+  };
+
+  /* ---- Risk helpers ---- */
+  function riskSignalText(r){
+    if(typeof r==="string") return r;
+    if(r&&typeof r==="object") return r.signal||"";
+    return "";
+  }
+  function riskControls(r){
+    if(r&&typeof r==="object"&&Array.isArray(r.recommended_controls)) return r.recommended_controls;
+    return [];
+  }
+  function riskThreatId(r){
+    if(r&&typeof r==="object"&&typeof r.threat_id==="string") return r.threat_id;
+    return null;
+  }
+  function riskSeverity(r){
+    var allowed={critical:1,high:1,medium:1,low:1,info:1};
+    if(r&&typeof r==="object"&&typeof r.severity==="string"){
+      var s=r.severity.toLowerCase();
+      if(allowed[s]) return s;
+    }
+    return "medium";
+  }
+  function riskEvidenceRefs(r){
+    if(r&&typeof r==="object"&&Array.isArray(r.evidence_refs)) return r.evidence_refs;
+    return [];
+  }
+  /* Build a click-through href for an evidence_ref. CVE refs use source_url
+     directly; file_path refs try to construct a GitHub blob URL from
+     repo_path, falling back to no link for local paths. */
+  function evidenceRefHref(ref){
+    if(!ref) return "";
+    if(ref.source_url) return ref.source_url;
+    if(!ref.file_path) return "";
+    var repo=(D.repo_path||"").replace(/\.git$/,"");
+    var m=repo.match(/^https?:\/\/github\.com\/[^\/\s]+\/[^\/\s]+/);
+    if(m){
+      var line=ref.line_number?"#L"+ref.line_number:"";
+      return m[0]+"/blob/main/"+ref.file_path+line;
+    }
+    return "";
+  }
+  function evidenceRefLabel(ref){
+    if(!ref) return "";
+    if(ref.source_url){
+      var m=ref.source_url.match(/^https?:\/\/([^\/]+)/);
+      return m?m[1]:ref.source_url;
+    }
+    var p=ref.file_path||"";
+    return p+(ref.line_number?":"+ref.line_number:"");
+  }
+
+  /* ---- Risk derivation ---- */
+  function deriveRisk(){
+    var agents=D.agents||[];
+    var repoRisks=D.risk_signals||[];
+    var uniqueRisks={};
+    repoRisks.forEach(function(r){var t=riskSignalText(r);if(t)uniqueRisks[t]=true});
+    agents.forEach(function(a){
+      (a.risk_signals||[]).forEach(function(r){var t=riskSignalText(r);if(t)uniqueRisks[t]=true});
+    });
+    var count=Object.keys(uniqueRisks).length;
+    var repoCount=repoRisks.filter(function(r){return riskSignalText(r)}).length;
+    var agentCount=count-repoCount;
+    if(agents.length>0||repoCount>0){
+      if(count>=3) return {level:"High",color:"red",count:count,agents:agents.length,repoCount:repoCount,agentCount:agentCount};
+      if(count>=1) return {level:"Medium",color:"yellow",count:count,agents:agents.length,repoCount:repoCount,agentCount:agentCount};
+      return {level:"Low",color:"green",count:count,agents:agents.length,repoCount:repoCount,agentCount:agentCount};
+    }
+    var conf=D.confidence||0;
+    if(conf>=0.8) return {level:"High",color:"red",count:0,agents:0,repoCount:0,agentCount:0};
+    if(conf>=0.5) return {level:"Medium",color:"yellow",count:0,agents:0,repoCount:0,agentCount:0};
+    return {level:"Low",color:"green",count:0,agents:0,repoCount:0,agentCount:0};
+  }
+
+  /* ---- Header ---- */
+  (function renderHeader(){
+    var rp=(D.repo_path||"").trim();
+    var display="Unknown", href=null;
+    if(rp){
+      if(/^https?:\/\/github\.com\//i.test(rp)){
+        href=rp; display=rp;
+      } else if(/^git@github\.com:/i.test(rp)){
+        href="https://github.com/"+rp.replace(/^git@github\.com:/i,"").replace(/\.git$/,"");
+        display=rp;
+      } else if(/^[^\/\s]+\/[^\/\s]+$/.test(rp) && !rp.startsWith(".")){
+        href="https://github.com/"+rp; display=rp;
+      } else {
+        display=rp;
+      }
+    }
+    var repoHtml=href?'<a href="'+esc(href)+'" target="_blank" rel="noopener">'+esc(display)+'</a>':esc(display);
+    var ts=D.scan_timestamp||"";
+    var html='<div class="header-meta__repo">'+repoHtml+'</div>';
+    if(ts) html+='<div class="header-meta__time">'+esc(ts)+'</div>';
+    $("header-meta").innerHTML=html;
+  })();
+
+  /* ---- Hero ---- */
+  (function renderHero(){
+    var conf=D.confidence||0;
+    var isAI=D.is_ai_application;
+    var verdictColor=isAI?(conf>=0.7?"green":"yellow"):"gray";
+    var verdictBorder=verdictColor==="green"?"hero-card--green":verdictColor==="yellow"?"hero-card--yellow":"";
+    var verdictText=isAI?"AI Application":"Not Detected";
+
+    var fw=D.framework||"unknown";
+    var fwDisplay=fw==="unknown"?"<span style='color:var(--color-muted)'>No Framework</span>":esc(titleCase(fw));
+
+    var risk=deriveRisk();
+    var riskBorder=risk.color==="red"?"hero-card--red":risk.color==="yellow"?"hero-card--yellow":"hero-card--green";
+    var riskSub=risk.repoCount+" cross-cutting, "+risk.agentCount+" agent-specific";
+
+    var html="";
+    html+='<div class="hero-card '+verdictBorder+'">';
+    html+='<div class="hero-card__title">'+esc(verdictText)+'</div>';
+    html+='<div class="hero-card__sub">'+Math.round(conf*100)+'% confidence'+helpIcon(HELP.verdict)+'</div>';
+    html+='</div>';
+
+    html+='<div class="hero-card hero-card--accent">';
+    html+='<div class="hero-card__title">'+fwDisplay+'</div>';
+    html+='<div class="hero-card__sub">Framework'+helpIcon(HELP.framework)+'</div>';
+    html+='</div>';
+
+    html+='<div class="hero-card '+riskBorder+'">';
+    html+='<div class="hero-card__title">'+esc(risk.level)+'</div>';
+    html+='<div class="hero-card__sub">'+esc(riskSub)+helpIcon(HELP.risk)+'</div>';
+    html+='</div>';
+
+    $("hero").innerHTML=html;
+  })();
+
+  /* ---- Pills ---- */
+  (function renderPills(){
+    var tags=D.capability_tags||[];
+    if(!tags.length){$("pills").style.display="none";return}
+    var html="";
+    tags.forEach(function(t){html+='<span class="pill">'+esc(t)+'</span>'});
+    $("pills").innerHTML=html;
+  })();
+
+  /* ---- Summary ---- */
+  (function renderSummary(){
+    var s=D.summary||"";
+    if(!s){
+      $("summary").innerHTML='<div class="summary summary--empty">No LLM analysis performed.</div>';
+    }else{
+      $("summary").innerHTML='<div class="summary">'+esc(s)+'</div>';
+    }
+  })();
+
+  /* ---- Repo-level Risk Signals ---- */
+  (function renderRepoRisks(){
+    var signals=D.risk_signals||[];
+    if(!signals.length){$("repo-risks").style.display="none";return}
+    var html='<div style="margin:1.2rem 0"><div style="font-size:.85rem;font-weight:600;margin-bottom:.5rem">Cross-Cutting Risks'+helpIcon(HELP.riskSignals)+'</div>';
+    html+=renderRiskSignals(signals);
+    html+='</div>';
+    $("repo-risks").innerHTML=html;
+  })();
+
+  /* ---- Known Vulnerabilities (framework+version) ---- */
+  (function renderVulnerabilities(){
+    var vulns=D.vulnerabilities||[];
+    if(!vulns.length){$("vulnerabilities").style.display="none";return}
+    var counts={critical:0,high:0,medium:0,low:0,unknown:0};
+    vulns.forEach(function(v){var s=v.severity||"unknown";if(counts[s]===undefined)counts.unknown++;else counts[s]++});
+    var subtitleParts=[];
+    ["critical","high","medium","low","unknown"].forEach(function(k){
+      if(counts[k]>0) subtitleParts.push(counts[k]+" "+k);
+    });
+    var html='<div style="margin:1.4rem 0">';
+    html+='<div style="display:flex;align-items:baseline;gap:10px;margin-bottom:.6rem">';
+    html+='<div style="font-size:.95rem;font-weight:700">Known Vulnerabilities'+helpIcon(HELP.vulnerabilities)+'</div>';
+    html+='<div style="font-size:.75rem;color:var(--color-muted)">'+esc(subtitleParts.join(" &middot; "))+'</div>';
+    html+='</div>';
+    vulns.forEach(function(v){
+      var sev=(v.severity||"unknown").toLowerCase();
+      var sevClass=(sev==="critical"||sev==="high"||sev==="medium"||sev==="low")?sev:"unknown";
+      html+='<div class="vuln-card vuln-card--'+esc(sevClass)+'">';
+      html+='<div class="vuln-card__head">';
+      var idText=v.cve_id||"(no CVE id)";
+      if(v.source_url){
+        html+='<a class="vuln-card__id" href="'+esc(v.source_url)+'" target="_blank" rel="noopener">'+esc(idText)+'</a>';
+      }else{
+        html+='<span class="vuln-card__id">'+esc(idText)+'</span>';
+      }
+      html+='<span class="vuln-card__sev vuln-card__sev--'+esc(sevClass)+'">'+esc(sev)+'</span>';
+      if(v.cvss_score!==null&&v.cvss_score!==undefined){
+        html+='<span class="vuln-card__score">CVSS '+esc(String(v.cvss_score))+'</span>';
+      }
+      html+='</div>';
+      if(v.summary) html+='<div class="vuln-card__summary">'+esc(v.summary)+'</div>';
+      var metaBits=[];
+      if(v.published) metaBits.push("Published "+esc(v.published));
+      if(v.affected_versions) metaBits.push("Affected: "+esc(v.affected_versions));
+      if(v.source) metaBits.push("Source: "+esc(v.source));
+      if(metaBits.length){
+        html+='<div class="vuln-card__meta">'+metaBits.join(" &middot; ")+'</div>';
+      }
+      html+='</div>';
+    });
+    html+='</div>';
+    $("vulnerabilities").innerHTML=html;
+  })();
+
+  /* ---- Tabs ---- */
+  var TABS=[
+    {id:"artifacts",label:"Artifacts"},
+    {id:"agents",label:"Agents"},
+    {id:"models",label:"Models"},
+    {id:"tools",label:"Tools, Skills & MCP"},
+    {id:"infra",label:"Infrastructure"},
+    {id:"raw",label:"Raw Data"}
+  ];
+  var activeTab="artifacts";
+
+  function renderTabBar(){
+    var bar=$("tab-bar");
+    bar.innerHTML="";
+    TABS.forEach(function(t){
+      var btn=el("button",{"class":"tab-btn"+(t.id===activeTab?" tab-btn--active":""),"data-tab":t.id},esc(t.label));
+      btn.addEventListener("click",function(){switchTab(t.id)});
+      bar.appendChild(btn);
+    });
+  }
+
+  function switchTab(id){
+    activeTab=id;
+    renderTabBar();
+    TABS.forEach(function(t){
+      var p=$("panel-"+t.id);
+      if(p){
+        if(t.id===id){p.classList.add("panel--active")}
+        else{p.classList.remove("panel--active")}
+      }
+    });
+  }
+
+  function createPanels(){
+    var wrap=$("panels");
+    wrap.innerHTML="";
+    TABS.forEach(function(t){
+      var d=el("div",{"class":"panel"+(t.id===activeTab?" panel--active":""),"id":"panel-"+t.id});
+      wrap.appendChild(d);
+    });
+  }
+
+  renderTabBar();
+  createPanels();
+
+  /* ==================================================================
+     SORTABLE + PAGINATED TABLE ENGINE
+     ================================================================== */
+  function TableEngine(containerId,columns,rows,pageSize){
+    this.container=$(containerId);
+    this.columns=columns;       // [{key,label,render?,sortable?}]
+    this.allRows=rows||[];
+    this.pageSize=pageSize||50;
+    this.page=0;
+    this.sortCol=null;
+    this.sortDir=1;             // 1 asc, -1 desc
+    this.render();
+  }
+  TableEngine.prototype.totalPages=function(){return Math.max(1,Math.ceil(this.allRows.length/this.pageSize))};
+  TableEngine.prototype.sortedRows=function(){
+    var self=this;
+    var rows=this.allRows.slice();
+    if(this.sortCol!==null){
+      var key=this.columns[this.sortCol].key;
+      rows.sort(function(a,b){
+        var va=a[key],vb=b[key];
+        if(va==null) va="";
+        if(vb==null) vb="";
+        if(typeof va==="number"&&typeof vb==="number") return (va-vb)*self.sortDir;
+        return String(va).localeCompare(String(vb))*self.sortDir;
+      });
+    }
+    return rows;
+  };
+  TableEngine.prototype.render=function(){
+    var self=this;
+    if(!this.allRows.length){
+      this.container.innerHTML='<div class="empty">No data to display.</div>';
+      return;
+    }
+    var sorted=this.sortedRows();
+    var start=this.page*this.pageSize;
+    var pageRows=sorted.slice(start,start+this.pageSize);
+    var html='<div class="tbl-wrap"><table><thead><tr>';
+    this.columns.forEach(function(col,ci){
+      var arrow="";
+      if(col.sortable!==false){
+        var isActive=self.sortCol===ci;
+        var dir=isActive?(self.sortDir===1?"\u25B2":"\u25BC"):"\u25B2";
+        arrow=' <span class="sort-arrow'+(isActive?" sort-arrow--active":"")+'">'+dir+'</span>';
+      }
+      html+='<th data-ci="'+ci+'">'+esc(col.label)+arrow+'</th>';
+    });
+    html+='</tr></thead><tbody>';
+    pageRows.forEach(function(row){
+      html+='<tr>';
+      self.columns.forEach(function(col){
+        if(col.render){
+          html+='<td>'+col.render(row)+'</td>';
+        }else{
+          html+='<td title="'+esc(row[col.key])+'">'+esc(row[col.key])+'</td>';
+        }
+      });
+      html+='</tr>';
+    });
+    html+='</tbody></table>';
+    // pagination
+    var tp=this.totalPages();
+    html+='<div class="pagination">';
+    html+='<span>Page '+(this.page+1)+' of '+tp+'</span>';
+    html+='<div class="pagination-btns">';
+    html+='<button class="pg-prev"'+(this.page<=0?' disabled':'')+'>Prev</button>';
+    html+='<button class="pg-next"'+(this.page>=tp-1?' disabled':'')+'>Next</button>';
+    html+='</div></div></div>';
+    this.container.innerHTML=html;
+
+    // bind sort
+    var ths=this.container.querySelectorAll("th[data-ci]");
+    ths.forEach(function(th){
+      th.addEventListener("click",function(){
+        var ci=parseInt(th.getAttribute("data-ci"),10);
+        if(self.columns[ci].sortable===false) return;
+        if(self.sortCol===ci){self.sortDir*=-1}else{self.sortCol=ci;self.sortDir=1}
+        self.page=0;
+        self.render();
+      });
+    });
+    // bind pagination
+    var prevBtn=this.container.querySelector(".pg-prev");
+    var nextBtn=this.container.querySelector(".pg-next");
+    if(prevBtn) prevBtn.addEventListener("click",function(){if(self.page>0){self.page--;self.render()}});
+    if(nextBtn) nextBtn.addEventListener("click",function(){if(self.page<self.totalPages()-1){self.page++;self.render()}});
+  };
+
+  /* ---- Findings Tab ---- */
+  (function renderFindings(){
+    var panel=$("panel-artifacts");
+    var artifacts=D.artifacts||[];
+    if(!artifacts.length){panel.innerHTML='<div class="empty">No artifacts detected.</div>';return}
+
+    // Pre-sort by confidence desc
+    artifacts=artifacts.slice().sort(function(a,b){return (b.confidence||0)-(a.confidence||0)});
+
+    var columns=[
+      {key:"scanner_name",label:"Scanner"},
+      {key:"category",label:"Category"},
+      {key:"file_path",label:"File",render:function(r){
+        return '<span class="cell-mono" title="'+esc(r.file_path)+'">'+esc(truncPath(r.file_path,3))+'</span>';
+      }},
+      {key:"line_number",label:"Line",render:function(r){
+        return r.line_number!=null?'<span class="cell-mono">'+r.line_number+'</span>':'<span style="color:var(--color-muted)">&mdash;</span>';
+      }},
+      {key:"match_text",label:"Match",render:function(r){
+        return '<span class="cell-mono" title="'+esc(r.match_text)+'">'+esc(r.match_text)+'</span>';
+      }},
+      {key:"capability_tag",label:"Capability",render:function(r){
+        return r.capability_tag?'<span class="pill">'+esc(r.capability_tag)+'</span>':'';
+      }},
+      {key:"confidence",label:"Confidence",render:function(r){
+        var c=r.confidence||0;
+        var cls=confClass(c);
+        return '<span class="confidence-pill confidence-pill--'+cls+'">'+confLabel(c)+" "+Math.round(c*100)+"%</span>";
+      }}
+    ];
+    new TableEngine("panel-artifacts",columns,artifacts,50);
+  })();
+
+  /* ---- Risk signal renderer (handles both string and dict formats) ---- */
+  function renderRiskSignals(signals){
+    if(!signals||!signals.length) return '';
+    var html='<div style="margin-top:0">';
+    signals.forEach(function(r){
+      var text=riskSignalText(r);
+      var ctrls=riskControls(r);
+      var refs=riskEvidenceRefs(r);
+      var tid=riskThreatId(r);
+      var tHref=threatAnchor(tid);
+      var sev=riskSeverity(r);
+      if(!text) return;
+      var hasDetail=ctrls.length||refs.length;
+      html+='<div style="margin-bottom:.5rem">';
+      html+='<div class="risk-signal risk-signal--'+sev+' risk-toggle" style="cursor:'+(hasDetail?'pointer':'default')+'">';
+      html+='<span class="risk-signal__sev">'+sev+'</span>';
+      html+='<span class="risk-signal__text">'+esc(text)+'</span>';
+      if(tHref){
+        /* Link-arrow icon opens the threat detail; stop-propagation keeps the
+           row toggle from firing when the user clicks the icon. */
+        html+=' <a href="'+esc(tHref)+'" target="_blank" rel="noopener" class="doc-link doc-link--icon" title="Open '+esc(tid)+' in risk framework" onclick="event.stopPropagation()">\u2197</a>';
+      }
+      if(hasDetail){
+        html+=' <span style="float:right;margin-left:6px;font-size:.7rem;opacity:.6">&#9662;</span>';
+      }
+      html+='</div>';
+      if(hasDetail){
+        html+='<div class="risk-controls" style="display:none;margin:.35rem 0 .35rem 10px;font-size:.75rem;color:var(--color-muted)">';
+        if(ctrls.length){
+          html+='<div class="risk-detail__label">Recommended controls</div>';
+          ctrls.forEach(function(c){html+='<div style="margin-bottom:.2rem">&#8594; '+controlLink(c)+'</div>'});
+        }
+        if(refs.length){
+          html+='<div class="risk-detail__label" style="margin-top:'+(ctrls.length?'.5rem':'0')+'">Evidence</div>';
+          refs.forEach(function(ref){
+            var href=evidenceRefHref(ref);
+            var label=evidenceRefLabel(ref);
+            var sc=ref.scanner?' <span class="risk-detail__scanner">('+esc(ref.scanner)+')</span>':'';
+            if(href){
+              html+='<div style="margin-bottom:.2rem">&#8594; <a href="'+esc(href)+'" target="_blank" rel="noopener" class="doc-link" onclick="event.stopPropagation()"><code>'+esc(label)+'</code></a>'+sc+'</div>';
+            }else{
+              html+='<div style="margin-bottom:.2rem">&#8594; <code>'+esc(label)+'</code>'+sc+'</div>';
+            }
+          });
+        }
+        html+='</div>';
+      }
+      html+='</div>';
+    });
+    html+='</div>';
+    return html;
+  }
+  document.addEventListener("click",function(e){
+    /* Let doc links (control + threat deep-links) open without toggling. */
+    var target=e.target;
+    if(target.closest && target.closest("a.doc-link")) return;
+    /* Walk up to find the risk-toggle container — click may land on the
+       inner span or anchor icon. */
+    var toggle=target.closest?target.closest(".risk-toggle"):null;
+    if(toggle){
+      var sib=toggle.nextElementSibling;
+      if(sib&&sib.classList.contains("risk-controls")){
+        sib.style.display=sib.style.display==="none"?"block":"none";
+      }
+    }
+  });
+
+  /* ---- Agents Tab ---- */
+  (function renderAgents(){
+    var panel=$("panel-agents");
+    var agents=D.agents||[];
+    if(!agents.length){panel.innerHTML='<div class="empty">No agents identified.</div>';return}
+
+    var typeBadge=function(t){
+      var cls="pill--gray";
+      if(t==="supervisor") cls="pill--indigo";
+      else if(t==="worker") cls="pill--blue";
+      else if(t==="utility") cls="pill--gray";
+      return '<span class="pill '+cls+'">'+esc(t||"unknown")+'</span>';
+    };
+    var pillList=function(arr,cls){
+      if(!arr||!arr.length) return '<span style="color:var(--color-muted);font-size:.78rem">None</span>';
+      return arr.map(function(s){return '<span class="pill '+(cls||"")+'">'+esc(s)+'</span>'}).join(" ");
+    };
+
+    var html='<div class="agent-grid">';
+    agents.forEach(function(a){
+      html+='<div class="agent-card">';
+      html+='<div class="agent-card__header"><span class="agent-card__name">'+esc(a.name||"Unnamed Agent")+'</span>'+typeBadge(a.agent_type)+'</div>';
+      if(a.goal) html+='<div class="agent-card__goal">'+esc(a.goal)+'</div>';
+
+      if((a.capabilities||[]).length){
+        html+='<div class="agent-card__section"><div class="agent-card__label">Capabilities</div><div class="pills" style="margin-top:0">'+pillList(a.capabilities)+'</div></div>';
+      }
+      if((a.skills||[]).length){
+        html+='<div class="agent-card__section"><div class="agent-card__label">Skills</div><div class="pills" style="margin-top:0">'+pillList(a.skills)+'</div></div>';
+      }
+      if((a.tools||[]).length){
+        html+='<div class="agent-card__section"><div class="agent-card__label">Tools</div><div class="pills" style="margin-top:0">'+pillList(a.tools)+'</div></div>';
+      }
+      if((a.risk_signals||[]).length){
+        html+='<div class="agent-card__section"><div class="agent-card__label">Risk Signals</div>';
+        html+=renderRiskSignals(a.risk_signals);
+        html+='</div>';
+      }
+      if(a.source_file){
+        html+='<div class="agent-card__footer" title="'+esc(a.source_file)+'">'+esc(truncPath(a.source_file,3))+'</div>';
+      }
+      html+='</div>';
+    });
+    html+='</div>';
+    panel.innerHTML=html;
+  })();
+
+  /* ---- Models Tab ---- */
+  (function renderModels(){
+    var panel=$("panel-models");
+    var models=D.model_usages||[];
+    if(!models.length){panel.innerHTML='<div class="empty">No model usages detected.</div>';return}
+
+    var providerCls=function(p){
+      if(!p) return "pill--gray";
+      var lp=p.toLowerCase();
+      if(lp==="openai") return "pill--emerald";
+      if(lp==="anthropic") return "pill--orange";
+      if(lp==="google") return "pill--blue";
+      return "pill--gray";
+    };
+
+    var columns=[
+      {key:"provider",label:"Provider",render:function(r){
+        return '<span class="pill '+providerCls(r.provider)+'">'+esc(r.provider)+'</span>';
+      }},
+      {key:"model_name",label:"Model",render:function(r){
+        return '<span class="cell-mono">'+esc(r.model_name)+'</span>';
+      }},
+      {key:"role",label:"Role",render:function(r){
+        return '<span class="pill">'+esc(r.role||"unknown")+'</span>';
+      }},
+      {key:"source",label:"Source"},
+      {key:"file_path",label:"File",render:function(r){
+        return '<span class="cell-mono" title="'+esc(r.file_path)+'">'+esc(truncPath(r.file_path,3))+'</span>';
+      }},
+      {key:"line_number",label:"Line",render:function(r){
+        return r.line_number!=null?'<span class="cell-mono">'+r.line_number+'</span>':'<span style="color:var(--color-muted)">&mdash;</span>';
+      }}
+    ];
+    new TableEngine("panel-models",columns,models,50);
+  })();
+
+  /* ---- Tools, Skills & MCP Tab ---- */
+  (function renderToolsMcp(){
+    var panel=$("panel-tools");
+    var allUsages=D.tool_usages||[];
+    var mcps=D.mcp_servers||[];
+
+    /* Split tool_usages by type */
+    var agentTools=allUsages.filter(function(t){var tt=t.tool_type||"tool_definition";return tt==="tool_definition"||tt==="external_service"});
+    var skills=allUsages.filter(function(t){return t.tool_type==="skill"});
+    var mcpTools=allUsages.filter(function(t){return t.tool_type==="mcp_tool"});
+
+    var html="";
+
+    /* Agent Tools */
+    html+='<div class="section-title">Agent Tools</div>';
+    html+='<div id="tools-table-wrap"></div>';
+
+    /* Skills */
+    html+='<div class="section-title section-gap">Skills</div>';
+    html+='<div id="skills-table-wrap"></div>';
+
+    /* MCP Servers */
+    html+='<div class="section-title section-gap">MCP Servers</div>';
+    html+='<div id="mcp-table-wrap"></div>';
+
+    panel.innerHTML=html;
+
+    /* Shared column renderers */
+    var colToolName={key:"tool_name",label:"Name",render:function(r){return '<span class="cell-mono">'+esc(r.tool_name)+'</span>'}};
+    var colFile={key:"source_file",label:"File",render:function(r){return '<span class="cell-mono" title="'+esc(r.source_file)+'">'+esc(truncPath(r.source_file,3))+'</span>'}};
+    var colLine={key:"line_number",label:"Line",render:function(r){return r.line_number!=null?'<span class="cell-mono">'+r.line_number+'</span>':'<span style="color:var(--color-muted)">&mdash;</span>'}};
+
+    /* Agent Tools table */
+    if(!agentTools.length){
+      $("tools-table-wrap").innerHTML='<div class="empty">No agent tools detected.</div>';
+    }else{
+      new TableEngine("tools-table-wrap",[
+        colToolName,
+        {key:"tool_type",label:"Type",render:function(r){var t=r.tool_type||"tool_definition";return t==="external_service"?'<span class="pill pill--blue">Service Integration</span>':'<span class="pill pill--indigo">Agent Tool</span>'}},
+        {key:"service_category",label:"Category",render:function(r){if(!r.service_category)return'<span style="color:var(--color-muted)">&mdash;</span>';var s=r.service_category.replace(/_/g," ").replace(/\w/g,function(c){return c.toUpperCase()});return '<span class="pill pill--emerald">'+esc(s)+'</span>'}},
+        colFile,colLine
+      ],agentTools,50);
+    }
+
+    /* Skills table */
+    if(!skills.length){
+      $("skills-table-wrap").innerHTML='<div class="empty">No skills detected.</div>';
+    }else{
+      new TableEngine("skills-table-wrap",[
+        colToolName,
+        {key:"tool_type",label:"Type",render:function(){return '<span class="pill pill--emerald">Skill</span>'}},
+        colFile,colLine
+      ],skills,50);
+    }
+
+    /* MCP Servers table */
+    if(!mcps.length&&!mcpTools.length){
+      $("mcp-table-wrap").innerHTML='<div class="empty">No MCP servers detected.</div>';
+    }else{
+      var mcpRows=mcps.map(function(m){return{tool_name:m.name,tool_type:"mcp_server",source_file:m.source_file,transport:m.transport}});
+      mcpTools.forEach(function(t){mcpRows.push({tool_name:t.tool_name,tool_type:"mcp_tool",source_file:t.source_file,transport:""})});
+      new TableEngine("mcp-table-wrap",[
+        {key:"tool_name",label:"Name",render:function(r){return '<span class="cell-mono">'+esc(r.tool_name)+'</span>'}},
+        {key:"tool_type",label:"Type",render:function(r){return r.transport?'<span class="pill pill--amber">MCP Server</span>':'<span class="pill pill--amber">MCP Tool</span>'}},
+        {key:"transport",label:"Transport",render:function(r){return r.transport?esc(r.transport):'<span style="color:var(--color-muted)">&mdash;</span>'}},
+        {key:"source_file",label:"Source File",render:function(r){return '<span class="cell-mono" title="'+esc(r.source_file)+'">'+esc(truncPath(r.source_file,3))+'</span>'}}
+      ],mcpRows,50);
+    }
+  })();
+
+  /* ---- Infrastructure Tab ---- */
+  (function renderInfra(){
+    var panel=$("panel-infra");
+    var infra=D.infra;
+    if(!infra){panel.innerHTML='<div class="empty">No infrastructure configuration detected.</div>';return}
+
+    var html='<div class="section-title">'+esc(titleCase(infra.platform||"Unknown"))+'</div>';
+    if(infra.details&&infra.details.length){
+      html+='<ul class="infra-details">';
+      infra.details.forEach(function(d){html+='<li>'+esc(d)+'</li>'});
+      html+='</ul>';
+    }
+    if(infra.source_files&&infra.source_files.length){
+      html+='<div class="infra-files">Source files: '+infra.source_files.map(function(f){return esc(f)}).join(", ")+'</div>';
+    }
+    panel.innerHTML=html;
+  })();
+
+  /* ---- Raw Data Tab ---- */
+  (function renderRaw(){
+    var panel=$("panel-raw");
+    var json;
+    try{json=JSON.stringify(D,null,2)}catch(e){json="Error serializing data."}
+    panel.innerHTML='<div class="raw-block"><code>'+esc(json)+'</code></div>';
+  })();
+
+  /* ---- Footer ---- */
+  (function renderFooter(){
+    var ts=D.scan_timestamp||"";
+    $("footer-text").innerHTML="Generated by Quin Scanner"+(ts?" &middot; "+esc(ts):"");
+  })();
+
+})();
+</script>
+</body>
+</html>

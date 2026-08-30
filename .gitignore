@@ -27,7 +27,14 @@ htmlcov/
 .coverage
 .coverage.*
 coverage.xml
-reports/
+/reports/
+
+# Linting / typing
+.mypy_cache/
+.ruff_cache/
+
+# Logs
+*.log
 
 # OS
 .DS_Store
@@ -51,3 +58,7 @@ report/*.yaml
 report/*.yml
 
 .worktrees/
+
+# Scratch commit message drafts
+/commit-message-1.txt
+/commit-message-2.txt

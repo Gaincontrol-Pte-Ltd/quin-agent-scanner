@@ -140,6 +140,72 @@ patterns:
   - pattern: "import google\\.adk"
     language: python
     capability_tag: llm-api
+  # Google ADK — workflow agent classes (SequentialAgent/ParallelAgent/LoopAgent
+  # orchestrate sub-agents; LlmAgent is the underlying class Agent is aliased to)
+  - pattern: "\\bLlmAgent\\s*\\("
+    language: python
+    capability_tag: llm-api
+  - pattern: "\\bSequentialAgent\\s*\\("
+    language: python
+    capability_tag: multi-agent
+  - pattern: "\\bParallelAgent\\s*\\("
+    language: python
+    capability_tag: multi-agent
+  - pattern: "\\bLoopAgent\\s*\\("
+    language: python
+    capability_tag: multi-agent
+  # AWS Strands Agents SDK
+  - pattern: "from\\s+strands\\b"
+    language: python
+    capability_tag: multi-agent
+  - pattern: "import\\s+strands\\b"
+    language: python
+    capability_tag: multi-agent
+  - pattern: "from\\s+strands_tools"
+    language: python
+    capability_tag: tool-use
+  - pattern: "from\\s+strands\\.multiagent"
+    language: python
+    capability_tag: multi-agent
+  - pattern: "\\bBedrockModel\\s*\\("
+    language: python
+    capability_tag: llm-api
+  # Microsoft Agent Framework (MAF) — unifies AutoGen + Semantic Kernel
+  - pattern: "from\\s+agent_framework\\b"
+    language: python
+    capability_tag: orchestration
+  - pattern: "import\\s+agent_framework\\b"
+    language: python
+    capability_tag: orchestration
+  - pattern: "FoundryChatClient\\s*\\("
+    language: python
+    capability_tag: llm-api
+  # LangChain Deep Agents (deepagents) — batteries-included agent harness built on LangGraph
+  - pattern: "from\\s+deepagents\\b"
+    language: python
+    capability_tag: multi-agent
+  - pattern: "import\\s+deepagents\\b"
+    language: python
+    capability_tag: multi-agent
+  - pattern: "create_deep_agent\\s*\\("
+    language: python
+    capability_tag: multi-agent
+  # Agno (formerly Phidata)
+  - pattern: "from\\s+agno\\.agent"
+    language: python
+    capability_tag: llm-api
+  - pattern: "from\\s+agno\\.team"
+    language: python
+    capability_tag: multi-agent
+  - pattern: "from\\s+agno\\b"
+    language: python
+    capability_tag: llm-api
+  - pattern: "import\\s+agno\\b"
+    language: python
+    capability_tag: llm-api
+  - pattern: "AgentOS\\s*\\("
+    language: python
+    capability_tag: orchestration
   - pattern: "from databricks\\.agents"
     language: python
     capability_tag: llm-api
@@ -260,6 +326,16 @@ patterns:
   - pattern: "(?:openai|anthropic|google|mistral|groq|cohere)\\s*\\(['\"][a-z0-9._:-]"
     language: javascript
     capability_tag: llm-api
+  # Mastra (TypeScript agent framework)
+  - pattern: "from\\s+['\"]@mastra/core"
+    language: javascript
+    capability_tag: orchestration
+  - pattern: "new\\s+Mastra\\s*\\("
+    language: javascript
+    capability_tag: orchestration
+  - pattern: "createTool\\s*\\("
+    language: javascript
+    capability_tag: tool-use
 
   # Go
   - pattern: "openai\\.NewClient"

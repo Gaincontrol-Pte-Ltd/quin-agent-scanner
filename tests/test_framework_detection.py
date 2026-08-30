@@ -47,6 +47,58 @@ class TestDetectFramework:
         findings = [_finding("CodePatternScanner", "from '@ai-sdk/openai'")]
         assert _detect_framework(findings) == "Vercel AI SDK"
 
+    def test_dependency_google_adk(self):
+        findings = [_finding("DependencyScanner", "google-adk>=1.0.0")]
+        assert _detect_framework(findings) == "Google ADK"
+
+    def test_code_pattern_google_adk(self):
+        findings = [_finding("CodePatternScanner", "from google.adk.agents import LlmAgent")]
+        assert _detect_framework(findings) == "Google ADK"
+
+    def test_file_marker_root_agent_yaml(self):
+        findings = [_finding("FrameworkMarkerScanner", "root_agent.yaml", file_path="my_agent/root_agent.yaml")]
+        assert _detect_framework(findings) == "Google ADK"
+
+    def test_dependency_strands_agents(self):
+        findings = [_finding("DependencyScanner", "strands-agents>=1.0.0")]
+        assert _detect_framework(findings) == "Strands Agents"
+
+    def test_code_pattern_strands(self):
+        findings = [_finding("CodePatternScanner", "from strands import Agent, tool")]
+        assert _detect_framework(findings) == "Strands Agents"
+
+    def test_dependency_agent_framework(self):
+        findings = [_finding("DependencyScanner", "agent-framework>=1.0.0")]
+        assert _detect_framework(findings) == "Microsoft Agent Framework"
+
+    def test_code_pattern_agent_framework(self):
+        findings = [_finding("CodePatternScanner", "from agent_framework import Agent, tool")]
+        assert _detect_framework(findings) == "Microsoft Agent Framework"
+
+    def test_dependency_deepagents(self):
+        findings = [_finding("DependencyScanner", "deepagents>=0.1.0")]
+        assert _detect_framework(findings) == "LangChain Deep Agents"
+
+    def test_code_pattern_deepagents(self):
+        findings = [_finding("CodePatternScanner", "from deepagents import create_deep_agent")]
+        assert _detect_framework(findings) == "LangChain Deep Agents"
+
+    def test_dependency_agno(self):
+        findings = [_finding("DependencyScanner", "agno>=1.0.0")]
+        assert _detect_framework(findings) == "Agno"
+
+    def test_code_pattern_agno(self):
+        findings = [_finding("CodePatternScanner", "from agno.agent import Agent")]
+        assert _detect_framework(findings) == "Agno"
+
+    def test_dependency_mastra(self):
+        findings = [_finding("DependencyScanner", "@mastra/core@^1.0.0")]
+        assert _detect_framework(findings) == "Mastra"
+
+    def test_code_pattern_mastra(self):
+        findings = [_finding("CodePatternScanner", "import { Agent } from '@mastra/core/agent'")]
+        assert _detect_framework(findings) == "Mastra"
+
     def test_no_findings_returns_unknown(self):
         assert _detect_framework([]) == "unknown"
 

@@ -75,8 +75,10 @@ Rules:
   candidate is more specific than what you detect, prefer your detection. If the candidate
   is 'unknown', derive from all available evidence. NEVER return 'unknown' if any framework
   evidence is present — use 'LangChain', 'CrewAI', 'AutoGen', 'OpenAI Agents SDK',
-  'Anthropic Agent SDK', 'Google ADK', 'LlamaIndex', 'Haystack', 'Semantic Kernel',
-  'PromptFlow', 'Flowise', 'LangGraph', 'MCP', 'Vercel AI SDK', or the best name you can
+  'Anthropic Agent SDK', 'Google ADK', 'Strands Agents', 'Microsoft Agent Framework',
+  'LangChain Deep Agents', 'Agno', 'Mastra',
+  'LlamaIndex', 'Haystack', 'Semantic Kernel', 'PromptFlow', 'Flowise', 'LangGraph',
+  'MCP', 'Vercel AI SDK', or the best name you can
   infer. Do NOT name a transitive dependency (e.g. if LangChain is used by Flowise, the
   framework is 'Flowise', not 'LangChain').
 

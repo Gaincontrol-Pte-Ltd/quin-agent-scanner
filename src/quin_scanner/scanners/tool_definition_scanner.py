@@ -18,8 +18,9 @@ _CODE_EXTENSIONS = {".py", ".ts", ".js", ".jsx", ".tsx", ".mjs"}
 
 # Tool definition patterns
 _TOOL_CODE_PATTERNS = [
-    # @tool decorator then def function_name (LangChain / CrewAI)
-    (re.compile(r'@tool\s*\n\s*(?:async\s+)?def\s+(\w+)', re.MULTILINE), "@tool"),
+    # @tool decorator then def function_name (LangChain / CrewAI / Strands / Microsoft
+    # Agent Framework). Optional call-style args, e.g. @tool(approval_mode="never_require").
+    (re.compile(r'@tool\s*(?:\([^)]*\))?\s*\n\s*(?:async\s+)?def\s+(\w+)', re.MULTILINE), "@tool"),
     # @function_tool decorator (OpenAI Agents SDK)
     (re.compile(r'@function_tool\s*\n\s*(?:async\s+)?def\s+(\w+)', re.MULTILINE), "@function_tool"),
     # @register_tool decorator (MetaGPT)
@@ -34,6 +35,8 @@ _TOOL_CODE_PATTERNS = [
     (re.compile(r'\bTool\s*\(\s*name\s*=\s*["\']([^"\']+)["\']'), "Tool"),
     # StructuredTool.from_function(name="...", ...)
     (re.compile(r'StructuredTool\.from_function\s*\([^)]*?name\s*=\s*["\']([^"\']+)["\']'), "StructuredTool"),
+    # createTool({ id: "...", ... }) — Mastra
+    (re.compile(r'createTool\s*\(\s*\{[^}]{0,300}?id\s*:\s*["\']([^"\']+)["\']'), "createTool"),
     # tools=[tool1, tool2] — capture individual tool variable names
     (re.compile(r'tools\s*=\s*\[([^\]]+)\]'), "tool_list"),
 ]
