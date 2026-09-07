@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from quin_scanner.repo_accessor import (
-    GitHubAPIAccessor,
+    GitCloneAccessor,
     GitHubMCPAccessor,
     LocalRepoAccessor,
     RepoAccessorFactory,
@@ -25,11 +25,11 @@ class TestRepoAccessorFactory:
 
     def test_github_https_url(self):
         accessor = RepoAccessorFactory.create("https://github.com/owner/repo")
-        assert isinstance(accessor, GitHubAPIAccessor)
+        assert isinstance(accessor, GitCloneAccessor)
 
     def test_github_git_url(self):
         accessor = RepoAccessorFactory.create("git@github.com:owner/repo")
-        assert isinstance(accessor, GitHubAPIAccessor)
+        assert isinstance(accessor, GitCloneAccessor)
 
     def test_owner_repo_shorthand(self):
         accessor = RepoAccessorFactory.create("owner/repo")
@@ -44,7 +44,7 @@ class TestRepoAccessorFactory:
         accessor = RepoAccessorFactory.create(
             "https://github.com/owner/repo/tree/feature-branch"
         )
-        assert isinstance(accessor, GitHubAPIAccessor)
+        assert isinstance(accessor, GitCloneAccessor)
         assert accessor.branch == "feature-branch"
 
     def test_invalid_target_raises(self):
@@ -56,7 +56,7 @@ class TestRepoAccessorFactory:
             "https://github.com/owner/repo",
             github_token="ghp_test",
         )
-        assert isinstance(accessor, GitHubAPIAccessor)
+        assert isinstance(accessor, GitCloneAccessor)
         assert accessor.github_token == "ghp_test"
 
 
