@@ -398,16 +398,36 @@ class GitCloneAccessor(RepoAccessor):
 class RepoAccessorFactory:
     """Creates the appropriate RepoAccessor for a given target string."""
 
+    _AZURE_DEVOPS_RE = re.compile(
+        r"^https://(?:dev\.azure\.com/[^/]+|[^/.]+\.visualstudio\.com)/[^/]+/_git/[^/]+/?$"
+    )
+
     @staticmethod
-    def create(target: str, github_token: str | None = None, branch: str = "main") -> RepoAccessor:
+    def create(
+        target: str,
+        github_token: str | None = None,
+        branch: str = "main",
+        azure_token: str | None = None,
+    ) -> RepoAccessor:
         """
         Parse target and return the right accessor.
 
-        - /absolute/path or ./relative/path → LocalRepoAccessor
-        - https://github.com/owner/repo     → GitHubAPIAccessor
-        - git@github.com:owner/repo         → GitHubAPIAccessor
-        - owner/repo                        → GitHubMCPAccessor
+        - /absolute/path or ./relative/path                  → LocalRepoAccessor
+        - https://github.com/owner/repo                       → GitCloneAccessor
+        - git@github.com:owner/repo                            → GitCloneAccessor
+        - owner/repo                                           → GitHubMCPAccessor
+        - https://dev.azure.com/org/project/_git/repo          → GitCloneAccessor
+        - https://org.visualstudio.com/project/_git/repo       → GitCloneAccessor
         """
+        # Azure DevOps clone URL patterns
+        if RepoAccessorFactory._AZURE_DEVOPS_RE.match(target):
+            return GitCloneAccessor(
+                target,
+                github_token=azure_token,
+                branch=branch,
+                askpass_username=azure_token or "x-access-token",
+            )
+
         # GitHub clone URL patterns
         if target.startswith("https://github.com/") or target.startswith("git@github.com:"):
             # Strip browser-style /tree/<branch> suffix (e.g. copied from GitHub UI)
