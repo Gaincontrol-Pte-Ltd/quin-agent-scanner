@@ -252,15 +252,23 @@ class GitHubMCPAccessor(RepoAccessor):
         return _retry_with_backoff(_do)
 
 
-class GitHubAPIAccessor(RepoAccessor):
-    """Accessor for GitHub repos via REST API (clone to temp dir)."""
+class GitCloneAccessor(RepoAccessor):
+    """Accessor for repos reachable via `git clone` over HTTPS (clone to temp dir).
+
+    Host-agnostic: works for GitHub, Azure DevOps, or any other HTTPS git remote.
+    Authentication is injected via GIT_ASKPASS so the token never appears in argv
+    or the URL. `askpass_username` controls the HTTPS username used to trigger
+    askpass — GitHub's convention is `x-access-token`; Azure DevOps accepts any
+    non-empty username (the PAT itself is a common choice).
+    """
 
     def __init__(self, repo_url: str, github_token: str | None = None, branch: str = "main",
-                 verbose: bool = True):
+                 verbose: bool = True, askpass_username: str = "x-access-token"):
         self.repo_url = repo_url
         self.github_token = github_token
         self.branch = branch
         self.verbose = verbose
+        self.askpass_username = askpass_username
         self._temp_dir: Path | None = None
         self._local_accessor: LocalRepoAccessor | None = None
 
@@ -285,7 +293,7 @@ class GitHubAPIAccessor(RepoAccessor):
             env["GIT_ASKPASS"] = askpass_script
             # Rewrite HTTPS URL to include a dummy username so git triggers askpass
             if url.startswith("https://") and "@" not in url:
-                url = url.replace("https://", "https://x-access-token@")
+                url = url.replace("https://", f"https://{self.askpass_username}@")
 
         lfs_bypass = ["-c", "filter.lfs.smudge=cat", "-c", "filter.lfs.required=false"]
 
@@ -390,16 +398,36 @@ class GitHubAPIAccessor(RepoAccessor):
 class RepoAccessorFactory:
     """Creates the appropriate RepoAccessor for a given target string."""
 
+    _AZURE_DEVOPS_RE = re.compile(
+        r"^https://(?:dev\.azure\.com/[^/]+|[^/.]+\.visualstudio\.com)/[^/]+/_git/[^/]+/?$"
+    )
+
     @staticmethod
-    def create(target: str, github_token: str | None = None, branch: str = "main") -> RepoAccessor:
+    def create(
+        target: str,
+        github_token: str | None = None,
+        branch: str = "main",
+        azure_token: str | None = None,
+    ) -> RepoAccessor:
         """
         Parse target and return the right accessor.
 
-        - /absolute/path or ./relative/path → LocalRepoAccessor
-        - https://github.com/owner/repo     → GitHubAPIAccessor
-        - git@github.com:owner/repo         → GitHubAPIAccessor
-        - owner/repo                        → GitHubMCPAccessor
+        - /absolute/path or ./relative/path                  → LocalRepoAccessor
+        - https://github.com/owner/repo                       → GitCloneAccessor
+        - git@github.com:owner/repo                            → GitCloneAccessor
+        - owner/repo                                           → GitHubMCPAccessor
+        - https://dev.azure.com/org/project/_git/repo          → GitCloneAccessor
+        - https://org.visualstudio.com/project/_git/repo       → GitCloneAccessor
         """
+        # Azure DevOps clone URL patterns
+        if RepoAccessorFactory._AZURE_DEVOPS_RE.match(target):
+            return GitCloneAccessor(
+                target,
+                github_token=azure_token,
+                branch=branch,
+                askpass_username=azure_token or "x-access-token",
+            )
+
         # GitHub clone URL patterns
         if target.startswith("https://github.com/") or target.startswith("git@github.com:"):
             # Strip browser-style /tree/<branch> suffix (e.g. copied from GitHub UI)
@@ -409,7 +437,7 @@ class RepoAccessorFactory:
             if tree_match:
                 branch = tree_match.group(1)
                 target = target[: tree_match.start()]
-            return GitHubAPIAccessor(target, github_token=github_token, branch=branch)
+            return GitCloneAccessor(target, github_token=github_token, branch=branch)
 
         # Local path: starts with / or . or is an existing directory
         target_path = Path(target)
