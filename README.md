@@ -57,6 +57,9 @@ ANTHROPIC_API_KEY=sk-ant-...
 # For scanning GitHub repos or orgs:
 GITHUB_TOKEN=ghp_...
 
+# For scanning Azure DevOps repos:
+AZURE_DEVOPS_TOKEN=...
+
 # Optional — vulnerability web search (OSV.dev is always on).
 # Reuses the chosen provider's API key; set PERPLEXITY_API_KEY if you pick perplexity.
 # VULN_SEARCH_PROVIDER=anthropic       # perplexity | gemini | openai | anthropic | none
@@ -115,6 +118,9 @@ quin-scanner scan ./path/to/repo --config scanner-config.yaml
 
 # Scan a GitHub repo
 quin-scanner scan https://github.com/org/repo --config scanner-config.yaml
+
+# Scan an Azure DevOps repo
+quin-scanner scan https://dev.azure.com/org/project/_git/repo --config scanner-config.yaml
 
 # Static-only scan (no LLM, no API key needed)
 quin-scanner scan ./path/to/repo --config scanner-config.yaml --no-llm

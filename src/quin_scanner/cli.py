@@ -82,21 +82,24 @@ def cli() -> None:
 
     \b
     Targets accepted by the scan command:
-      - Local path:        /path/to/repo
-      - GitHub URL:        https://github.com/owner/repo
-      - GitHub shorthand:  owner/repo
+      - Local path:          /path/to/repo
+      - GitHub URL:          https://github.com/owner/repo
+      - GitHub shorthand:    owner/repo
+      - Azure DevOps URL:    https://dev.azure.com/org/project/_git/repo
 
     \b
     Examples:
       quin-scanner scan ./my-project
       quin-scanner scan owner/repo --no-llm
       quin-scanner scan https://github.com/owner/repo -o yaml -d reports/
+      quin-scanner scan https://dev.azure.com/org/project/_git/repo --azure-token $AZURE_DEVOPS_TOKEN
       quin-scanner scan-batch targets.txt -d reports/
       quin-scanner scan-org my-org --skip-archived --skip-forks
 
     \b
     Environment variables:
       GITHUB_TOKEN          GitHub personal access token
+      AZURE_DEVOPS_TOKEN    Azure DevOps personal access token
       OPENAI_API_KEY        OpenAI API key (for LLM analysis)
       ANTHROPIC_API_KEY     Anthropic API key (for LLM analysis)
       GOOGLE_API_KEY        Google GenAI API key (for LLM analysis)
@@ -122,6 +125,7 @@ def cli() -> None:
     help="Exclude artifacts below this confidence threshold (0.0–1.0)",
 )
 @click.option("--github-token", default=None, envvar="GITHUB_TOKEN", help="GitHub PAT (overrides GITHUB_TOKEN env var)")
+@click.option("--azure-token", default=None, envvar="AZURE_DEVOPS_TOKEN", help="Azure DevOps PAT (overrides AZURE_DEVOPS_TOKEN env var)")
 @click.option("--openai-compatible-url", default=None, help="Base URL for OpenAI-compatible endpoints (vLLM, LiteLLM, Azure, etc.)")
 @click.option("--no-vuln-check", is_flag=True, default=False, help="Skip vulnerability lookup (OSV + web search)")
 @click.option(
@@ -146,6 +150,7 @@ def scan(
     no_llm: bool,
     min_confidence: float,
     github_token: str | None,
+    azure_token: str | None,
     openai_compatible_url: str | None,
     no_vuln_check: bool,
     vuln_search_provider: str | None,
@@ -202,7 +207,9 @@ def scan(
 
     # Create accessor
     try:
-        accessor = RepoAccessorFactory.create(target, github_token=cfg.github_token, branch=branch)
+        accessor = RepoAccessorFactory.create(
+            target, github_token=cfg.github_token, branch=branch, azure_token=azure_token
+        )
     except ValueError as e:
         click.echo(f"Error: {e}", err=True)
         sys.exit(1)

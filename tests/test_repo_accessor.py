@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from quin_scanner.repo_accessor import (
-    GitHubAPIAccessor,
+    GitCloneAccessor,
     GitHubMCPAccessor,
     LocalRepoAccessor,
     RepoAccessorFactory,
@@ -25,11 +25,11 @@ class TestRepoAccessorFactory:
 
     def test_github_https_url(self):
         accessor = RepoAccessorFactory.create("https://github.com/owner/repo")
-        assert isinstance(accessor, GitHubAPIAccessor)
+        assert isinstance(accessor, GitCloneAccessor)
 
     def test_github_git_url(self):
         accessor = RepoAccessorFactory.create("git@github.com:owner/repo")
-        assert isinstance(accessor, GitHubAPIAccessor)
+        assert isinstance(accessor, GitCloneAccessor)
 
     def test_owner_repo_shorthand(self):
         accessor = RepoAccessorFactory.create("owner/repo")
@@ -44,7 +44,7 @@ class TestRepoAccessorFactory:
         accessor = RepoAccessorFactory.create(
             "https://github.com/owner/repo/tree/feature-branch"
         )
-        assert isinstance(accessor, GitHubAPIAccessor)
+        assert isinstance(accessor, GitCloneAccessor)
         assert accessor.branch == "feature-branch"
 
     def test_invalid_target_raises(self):
@@ -56,8 +56,41 @@ class TestRepoAccessorFactory:
             "https://github.com/owner/repo",
             github_token="ghp_test",
         )
-        assert isinstance(accessor, GitHubAPIAccessor)
+        assert isinstance(accessor, GitCloneAccessor)
         assert accessor.github_token == "ghp_test"
+
+    def test_azure_devops_https_url(self):
+        accessor = RepoAccessorFactory.create(
+            "https://dev.azure.com/myorg/myproject/_git/myrepo"
+        )
+        assert isinstance(accessor, GitCloneAccessor)
+
+    def test_azure_devops_visualstudio_url(self):
+        accessor = RepoAccessorFactory.create(
+            "https://myorg.visualstudio.com/myproject/_git/myrepo"
+        )
+        assert isinstance(accessor, GitCloneAccessor)
+
+    def test_azure_devops_passes_token_and_askpass_username(self):
+        accessor = RepoAccessorFactory.create(
+            "https://dev.azure.com/myorg/myproject/_git/myrepo",
+            azure_token="azpat_test123",
+        )
+        assert isinstance(accessor, GitCloneAccessor)
+        assert accessor.github_token == "azpat_test123"
+        assert accessor.askpass_username == "azpat_test123"
+
+    def test_azure_devops_no_token_has_no_askpass_username_override(self):
+        accessor = RepoAccessorFactory.create(
+            "https://dev.azure.com/myorg/myproject/_git/myrepo"
+        )
+        assert isinstance(accessor, GitCloneAccessor)
+        assert accessor.github_token is None
+
+    def test_github_url_not_matched_as_azure_devops(self):
+        accessor = RepoAccessorFactory.create("https://github.com/owner/repo")
+        assert isinstance(accessor, GitCloneAccessor)
+        assert accessor.askpass_username == "x-access-token"
 
 
 class TestLocalRepoAccessor:
