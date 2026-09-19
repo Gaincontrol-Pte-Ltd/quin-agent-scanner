@@ -22,6 +22,9 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - New `AegisScanner` (rules in `rules/aegis.yaml`) detects Aegis SDK dependencies (`aegis-core`, `aegis-<framework>`, `aegis-secret-manager-*`, `aegis-openclaw-plugin`), imports, integration calls (`aegis_initialize`, `AegisBaseTool`, `AegisFunctionMiddleware`, ...), OpenClaw/Pi/Claude hook markers, and `aegis:` engine config.
 - Report gains a `governance` object (`status`: `governed` | `declared_only` | `ungoverned` | `not_applicable`, plus evidence). Aegis evidence is kept out of `artifacts`, so AI-detection and confidence are unaffected.
 
+#### Scan Options in Report
+- The report shows the CLI flags the scan was run with (`--no-llm`, `--no-vuln-check`, `--detect-aegis`, `--llm-provider`, `--min-confidence`, ...) in a "Scan options" strip and in `metadata.scan_options.flags`. Secrets are never listed; `--openai-compatible-url` is shown without its value and `--config` shows only the file name.
+
 #### Report UI: Aegis Governance, Standardised Artifact Types, Artifact Filters
 - HTML report shows a "Governed by Aegis" / "Not governed by Aegis" card (with the Aegis artifact count) when `--detect-aegis` is used, and the evidence rows are merged into the Artifacts tab, tagged `aegis-governed:<kind>`.
 - Artifacts tab gains a standardised **Type** column (LLM API, Agent framework, Agent, Tool, Prompt template, RAG & embeddings, Memory, MCP, Infra & config, Aegis governance), filter chips with counts, and a text search. Types are display-only, defined in `rules/artifact_types.yaml`; scanner categories and capability tags in JSON/YAML/SARIF output are unchanged.

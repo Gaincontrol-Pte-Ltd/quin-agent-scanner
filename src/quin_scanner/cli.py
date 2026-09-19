@@ -23,6 +23,51 @@ def _output_filename(target: str, fmt: str) -> str:
     ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
     return f"{name}_{ts}.{fmt}"
 
+def _flags_used(
+    cfg: ScannerConfig,
+    *,
+    config: str | None = None,
+    branch: str | None = None,
+    min_confidence: float = 0.0,
+    llm_provider: str | None = None,
+    llm_model: str | None = None,
+    vuln_search_provider: str | None = None,
+    openai_compatible_url: str | None = None,
+) -> list[str]:
+    """CLI flags in effect for this scan, for display in the report.
+
+    Secrets (API keys, tokens) are never listed, and the value of
+    --openai-compatible-url is omitted because URLs can embed credentials.
+    """
+    flags: list[str] = []
+    if config:
+        flags.append(f"--config {Path(config).name}")
+    if cfg.no_llm:
+        flags.append("--no-llm")
+    else:
+        if llm_provider:
+            flags.append(f"--llm-provider {llm_provider}")
+        if llm_model:
+            flags.append(f"--llm-model {llm_model}")
+    if openai_compatible_url:
+        flags.append("--openai-compatible-url")
+    if not cfg.vuln_check_enabled:
+        flags.append("--no-vuln-check")
+    elif vuln_search_provider:
+        flags.append(f"--vuln-search-provider {vuln_search_provider}")
+    if cfg.detect_aegis:
+        flags.append("--detect-aegis")
+    if branch and branch != "main":
+        flags.append(f"--branch {branch}")
+    if min_confidence > 0.0:
+        flags.append(f"--min-confidence {min_confidence:g}")
+    return flags
+
+
+def _record_flags(report, flags: list[str]) -> None:
+    report.metadata["scan_options"] = {"flags": flags}
+
+
 _OUTPUT_CHOICES = click.Choice(["json", "yaml", "html", "sarif"])
 
 
@@ -165,6 +210,11 @@ def scan(
     # Run scan
     try:
         report = ScanOrchestrator().run(accessor, cfg, verbose=sys.stderr.isatty())
+        _record_flags(report, _flags_used(
+            cfg, config=config, branch=branch, min_confidence=min_confidence,
+            llm_provider=llm_provider, llm_model=llm_model,
+            vuln_search_provider=vuln_search_provider, openai_compatible_url=openai_compatible_url,
+        ))
 
         # Apply confidence filter if requested
         if min_confidence > 0.0:
@@ -275,6 +325,10 @@ def scan_batch(
         try:
             accessor = RepoAccessorFactory.create(target, github_token=base_cfg.github_token)
             report = ScanOrchestrator().run(accessor, base_cfg, verbose=sys.stderr.isatty())
+            _record_flags(report, _flags_used(
+                base_cfg, config=config, llm_provider=llm_provider, llm_model=llm_model,
+                vuln_search_provider=vuln_search_provider, openai_compatible_url=openai_compatible_url,
+            ))
         except Exception as e:
             click.echo(f"  ERROR: {e}", err=True)
             continue
@@ -394,6 +448,10 @@ def scan_org(
                 branch=repo.default_branch,
             )
             report = ScanOrchestrator().run(accessor, base_cfg, verbose=sys.stderr.isatty())
+            _record_flags(report, _flags_used(
+                base_cfg, config=config, vuln_search_provider=vuln_search_provider,
+                openai_compatible_url=openai_compatible_url,
+            ))
         except Exception as e:
             click.echo(f"  ERROR: {e}", err=True)
             continue

@@ -161,6 +161,8 @@ tr:hover td{background:#fafbfc}
 .vuln-card__meta{font-size:.72rem;color:var(--color-muted);margin-top:6px}
 .vuln-card__meta a{color:var(--color-muted);text-decoration:underline}
 .section-gap{margin-top:28px}
+.scan-options{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:10px;font-size:.75rem;color:var(--color-muted)}
+.scan-options__flag{font-family:var(--font-mono,ui-monospace,SFMono-Regular,Menlo,monospace);font-size:.72rem;padding:2px 9px;border-radius:9999px;background:#eef2ff;color:#3730a3;border:1px solid #c7d2fe;white-space:nowrap}
 .filter-bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px}
 .chip{border:1px solid var(--color-border);background:var(--color-surface);color:#374151;border-radius:9999px;padding:4px 12px;font-size:.78rem;font-weight:500;cursor:pointer}
 .chip:hover{background:#f3f4f6}
@@ -227,6 +229,9 @@ tr:hover td{background:#fafbfc}
 
   <!-- Capability Pills -->
   <div class="pills" id="pills"></div>
+
+  <!-- Scan options (CLI flags used) -->
+  <div id="scan-options"></div>
 
   <!-- Summary -->
   <div id="summary"></div>
@@ -327,6 +332,7 @@ window.__REPORT_DATA__ = {{REPORT_DATA_JSON}};
     capabilities:"High-level capabilities detected across the codebase (LLM calls, tool use, file I/O, network, etc.). Narrower capability surface means a narrower blast radius if an agent is compromised.",
     summary:"LLM-generated plain-English summary of what this repo does. Gives reviewers shared context before diving into specific agents, tools, or risk findings.",
     riskSignals:"Cross-cutting risks that apply to the system as a whole — supply chain, observability, governance, system-wide data exposure — not attributable to any single agent. Each signal is assessed against our framework combining OWASP LLM Top 10, OWASP Agentic AI Top 10, and OWASP MCP Top 10; click a signal to expand the recommended controls and the scanner findings that triggered it.",
+    scanOptions:"The command-line flags this scan was run with, so the report can be reproduced and its coverage understood. For example --no-llm means no LLM-written summary or agent analysis; --no-vuln-check means known-CVE lookup was skipped; --detect-aegis means Aegis SDK detection and governance classification were on. Secrets such as API keys are never listed.",
     endpoints:"Where the model is called. Hosted provider = a public LLM API; Local / Private network = self-hosted inference (higher control, but check who can reach it); Unresolved = the address is built at runtime. Credentials embedded in URLs are redacted.",
     governance:"Governed = the Aegis SDK is imported or wired in (or an Aegis hook/plugin/config is present), so tool calls are governed. Declared, not used = Aegis is listed as a dependency but no usage was found. Not governed = no Aegis evidence found.",
     vulnerabilities:"Known CVEs matching the framework and dependency versions detected. Patch Critical/High items before running agents in production — AI frameworks have had serious RCE and prompt-leak issues."
@@ -473,6 +479,21 @@ window.__REPORT_DATA__ = {{REPORT_DATA_JSON}};
     }
 
     $("hero").innerHTML=html;
+  })();
+
+  /* ---- Scan options (flags used) ---- */
+  (function renderScanOptions(){
+    var host=$("scan-options");
+    var opts=(D.metadata||{}).scan_options;
+    if(!opts||!Array.isArray(opts.flags)){host.style.display="none";return}
+    var html='<div class="scan-options"><span>Scan options'+helpIcon(HELP.scanOptions)+'</span>';
+    if(!opts.flags.length){
+      html+='<span class="scan-options__flag" style="background:#f3f4f6;color:#374151;border-color:#e5e7eb">default</span>';
+    }else{
+      opts.flags.forEach(function(f){html+='<span class="scan-options__flag">'+esc(f)+'</span>'});
+    }
+    html+='</div>';
+    host.innerHTML=html;
   })();
 
   /* ---- Pills ---- */
