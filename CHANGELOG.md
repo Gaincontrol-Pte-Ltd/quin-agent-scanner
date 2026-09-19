@@ -15,6 +15,7 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - New `llm_endpoints` list in the report (all scans): the address of each LLM inference endpoint found in code (`base_url=`, `api_base=`, `azure_endpoint=`, hosted-provider URLs, `/chat/completions`-style paths), config files (YAML/JSON/TOML keys in LLM-related blocks) and `.env` files. Each entry has a `kind` (`hosted_provider`, `local`, `private`, `remote`, `unresolved`), the setting it came from, and file/line. Addresses built from config (e.g. `f"{cfg['url']}/v1"`) are resolved to the config value where possible.
 - Credentials are always omitted: URL userinfo (`user:pass@`) and secret-like query parameters (`api_key`, `token`, `password`, ...) are redacted before anything is stored.
 - HTML report: new "Inference Endpoints" table at the top of the Models tab.
+- Precision guards: build output (`.next`, `.nuxt`, `coverage`, ...), minified files and very long lines are skipped; generic `base_url`/`api_url` kwargs only count with LLM context within three lines; function signatures and pass-through variables are ignored; `/messages`-style paths must be `/v1/...`.
 
 #### Aegis Governed-Agent Detection (opt-in)
 - `--detect-aegis` flag on `scan`, `scan-batch` and `scan-org` (or `governance.detect_aegis: true` in the config file). Off by default; without it scan output is unchanged.

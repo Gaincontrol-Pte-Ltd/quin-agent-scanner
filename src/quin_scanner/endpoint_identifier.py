@@ -72,14 +72,27 @@ def classify_host(host: str | None) -> str:
 
 # ── Patterns ────────────────────────────────────────────────────────────────
 _URL_RE = re.compile(r'https?://[^\s"\'`<>)\]},]+')
+# Path signatures of LLM APIs. The Ollama-style /api/... paths are too generic for
+# arbitrary remote hosts, so they only count for local/private addresses.
 _LLM_PATH_RE = re.compile(
-    r"/(v1/)?(chat/completions|completions|embeddings|messages|responses)\b|/api/(generate|chat|embed)\b"
+    r"/v1/(chat/completions|completions|embeddings|messages|responses)\b|/chat/completions\b"
     r"|/openai/deployments/|/v1beta/models|:generateContent"
 )
+_OLLAMA_PATH_RE = re.compile(r"/api/(generate|chat|embed)\b")
+# Snake_case kwargs need `=`; JS-style camelCase may also be an object key (`:`).
 _CODE_KWARG_RE = re.compile(
     r"\b(base_url|api_base|openai_api_base|azure_endpoint|endpoint_url|api_url|inference_url|"
-    r"llm_url|llm_base_url|baseURL|baseUrl)\b\s*[=:]\s*(.+)"
+    r"llm_url|llm_base_url)\b\s*=(?!=)\s*(.+)|\b(baseURL|baseUrl)\b\s*[=:]\s*(.+)"
 )
+# Kwargs that are LLM-specific on their own; the generic ones (base_url, api_url, baseURL)
+# are also used by ordinary REST clients and need LLM context nearby.
+_SPECIFIC_KWARGS = {"api_base", "openai_api_base", "azure_endpoint", "inference_url", "llm_url", "llm_base_url"}
+_LLM_HINT_RE = re.compile(
+    r"openai|anthropic|litellm|ollama|azure|bedrock|gemini|genai|mistral|groq|cohere|llm|vllm|claude|gpt-|llama",
+    re.IGNORECASE,
+)
+_SKIP_DIRS = {".next", ".nuxt", ".svelte-kit", ".output", ".turbo", ".cache", "coverage", ".parcel-cache"}
+_MAX_LINE = 1500   # minified / generated code
 _REF_KEY_RE = re.compile(r"""\[\s*['"]([\w.-]+)['"]\s*\]|\.get\(\s*['"]([\w.-]+)['"]""")
 
 _LLM_WORDS = re.compile(
@@ -98,6 +111,11 @@ _ENV_LINE_RE = re.compile(r"^\s*(?:export\s+)?([A-Za-z0-9_]+)\s*=\s*(.*)$")
 def _is_llm_url_key(key: str) -> bool:
     k = key.lower()
     return k in _KNOWN_KEYS or bool(_LLM_WORDS.search(k) and _URL_KEY_WORDS.search(k))
+
+
+def _skip_path(path: str) -> bool:
+    parts = path.replace("\\", "/").split("/")
+    return any(p in _SKIP_DIRS for p in parts) or parts[-1].endswith((".min.js", ".map"))
 
 
 def _clean_value(v: str) -> str:
@@ -123,6 +141,8 @@ class EndpointIdentifier:
     def identify(self, accessor: "RepoAccessor", file_index: "FileIndex") -> list[EndpointUsage]:
         found: list[EndpointUsage] = []
         for path in file_index.all_files():
+            if _skip_path(path):
+                continue
             p = Path(path)
             suffix, name = p.suffix.lower(), p.name.lower()
             try:
@@ -151,33 +171,45 @@ class EndpointIdentifier:
 
     def _scan_code(self, content: str, path: str) -> list[EndpointUsage]:
         out: list[EndpointUsage] = []
-        for lineno, line in enumerate(content.splitlines(), start=1):
-            if line.lstrip().startswith(("#", "//", "*", "/*")):
+        lines = content.splitlines()
+        for i, line in enumerate(lines):
+            lineno = i + 1
+            stripped = line.lstrip()
+            if len(line) > _MAX_LINE or stripped.startswith(("#", "//", "*", "/*")):
                 continue
+            window = " ".join(lines[max(0, i - 3): i + 4])[:3000]
+            has_llm_context = bool(_LLM_HINT_RE.search(window))
             m = _CODE_KWARG_RE.search(line)
-            if m:
-                key, value = m.group(1), m.group(2).strip()
-                um = _URL_RE.search(value)
-                if um and not value.startswith(("f\"", "f'")) and "{" not in um.group(0):
-                    out.append(_make(um.group(0), None, "code", path, lineno, key))
-                    continue
-                if value and not re.match(r"(None|null|undefined|\"\"|'')\b", value):
+            if m and not re.match(r"(async\s+)?(def|function)\b", stripped):
+                key = m.group(1) or m.group(3)
+                value = (m.group(2) or m.group(4) or "").strip()
+                if key in _SPECIFIC_KWARGS or has_llm_context:
+                    um = _URL_RE.search(value)
+                    if um and not value.startswith(("f\"", "f'")) and "{" not in um.group(0):
+                        out.append(_make(um.group(0), None, "code", path, lineno, key))
+                        continue
                     expr = value.rstrip(",) ")[:200]
-                    ref = _REF_KEY_RE.search(expr)
-                    suffix = expr.split("}", 1)[1].strip("\"'") if "}" in expr else ""
-                    out.append(EndpointUsage(
-                        url=redact(expr), host="", kind="unresolved", source="code",
-                        file_path=path, line_number=lineno, key=key,
-                        ref_key=(ref.group(1) or ref.group(2)) if ref else "",
-                        ref_suffix=suffix if suffix.startswith("/") else "",
-                    ))
-                    continue
+                    # Bare names / attribute chains are just pass-through, not informative.
+                    if expr and not re.match(r"(None|null|undefined|\"\"|\'\')$", expr) and not re.fullmatch(r"[\w.]+", expr):
+                        ref = _REF_KEY_RE.search(expr)
+                        suffix = expr.split("}", 1)[1].strip("\"'") if "}" in expr else ""
+                        out.append(EndpointUsage(
+                            url=redact(expr), host="", kind="unresolved", source="code",
+                            file_path=path, line_number=lineno, key=key,
+                            ref_key=(ref.group(1) or ref.group(2)) if ref else "",
+                            ref_suffix=suffix if suffix.startswith("/") else "",
+                        ))
+                        continue
             for um in _URL_RE.finditer(line):
                 url = um.group(0)
                 if "{" in url:
                     continue
-                host = urlsplit(url).hostname
-                if classify_host(host) == "hosted_provider" or _LLM_PATH_RE.search(url):
+                kind = classify_host(urlsplit(url).hostname)
+                if (
+                    kind == "hosted_provider"
+                    or _LLM_PATH_RE.search(url)
+                    or (kind in ("local", "private") and _OLLAMA_PATH_RE.search(url))
+                ):
                     out.append(_make(url, None, "code", path, lineno, "url"))
         return out
 

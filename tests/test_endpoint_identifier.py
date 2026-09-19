@@ -86,3 +86,33 @@ class TestIdentify:
 
     def test_comments_ignored(self, tmp_path):
         assert _find(tmp_path, {"a.py": '# base_url="http://x.example.com/v1"\n'}) == []
+
+
+class TestFalsePositives:
+    def test_build_output_and_docs_urls_ignored(self, tmp_path):
+        r = _find(tmp_path, {
+            "web/.next/server/m.js": 'throw new Error("see https://nextjs.org/docs/messages/foo")\n',
+            "web/app.js": 'log("https://nextjs.org/docs/messages/foo")\n',
+        })
+        assert r == []
+
+    def test_minified_and_long_lines_ignored(self, tmp_path):
+        long = 'x=1;' * 500 + 'fetch("https://api.openai.com/v1/chat/completions")\n'
+        assert _find(tmp_path, {"a.js": long, "b.min.js": 'fetch("https://api.openai.com/v1/chat/completions")\n'}) == []
+
+    def test_generic_base_url_without_llm_context_ignored(self, tmp_path):
+        r = _find(tmp_path, {"c.py": 'client = RestClient(base_url="https://api.example.com/v2")\n'})
+        assert r == []
+
+    def test_generic_base_url_with_llm_context_kept(self, tmp_path):
+        r = _find(tmp_path, {"c.py": 'client = OpenAI(\n    base_url="https://api.example.com/v2",\n)\n'})
+        assert [e.url for e in r] == ["https://api.example.com/v2"]
+
+    def test_function_signature_and_passthrough_ignored(self, tmp_path):
+        src = ("def make(base_url: str = API_BASE_URL, api_key: str = KEY):\n    pass\n"
+               "c = ChatOpenAI(base_url=base_url)\n")
+        assert _find(tmp_path, {"c.py": src}) == []
+
+    def test_ollama_path_only_for_local_or_private(self, tmp_path):
+        r = _find(tmp_path, {"a.py": 'a("https://shop.example.com/api/chat")\nb("http://10.0.0.2:11434/api/chat")\n'})
+        assert [e.url for e in r] == ["http://10.0.0.2:11434/api/chat"]
