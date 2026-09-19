@@ -11,6 +11,11 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+#### LLM Inference Endpoint Detection
+- New `llm_endpoints` list in the report (all scans): the address of each LLM inference endpoint found in code (`base_url=`, `api_base=`, `azure_endpoint=`, hosted-provider URLs, `/chat/completions`-style paths), config files (YAML/JSON/TOML keys in LLM-related blocks) and `.env` files. Each entry has a `kind` (`hosted_provider`, `local`, `private`, `remote`, `unresolved`), the setting it came from, and file/line. Addresses built from config (e.g. `f"{cfg['url']}/v1"`) are resolved to the config value where possible.
+- Credentials are always omitted: URL userinfo (`user:pass@`) and secret-like query parameters (`api_key`, `token`, `password`, ...) are redacted before anything is stored.
+- HTML report: new "Inference Endpoints" table at the top of the Models tab.
+
 #### Aegis Governed-Agent Detection (opt-in)
 - `--detect-aegis` flag on `scan`, `scan-batch` and `scan-org` (or `governance.detect_aegis: true` in the config file). Off by default; without it scan output is unchanged.
 - New `AegisScanner` (rules in `rules/aegis.yaml`) detects Aegis SDK dependencies (`aegis-core`, `aegis-<framework>`, `aegis-secret-manager-*`, `aegis-openclaw-plugin`), imports, integration calls (`aegis_initialize`, `AegisBaseTool`, `AegisFunctionMiddleware`, ...), OpenClaw/Pi/Claude hook markers, and `aegis:` engine config.

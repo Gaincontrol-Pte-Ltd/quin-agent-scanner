@@ -877,6 +877,13 @@ class ScanOrchestrator:
         # 5b. Sanitise model usages: reject placeholders, filter test files, deduplicate
         model_usages, test_model_count = _sanitise_model_usages(model_usages)
 
+        # LLM inference endpoint addresses (credentials redacted at extraction time)
+        from quin_scanner.endpoint_identifier import EndpointIdentifier
+        llm_endpoints = [
+            e for e in EndpointIdentifier().identify(accessor, file_index)
+            if not _is_test_path(e.file_path)
+        ]
+
         # 5c. Rule-based framework candidate (passed to synthesis as anchor)
         framework_candidate = _detect_framework(all_findings)
         if verbose and test_model_count:
@@ -1261,6 +1268,7 @@ class ScanOrchestrator:
             vulnerabilities=pp_vulnerabilities,
             artifacts=all_findings,
             model_usages=model_usages,
+            llm_endpoints=llm_endpoints,
             metadata=metadata,
             governance=governance,
         )

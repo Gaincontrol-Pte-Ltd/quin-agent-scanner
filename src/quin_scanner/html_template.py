@@ -327,6 +327,7 @@ window.__REPORT_DATA__ = {{REPORT_DATA_JSON}};
     capabilities:"High-level capabilities detected across the codebase (LLM calls, tool use, file I/O, network, etc.). Narrower capability surface means a narrower blast radius if an agent is compromised.",
     summary:"LLM-generated plain-English summary of what this repo does. Gives reviewers shared context before diving into specific agents, tools, or risk findings.",
     riskSignals:"Cross-cutting risks that apply to the system as a whole — supply chain, observability, governance, system-wide data exposure — not attributable to any single agent. Each signal is assessed against our framework combining OWASP LLM Top 10, OWASP Agentic AI Top 10, and OWASP MCP Top 10; click a signal to expand the recommended controls and the scanner findings that triggered it.",
+    endpoints:"Where the model is called. Hosted provider = a public LLM API; Local / Private network = self-hosted inference (higher control, but check who can reach it); Unresolved = the address is built at runtime. Credentials embedded in URLs are redacted.",
     governance:"Governed = the Aegis SDK is imported or wired in (or an Aegis hook/plugin/config is present), so tool calls are governed. Declared, not used = Aegis is listed as a dependency but no usage was found. Not governed = no Aegis evidence found.",
     vulnerabilities:"Known CVEs matching the framework and dependency versions detected. Patch Critical/High items before running agents in production — AI frameworks have had serious RCE and prompt-leak issues."
   };
@@ -912,7 +913,37 @@ window.__REPORT_DATA__ = {{REPORT_DATA_JSON}};
   (function renderModels(){
     var panel=$("panel-models");
     var models=D.model_usages||[];
-    if(!models.length){panel.innerHTML='<div class="empty">No model usages detected.</div>';return}
+    var endpoints=D.llm_endpoints||[];
+    if(!models.length&&!endpoints.length){panel.innerHTML='<div class="empty">No model usages detected.</div>';return}
+    panel.innerHTML="";
+    if(endpoints.length){
+      var kindCls={hosted_provider:"pill--blue",local:"pill--emerald",private:"pill--orange",remote:"pill--gray",unknown:"pill--gray",unresolved:"pill--gray"};
+      var kindLabel={hosted_provider:"Hosted provider",local:"Local",private:"Private network",remote:"Remote (other)",unknown:"Unknown",unresolved:"Unresolved"};
+      panel.appendChild(el("div",{"class":"section-title","style":"margin-top:4px"},'Inference Endpoints'+helpIcon(HELP.endpoints)));
+      panel.appendChild(el("div",{"id":"endpoints-table"}));
+      panel.appendChild(el("div",{"class":"section-title section-gap"},'Models'));
+      panel.appendChild(el("div",{"id":"models-table"}));
+      new TableEngine("endpoints-table",[
+        {key:"kind",label:"Where",render:function(r){
+          return '<span class="pill '+(kindCls[r.kind]||"pill--gray")+'">'+esc(kindLabel[r.kind]||r.kind)+'</span>';
+        }},
+        {key:"url",label:"Address",render:function(r){
+          var extra=r.resolved_from?' <span style="color:var(--color-muted);font-size:.72rem">(from '+esc(r.resolved_from)+')</span>':'';
+          return '<span class="cell-mono" title="'+esc(r.url)+'">'+esc(r.url)+'</span>'+extra;
+        }},
+        {key:"key",label:"Setting",render:function(r){return '<span class="cell-mono">'+esc(r.key)+'</span>'}},
+        {key:"source",label:"Source"},
+        {key:"file_path",label:"File",render:function(r){
+          return '<span class="cell-mono" title="'+esc(r.file_path)+'">'+esc(truncPath(r.file_path,3))+'</span>';
+        }},
+        {key:"line_number",label:"Line",render:function(r){
+          return r.line_number!=null?'<span class="cell-mono">'+r.line_number+'</span>':'';
+        }}
+      ],endpoints,50);
+    }else{
+      panel.appendChild(el("div",{"id":"models-table"}));
+    }
+    if(!models.length){$("models-table").innerHTML='<div class="empty">No model usages detected.</div>'}
 
     var providerCls=function(p){
       if(!p) return "pill--gray";
@@ -941,7 +972,7 @@ window.__REPORT_DATA__ = {{REPORT_DATA_JSON}};
         return r.line_number!=null?'<span class="cell-mono">'+r.line_number+'</span>':'<span style="color:var(--color-muted)">&mdash;</span>';
       }}
     ];
-    new TableEngine("panel-models",columns,models,50);
+    if(models.length) new TableEngine("models-table",columns,models,50);
   })();
 
   /* ---- Tools, Skills & MCP Tab ---- */
