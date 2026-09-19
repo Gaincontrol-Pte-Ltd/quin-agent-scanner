@@ -163,6 +163,23 @@ tr:hover td{background:#fafbfc}
 .section-gap{margin-top:28px}
 .scan-options{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:10px;font-size:.75rem;color:var(--color-muted)}
 .scan-options__flag{font-family:var(--font-mono,ui-monospace,SFMono-Regular,Menlo,monospace);font-size:.72rem;padding:2px 9px;border-radius:9999px;background:#eef2ff;color:#3730a3;border:1px solid #c7d2fe;white-space:nowrap}
+.aegis-more{display:inline-block;margin-top:8px;padding:0;border:0;background:none;color:var(--color-accent);font-size:.78rem;font-weight:600;cursor:pointer;font-family:inherit}
+.aegis-more:hover,.aegis-more:focus{text-decoration:underline;outline:none}
+.aegis-modal{position:fixed;inset:0;z-index:1000;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(17,24,39,.55)}
+.aegis-modal[hidden]{display:none}
+.aegis-modal__box{position:relative;width:560px;max-width:100%;max-height:calc(100vh - 32px);overflow-y:auto;background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-md);box-shadow:var(--shadow-md);padding:24px 26px}
+.aegis-modal__close{position:absolute;top:10px;right:12px;border:0;background:none;font-size:1.4rem;line-height:1;color:var(--color-muted);cursor:pointer}
+.aegis-modal__close:hover{color:#111827}
+.aegis-modal__eyebrow{font-size:.7rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--color-accent)}
+.aegis-modal__title{font-size:1.15rem;font-weight:700;margin:4px 0 6px;letter-spacing:-.01em}
+.aegis-modal__lead{font-size:.88rem;line-height:1.6;color:#404040;margin-bottom:12px}
+.aegis-modal ul{margin:0 0 14px;padding-left:1.1rem;font-size:.84rem;line-height:1.6;color:#374151}
+.aegis-modal li{margin-bottom:4px}
+.aegis-modal__note{font-size:.8rem;background:#f3f4f6;border-radius:var(--radius-sm);padding:9px 12px;margin-bottom:14px;color:#374151}
+.aegis-modal__cta{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.aegis-modal__btn{display:inline-block;padding:8px 16px;border-radius:9999px;background:var(--color-accent);color:#fff;font-size:.82rem;font-weight:600;text-decoration:none}
+.aegis-modal__btn:hover{opacity:.9}
+.aegis-modal__link{font-size:.8rem;color:var(--color-accent)}
 .filter-bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px}
 .chip{border:1px solid var(--color-border);background:var(--color-surface);color:#374151;border-radius:9999px;padding:4px 12px;font-size:.78rem;font-weight:500;cursor:pointer}
 .chip:hover{background:#f3f4f6}
@@ -475,11 +492,66 @@ window.__REPORT_DATA__ = {{REPORT_DATA_JSON}};
       html+='<div class="hero-card '+gBorder+'">';
       html+='<div class="hero-card__title">'+esc(gTitle)+'</div>';
       html+='<div class="hero-card__sub">'+esc(gSub)+helpIcon(HELP.governance)+'</div>';
+      html+='<button type="button" class="aegis-more" id="aegis-more" aria-haspopup="dialog">'+(gs==="governed"?'About Aegis':'Govern this agent with Aegis')+' &rarr;</button>';
       html+='</div>';
     }
 
     $("hero").innerHTML=html;
+    var aegisBtn=$("aegis-more");
+    if(aegisBtn&&D.governance) aegisBtn.addEventListener("click",function(){openAegisInfo(D.governance.status)});
   })();
+
+  /* ---- About Aegis (opened from the governance card) ---- */
+  var AEGIS_SITE="https://gaincontrol.ai/";
+  var AEGIS_FRAMEWORK_PKGS=[
+    ["langchain","aegis-langchain"],["crewai","aegis-crewai"],["autogen","aegis-autogen"],
+    ["strands","aegis-strands"],["google","aegis-google-adk"],["microsoft","aegis-maf"],
+    ["langflow","aegis-langflow"],["agno","aegis-agno"],["claude","aegis-claude"],["bedrock","aegis-bedrock"]
+  ];
+  function aegisPackageFor(fw){
+    var f=String(fw||"").toLowerCase();
+    for(var i=0;i<AEGIS_FRAMEWORK_PKGS.length;i++){
+      if(f.indexOf(AEGIS_FRAMEWORK_PKGS[i][0])!==-1) return AEGIS_FRAMEWORK_PKGS[i][1];
+    }
+    return null;
+  }
+  function openAegisInfo(status){
+    var governed=status==="governed";
+    var pkg=aegisPackageFor(D.framework);
+    var box=el("div",{"class":"aegis-modal__box","role":"dialog","aria-modal":"true","aria-labelledby":"aegis-modal-title"});
+    var h='<button type="button" class="aegis-modal__close" aria-label="Close">&times;</button>';
+    h+='<div class="aegis-modal__eyebrow">Aegis &middot; Agentic AI Security</div>';
+    h+='<div class="aegis-modal__title" id="aegis-modal-title">'+(governed?"This agent is protected by Aegis runtime enforcement":"Enforce security on this agent at runtime")+'</div>';
+    h+='<div class="aegis-modal__lead">Aegis is an Agentic AI security platform built for runtime enforcement: policy is enforced on every agent action as it happens, so each agent operates only within its granted authority.</div>';
+    h+='<ul>';
+    h+='<li><b>Runtime policy enforcement</b> &mdash; authorize which tools (MCP, REST, shell) each agent may run, at the moment it tries to run them.</li>';
+    h+='<li><b>Credential broker</b> &mdash; the right credentials are supplied automatically for each call, from your secret manager (AWS, Azure, Google, HashiCorp Vault, CyberArk Conjur, OpenBao, Infisical).</li>';
+    h+='<li><b>MCP tool vetting</b> &mdash; new MCP tools are blocked until they are explicitly approved.</li>';
+    h+='<li><b>Tamper-evident audit logs</b> &mdash; audit logs are hash-chained so tampering can be detected.</li>';
+    h+='<li><b>Drop-in framework integrations</b> &mdash; LangChain, AutoGen, CrewAI, Strands, Google ADK, Microsoft Agent Framework and more.</li>';
+    h+='</ul>';
+    if(!governed&&pkg){
+      h+='<div class="aegis-modal__note">This repo uses '+esc(titleCase(String(D.framework)))+'. Aegis has a drop-in integration for it: <code>'+esc(pkg)+'</code>.</div>';
+    }else if(governed){
+      h+='<div class="aegis-modal__note">Aegis evidence was found in this repo &mdash; see the <b>Aegis governance</b> filter in the Artifacts tab for the exact files.</div>';
+    }
+    h+='<div class="aegis-modal__cta"><a class="aegis-modal__btn" href="'+AEGIS_SITE+'" target="_blank" rel="noopener">Learn more about Aegis</a>';
+    h+='<a class="aegis-modal__link" href="mailto:pixiedust@gaincontrol.ai">Talk to the team</a></div>';
+    box.innerHTML=h;
+    var overlay=el("div",{"class":"aegis-modal"});
+    overlay.appendChild(box);
+    function close(){
+      if(overlay.parentNode) overlay.parentNode.removeChild(overlay);
+      document.removeEventListener("keydown",onKey);
+      var b=$("aegis-more"); if(b&&b.focus) b.focus();
+    }
+    function onKey(e){if(e.key==="Escape") close()}
+    overlay.addEventListener("click",function(e){if(e.target===overlay) close()});
+    document.addEventListener("keydown",onKey);
+    document.body.appendChild(overlay);
+    var x=box.querySelector(".aegis-modal__close");
+    if(x){x.addEventListener("click",close);x.focus()}
+  }
 
   /* ---- Scan options (flags used) ---- */
   (function renderScanOptions(){

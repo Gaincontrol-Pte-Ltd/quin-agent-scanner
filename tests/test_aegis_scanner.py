@@ -121,3 +121,23 @@ class TestOptIn:
     def test_cli_flag_exists(self):
         res = CliRunner().invoke(cli, ["scan", "--help"])
         assert "--detect-aegis" in res.output
+
+
+class TestAboutAegisInHtml:
+    def _html(self, status: str) -> str:
+        from quin_scanner.models import GovernanceInfo, ScanReport
+        from quin_scanner.report import ReportGenerator
+        g = GovernanceInfo(aegis_detected=status == "governed", status=status)
+        r = ScanReport(repo_path="r", scan_timestamp="t", is_ai_application=True, confidence=0.9, governance=g)
+        return ReportGenerator.to_html(r)
+
+    def test_info_button_and_link_present_when_flag_used(self):
+        html = self._html("ungoverned")
+        assert 'id="aegis-more"' in html and "https://gaincontrol.ai/" in html
+
+    def test_absent_without_governance(self):
+        from quin_scanner.models import ScanReport
+        from quin_scanner.report import ReportGenerator
+        r = ScanReport(repo_path="r", scan_timestamp="t", is_ai_application=True, confidence=0.9)
+        assert '"governance"' not in ReportGenerator.to_html(r)
+
