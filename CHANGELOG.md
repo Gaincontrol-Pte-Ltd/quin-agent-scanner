@@ -11,6 +11,11 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+#### Aegis Governed-Agent Detection (opt-in)
+- `--detect-aegis` flag on `scan`, `scan-batch` and `scan-org` (or `governance.detect_aegis: true` in the config file). Off by default; without it scan output is unchanged.
+- New `AegisScanner` (rules in `rules/aegis.yaml`) detects Aegis SDK dependencies (`aegis-core`, `aegis-<framework>`, `aegis-secret-manager-*`, `aegis-openclaw-plugin`), imports, integration calls (`aegis_initialize`, `AegisBaseTool`, `AegisFunctionMiddleware`, ...), OpenClaw/Pi/Claude hook markers, and `aegis:` engine config.
+- Report gains a `governance` object (`status`: `governed` | `declared_only` | `ungoverned` | `not_applicable`, plus evidence). Aegis evidence is kept out of `artifacts`, so AI-detection and confidence are unaffected.
+
 #### Risk Signal Data Model
 - `RiskIndicator.threat_id` — new optional field (`str | None`) identifying the originating threat (e.g. `"T001"`) per risk signal. Additive / backward-compatible: `to_dict()` includes the field, consumers that don't read it are unaffected. Enables downstream reports and UIs to link each signal to its threat in the taxonomy.
 - LLM synthesis prompt updated to emit `threat_id` alongside each KRI in `risk_signals` (both repo-level and per-agent). Parser in `_parse_risk_signals` extracts the field; legacy string-format signals yield `threat_id=None`.

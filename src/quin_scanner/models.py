@@ -225,6 +225,25 @@ class Vulnerability:
 
 
 @dataclass
+class GovernanceInfo:
+    """Aegis SDK governance classification (only produced with --detect-aegis)."""
+    aegis_detected: bool
+    status: str                          # "governed" | "declared_only" | "ungoverned" | "not_applicable"
+    evidence_kinds: list[str] = field(default_factory=list)   # "dependency" | "import" | "integration" | "plugin" | "config"
+    packages: list[str] = field(default_factory=list)         # Aegis packages declared as dependencies
+    evidence: list[ScanFinding] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "aegis_detected": self.aegis_detected,
+            "status": self.status,
+            "evidence_kinds": self.evidence_kinds,
+            "packages": self.packages,
+            "evidence": [e.to_dict() for e in self.evidence],
+        }
+
+
+@dataclass
 class ScanReport:
     repo_path: str
     scan_timestamp: str
@@ -244,8 +263,16 @@ class ScanReport:
     # Existing fields
     model_usages: list[ModelUsage] = field(default_factory=list)
     metadata: dict[str, Any] = field(default_factory=dict)
+    # Populated only when Aegis detection is requested (--detect-aegis).
+    governance: GovernanceInfo | None = None
 
     def to_dict(self) -> dict[str, Any]:
+        d = self._base_dict()
+        if self.governance is not None:
+            d["governance"] = self.governance.to_dict()
+        return d
+
+    def _base_dict(self) -> dict[str, Any]:
         return {
             "repo_path": self.repo_path,
             "scan_timestamp": self.scan_timestamp,

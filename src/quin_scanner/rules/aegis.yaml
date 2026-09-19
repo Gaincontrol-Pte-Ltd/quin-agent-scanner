@@ -1,0 +1,84 @@
+# Aegis SDK detection rules (used only when --detect-aegis is enabled).
+# An agent that integrates the Aegis SDK is classified as "governed".
+
+# Dependency names (normalized: lowercase, "_" -> "-"). Matched against the
+# same manifests the DependencyScanner reads (requirements*.txt, pyproject.toml,
+# package.json). A trailing "*" is a prefix match.
+dependencies:
+  python:
+    - aegis-core
+    - aegis-core-mcp
+    - aegis-sdk
+    - aegis-agno
+    - aegis-autogen
+    - aegis-bedrock
+    - aegis-bedrock-openai
+    - aegis-claude
+    - aegis-crewai
+    - aegis-google-adk
+    - aegis-langchain
+    - aegis-langflow
+    - aegis-maf
+    - aegis-openclaw
+    - aegis-pi
+    - aegis-strands
+    - aegis-secret-manager-*
+  nodejs:
+    - aegis-openclaw-plugin
+    - aegis-sdk
+
+# Integration package -> framework it governs (informational).
+integrations:
+  aegis-agno: agno
+  aegis-autogen: autogen
+  aegis-bedrock: bedrock
+  aegis-bedrock-openai: bedrock-openai
+  aegis-claude: claude
+  aegis-crewai: crewai
+  aegis-google-adk: google-adk
+  aegis-langchain: langchain
+  aegis-langflow: langflow
+  aegis-maf: microsoft-agent-framework
+  aegis-openclaw: openclaw
+  aegis-pi: pi
+  aegis-strands: strands
+
+# Source-code patterns, per line.
+#   import      - the SDK is imported
+#   integration - the SDK is wired in (engine initialised, tools/middleware/hooks wrapped)
+code_patterns:
+  - pattern: '^\s*(from|import)\s+aegis(_[a-z0-9_]+)?\b'
+    language: python
+    kind: import
+  - pattern: '\baegis_initialize\s*\('
+    language: python
+    kind: integration
+  - pattern: '\bAegis(BaseTool|FunctionMiddleware|Interceptor|Engine|PolicyEngine|ClaudeHook|OpenClawHook|PiHook)\b'
+    language: python
+    kind: integration
+  - pattern: '\bload_mcp_tools(_async)?\s*\('
+    language: python
+    kind: integration
+  - pattern: '(from|require\()\s*[''"]aegis[-_/a-z0-9]*[''"]'
+    language: javascript
+    kind: import
+  - pattern: '(from|import|require\()\s*[''"]aegis-[a-z0-9-]+[''"]'
+    language: javascript
+    kind: import
+
+# File-name markers (basename match) for hook/plugin based integrations.
+file_markers:
+  - name: aegis-openclaw
+    file: openclaw.plugin.json
+    content: '"id"\s*:\s*"aegis-'
+  - name: aegis-pi
+    file: aegis-pi.ts
+  - name: aegis_validator
+    file: aegis_validator
+
+# Config keys: a top-level `aegis:` block in YAML config that points at the
+# Aegis engine (config_file / spire_socket / policy).
+config:
+  files: ["**/*.yaml", "**/*.yml"]
+  pattern: '^aegis\s*:'
+  requires_any_of: ['config_file\s*:', 'spire_socket\s*:', 'policy']
