@@ -161,6 +161,12 @@ tr:hover td{background:#fafbfc}
 .vuln-card__meta{font-size:.72rem;color:var(--color-muted);margin-top:6px}
 .vuln-card__meta a{color:var(--color-muted);text-decoration:underline}
 .section-gap{margin-top:28px}
+.filter-bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px}
+.chip{border:1px solid var(--color-border);background:var(--color-surface);color:#374151;border-radius:9999px;padding:4px 12px;font-size:.78rem;font-weight:500;cursor:pointer}
+.chip:hover{background:#f3f4f6}
+.chip--active{background:var(--color-accent);border-color:var(--color-accent);color:#fff}
+.chip__n{opacity:.7;margin-left:2px}
+.filter-search{margin-left:auto;min-width:200px;padding:5px 12px;border:1px solid var(--color-border);border-radius:9999px;font-size:.8rem;background:var(--color-surface)}
 
 /* ---------- Infra ---------- */
 .infra-details{list-style:disc;padding-left:20px;font-size:.85rem;margin:8px 0;color:#404040}
@@ -230,6 +236,9 @@ tr:hover td{background:#fafbfc}
 
   <!-- Known Vulnerabilities (framework+version CVE lookup) -->
   <div id="vulnerabilities"></div>
+
+  <!-- Aegis governance evidence (only with --detect-aegis) -->
+  <div id="aegis-evidence"></div>
 
   <!-- Tab Bar -->
   <div class="tab-bar" id="tab-bar"></div>
@@ -318,6 +327,7 @@ window.__REPORT_DATA__ = {{REPORT_DATA_JSON}};
     capabilities:"High-level capabilities detected across the codebase (LLM calls, tool use, file I/O, network, etc.). Narrower capability surface means a narrower blast radius if an agent is compromised.",
     summary:"LLM-generated plain-English summary of what this repo does. Gives reviewers shared context before diving into specific agents, tools, or risk findings.",
     riskSignals:"Cross-cutting risks that apply to the system as a whole — supply chain, observability, governance, system-wide data exposure — not attributable to any single agent. Each signal is assessed against our framework combining OWASP LLM Top 10, OWASP Agentic AI Top 10, and OWASP MCP Top 10; click a signal to expand the recommended controls and the scanner findings that triggered it.",
+    governance:"Governed = the Aegis SDK is imported or wired in (or an Aegis hook/plugin/config is present), so tool calls are governed. Declared, not used = Aegis is listed as a dependency but no usage was found. Not governed = no Aegis evidence found.",
     vulnerabilities:"Known CVEs matching the framework and dependency versions detected. Patch Critical/High items before running agents in production — AI frameworks have had serious RCE and prompt-leak issues."
   };
 
@@ -449,6 +459,18 @@ window.__REPORT_DATA__ = {{REPORT_DATA_JSON}};
     html+='<div class="hero-card__sub">'+esc(riskSub)+helpIcon(HELP.risk)+'</div>';
     html+='</div>';
 
+    if(D.governance){
+      var g=D.governance,gs=g.status||"not_applicable";
+      var n=(g.evidence||[]).length;
+      var gTitle={governed:"Governed by Aegis",declared_only:"Aegis declared, not used",ungoverned:"Not governed by Aegis",not_applicable:"Not governed by Aegis"}[gs]||"Not governed by Aegis";
+      var gSub=gs==="governed"?n+" Aegis artifact"+(n===1?"":"s"):gs==="declared_only"?n+" dependency artifact"+(n===1?"":"s")+" only":"No Aegis artifacts";
+      var gBorder=gs==="governed"?"hero-card--green":gs==="ungoverned"?"hero-card--red":gs==="declared_only"?"hero-card--yellow":"";
+      html+='<div class="hero-card '+gBorder+'">';
+      html+='<div class="hero-card__title">'+esc(gTitle)+'</div>';
+      html+='<div class="hero-card__sub">'+esc(gSub)+helpIcon(HELP.governance)+'</div>';
+      html+='</div>';
+    }
+
     $("hero").innerHTML=html;
   })();
 
@@ -526,6 +548,26 @@ window.__REPORT_DATA__ = {{REPORT_DATA_JSON}};
     $("vulnerabilities").innerHTML=html;
   })();
 
+  /* ---- Aegis governance summary (evidence rows live in the Artifacts tab) ---- */
+  (function renderAegisSummary(){
+    var g=D.governance;
+    if(!g){$("aegis-evidence").style.display="none";return}
+    var n=(g.evidence||[]).length;
+    var why={
+      governed:"Aegis SDK integration found in code or configuration.",
+      declared_only:"Aegis is listed as a dependency, but no import or usage was found in code.",
+      ungoverned:"This is an AI application, but no Aegis SDK, hook, plugin or config was found.",
+      not_applicable:"No Aegis evidence found."
+    }[g.status]||"";
+    var html='<div class="summary" style="margin:1.4rem 0"><b>Aegis governance:</b> '+esc(why);
+    if((g.packages||[]).length) html+=' Packages: <b>'+esc(g.packages.join(", "))+'</b>.';
+    if(n) html+=' <a href="#" id="aegis-view" style="color:var(--color-accent);font-weight:600">View '+n+' evidence item'+(n===1?"":"s")+' in Artifacts &rarr;</a>';
+    html+='</div>';
+    $("aegis-evidence").innerHTML=html;
+    var link=$("aegis-view");
+    if(link) link.addEventListener("click",function(e){e.preventDefault();if(artifactsFilter) artifactsFilter.showAegis()});
+  })();
+
   /* ---- Tabs ---- */
   var TABS=[
     {id:"artifacts",label:"Artifacts"},
@@ -582,12 +624,17 @@ window.__REPORT_DATA__ = {{REPORT_DATA_JSON}};
     this.page=0;
     this.sortCol=null;
     this.sortDir=1;             // 1 asc, -1 desc
+    this.filterFn=null;         // optional row predicate
     this.render();
   }
-  TableEngine.prototype.totalPages=function(){return Math.max(1,Math.ceil(this.allRows.length/this.pageSize))};
+  TableEngine.prototype.visibleRows=function(){
+    return this.filterFn?this.allRows.filter(this.filterFn):this.allRows;
+  };
+  TableEngine.prototype.setFilter=function(fn){this.filterFn=fn;this.page=0;this.render()};
+  TableEngine.prototype.totalPages=function(){return Math.max(1,Math.ceil(this.visibleRows().length/this.pageSize))};
   TableEngine.prototype.sortedRows=function(){
     var self=this;
-    var rows=this.allRows.slice();
+    var rows=this.visibleRows().slice();
     if(this.sortCol!==null){
       var key=this.columns[this.sortCol].key;
       rows.sort(function(a,b){
@@ -602,7 +649,7 @@ window.__REPORT_DATA__ = {{REPORT_DATA_JSON}};
   };
   TableEngine.prototype.render=function(){
     var self=this;
-    if(!this.allRows.length){
+    if(!this.visibleRows().length){
       this.container.innerHTML='<div class="empty">No data to display.</div>';
       return;
     }
@@ -661,17 +708,30 @@ window.__REPORT_DATA__ = {{REPORT_DATA_JSON}};
   };
 
   /* ---- Findings Tab ---- */
+  var artifactsFilter=null;   // set below; lets the governance banner jump to the Aegis filter
   (function renderFindings(){
     var panel=$("panel-artifacts");
-    var artifacts=D.artifacts||[];
+    var artifacts=(D.artifacts||[]).slice();
+
+    // Merge Aegis governance evidence (only present with --detect-aegis) into the
+    // artifact list, tagged so it can be filtered on its own.
+    var aegisCount=0;
+    if(D.governance){
+      (D.governance.evidence||[]).forEach(function(e){
+        var r=Object.assign({},e);
+        r._aegis=true;
+        artifacts.push(r);
+        aegisCount++;
+      });
+    }
     if(!artifacts.length){panel.innerHTML='<div class="empty">No artifacts detected.</div>';return}
 
     // Pre-sort by confidence desc
-    artifacts=artifacts.slice().sort(function(a,b){return (b.confidence||0)-(a.confidence||0)});
+    artifacts.sort(function(a,b){return (b.confidence||0)-(a.confidence||0)});
 
     var columns=[
       {key:"scanner_name",label:"Scanner"},
-      {key:"category",label:"Category"},
+      {key:"artifact_type",label:"Type"},
       {key:"file_path",label:"File",render:function(r){
         return '<span class="cell-mono" title="'+esc(r.file_path)+'">'+esc(truncPath(r.file_path,3))+'</span>';
       }},
@@ -682,7 +742,9 @@ window.__REPORT_DATA__ = {{REPORT_DATA_JSON}};
         return '<span class="cell-mono" title="'+esc(r.match_text)+'">'+esc(r.match_text)+'</span>';
       }},
       {key:"capability_tag",label:"Capability",render:function(r){
-        return r.capability_tag?'<span class="pill">'+esc(r.capability_tag)+'</span>':'';
+        if(!r.capability_tag) return '';
+        if(r._aegis) return '<span class="pill" style="background:#ecfdf5;color:#065f46;border-color:#a7f3d0">'+esc(r.capability_tag)+'</span>';
+        return '<span class="pill">'+esc(r.capability_tag)+'</span>';
       }},
       {key:"confidence",label:"Confidence",render:function(r){
         var c=r.confidence||0;
@@ -690,7 +752,46 @@ window.__REPORT_DATA__ = {{REPORT_DATA_JSON}};
         return '<span class="confidence-pill confidence-pill--'+cls+'">'+confLabel(c)+" "+Math.round(c*100)+"%</span>";
       }}
     ];
-    new TableEngine("panel-artifacts",columns,artifacts,50);
+
+    panel.innerHTML="";
+    var bar=el("div",{"class":"filter-bar","id":"artifacts-filter"});
+    var tableHost=el("div",{"id":"artifacts-table"});
+    panel.appendChild(bar);
+    panel.appendChild(tableHost);
+    var table=new TableEngine("artifacts-table",columns,artifacts,50);
+
+    // Filter chips: All, then one per standardised artifact type (with counts).
+    var types={};
+    artifacts.forEach(function(r){var t=r.artifact_type||"Other";types[t]=(types[t]||0)+1});
+    var order=(D.artifact_type_order||[]).slice();
+    Object.keys(types).forEach(function(t){if(order.indexOf(t)===-1) order.push(t)});
+    var chips=[{key:"all",label:"All",count:artifacts.length}];
+    order.forEach(function(t){if(types[t]) chips.push({key:"type:"+t,label:t,count:types[t]})});
+
+    var active="all",query="";
+    function apply(){
+      var q=query.toLowerCase();
+      table.setFilter(function(r){
+        if(active!=="all"&&(r.artifact_type||"Other")!==active.slice(5)) return false;
+        if(!q) return true;
+        return (String(r.file_path)+" "+String(r.match_text)+" "+String(r.capability_tag)+" "+String(r.artifact_type)).toLowerCase().indexOf(q)!==-1;
+      });
+    }
+    function drawBar(){
+      bar.innerHTML="";
+      chips.forEach(function(c){
+        var b=el("button",{"class":"chip"+(c.key===active?" chip--active":""),"type":"button"},esc(c.label)+' <span class="chip__n">'+c.count+'</span>');
+        b.addEventListener("click",function(){active=c.key;drawBar();apply()});
+        bar.appendChild(b);
+      });
+      var inp=el("input",{"class":"filter-search","type":"search","placeholder":"Search file or match...","value":query});
+      inp.addEventListener("input",function(){query=inp.value||"";apply()});
+      bar.appendChild(inp);
+    }
+    drawBar();
+    artifactsFilter={
+      showAegis:function(){active="type:Aegis governance";drawBar();apply();switchTab("artifacts")}
+    };
   })();
 
   /* ---- Risk signal renderer (handles both string and dict formats) ---- */
