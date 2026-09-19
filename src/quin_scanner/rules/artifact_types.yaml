@@ -1,0 +1,58 @@
+# Standardised artifact types, shown as the "Type" column / filter chips in the
+# HTML report. Display-only: scanner categories and capability tags in the
+# JSON/YAML/SARIF output are not changed.
+#
+# Resolution order: category -> capability tag -> (for the catch-all `llm-api`
+# tag) the regex refinements below -> default.
+
+# Display order of filter chips.
+order:
+  - LLM API
+  - Agent framework
+  - Agent
+  - Tool
+  - Prompt template
+  - RAG & embeddings
+  - Memory
+  - MCP
+  - Infra & config
+  - Aegis governance
+  - Other
+
+by_category:
+  governance: Aegis governance
+  agent_instance: Agent
+  tool_definition: Tool
+  prompt: Prompt template
+  mcp_server: MCP
+  mcp_risk: MCP
+  framework_marker: Agent framework
+  ci_pipeline: Infra & config
+  dockerfile: Infra & config
+  config: Infra & config
+  file_marker: Infra & config
+
+by_tag:
+  prompt-templates: Prompt template
+  tool-use: Tool
+  rag: RAG & embeddings
+  embeddings: RAG & embeddings
+  memory: Memory
+  multi-agent: Agent framework
+  orchestration: Agent framework
+
+# `llm-api` is attached to every langchain/openai/... match, including things
+# that are not model calls (agents, tools, prompts). First matching regex wins
+# against the matched text; no match -> LLM API.
+llm_api_refinements:
+  - type: Tool
+    pattern: '\bBaseTool\b|\.tools\b|@tool\b|StructuredTool'
+  - type: Prompt template
+    pattern: '\bprompts?\b|PromptTemplate'
+  - type: RAG & embeddings
+    pattern: 'vectorstores?|retriever|embeddings?|document_loaders|text_splitter|faiss|chroma|pinecone|qdrant|weaviate'
+  - type: Agent framework
+    pattern: '\bagents?\b|AgentExecutor|langgraph|^(from|import)\s+langchain(_core|_community|_experimental)?(\s|$)|^langchain(-core|-community|-experimental)?(?![-\w])'
+
+default_type: Other
+llm_api_default: LLM API

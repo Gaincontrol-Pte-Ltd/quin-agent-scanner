@@ -200,6 +200,33 @@ class ModelUsage:
 
 
 @dataclass
+class EndpointUsage:
+    """Address of an LLM inference endpoint. Credentials are always redacted."""
+    url: str                 # redacted URL, or the (redacted) code expression when unresolved
+    host: str
+    kind: str                # "hosted_provider" | "local" | "private" | "remote" | "unknown" | "unresolved"
+    source: str              # "code" | "config" | "env_var"
+    file_path: str
+    line_number: int | None
+    key: str = ""            # kwarg / config key the address came from
+    resolved_from: str = ""  # "file:line" of the config value a code expression was resolved to
+    ref_key: str = ""        # internal: config key referenced by an unresolved expression
+    ref_suffix: str = ""     # internal: path suffix appended in the expression
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "url": self.url,
+            "host": self.host,
+            "kind": self.kind,
+            "source": self.source,
+            "file_path": self.file_path,
+            "line_number": self.line_number,
+            "key": self.key,
+            "resolved_from": self.resolved_from,
+        }
+
+
+@dataclass
 class Vulnerability:
     """A known vulnerability affecting the detected framework+version."""
     cve_id: str | None                       # "CVE-2024-1234" or GHSA-... or None
@@ -225,6 +252,25 @@ class Vulnerability:
 
 
 @dataclass
+class GovernanceInfo:
+    """Aegis SDK governance classification (only produced with --detect-aegis)."""
+    aegis_detected: bool
+    status: str                          # "governed" | "declared_only" | "ungoverned" | "not_applicable"
+    evidence_kinds: list[str] = field(default_factory=list)   # "dependency" | "import" | "integration" | "plugin" | "config"
+    packages: list[str] = field(default_factory=list)         # Aegis packages declared as dependencies
+    evidence: list[ScanFinding] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "aegis_detected": self.aegis_detected,
+            "status": self.status,
+            "evidence_kinds": self.evidence_kinds,
+            "packages": self.packages,
+            "evidence": [e.to_dict() for e in self.evidence],
+        }
+
+
+@dataclass
 class ScanReport:
     repo_path: str
     scan_timestamp: str
@@ -243,9 +289,18 @@ class ScanReport:
     vulnerabilities: list[Vulnerability] = field(default_factory=list)
     # Existing fields
     model_usages: list[ModelUsage] = field(default_factory=list)
+    llm_endpoints: list[EndpointUsage] = field(default_factory=list)
     metadata: dict[str, Any] = field(default_factory=dict)
+    # Populated only when Aegis detection is requested (--detect-aegis).
+    governance: GovernanceInfo | None = None
 
     def to_dict(self) -> dict[str, Any]:
+        d = self._base_dict()
+        if self.governance is not None:
+            d["governance"] = self.governance.to_dict()
+        return d
+
+    def _base_dict(self) -> dict[str, Any]:
         return {
             "repo_path": self.repo_path,
             "scan_timestamp": self.scan_timestamp,
@@ -262,5 +317,6 @@ class ScanReport:
             "vulnerabilities": [v.to_dict() for v in self.vulnerabilities],
             "artifacts": [f.to_dict() for f in self.artifacts],
             "model_usages": [m.to_dict() for m in self.model_usages],
+            "llm_endpoints": [e.to_dict() for e in self.llm_endpoints],
             "metadata": self.metadata,
         }

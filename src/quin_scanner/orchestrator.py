@@ -27,6 +27,7 @@ from quin_scanner.models import (
 )
 from quin_scanner.vuln_checker import VulnChecker, parse_framework_ref
 from quin_scanner.repo_accessor import RepoAccessor
+from quin_scanner.scanners.aegis import AegisScanner, classify_governance
 from quin_scanner.scanners.base import BaseScanner
 from quin_scanner.scanners.ci_scanner import CIScanner
 from quin_scanner.scanners.code_pattern import CodePatternScanner
@@ -801,6 +802,14 @@ class ScanOrchestrator:
             file_count = len(file_index.all_files())
             _log(f"  {file_count} file{'s' if file_count != 1 else ''} indexed\n")
 
+        # 1b. Opt-in Aegis detection. Kept separate from the main scanner set so
+        # its evidence never influences AI-application detection or confidence.
+        aegis_findings: list[ScanFinding] = []
+        if config.detect_aegis:
+            aegis_findings = AegisScanner().scan(accessor, file_index)
+            if verbose:
+                _log(f"Aegis detection: {len(aegis_findings)} evidence item(s)\n")
+
         # 2. Run enabled scanner plugins in parallel
         scanners: list[BaseScanner] = []
         for name in config.enabled_scanners:
@@ -867,6 +876,13 @@ class ScanOrchestrator:
 
         # 5b. Sanitise model usages: reject placeholders, filter test files, deduplicate
         model_usages, test_model_count = _sanitise_model_usages(model_usages)
+
+        # LLM inference endpoint addresses (credentials redacted at extraction time)
+        from quin_scanner.endpoint_identifier import EndpointIdentifier
+        llm_endpoints = [
+            e for e in EndpointIdentifier().identify(accessor, file_index)
+            if not _is_test_path(e.file_path)
+        ]
 
         # 5c. Rule-based framework candidate (passed to synthesis as anchor)
         framework_candidate = _detect_framework(all_findings)
@@ -1231,6 +1247,11 @@ class ScanOrchestrator:
         if cap is not None and cap > 0 and len(pp_risk_signals) > cap:
             pp_risk_signals = pp_risk_signals[:cap]
 
+        governance = None
+        if config.detect_aegis:
+            governance = classify_governance(is_ai, aegis_findings)
+            metadata["aegis_detection"] = "enabled"
+
         return ScanReport(
             repo_path=accessor.repo_identifier(),
             scan_timestamp=datetime.now(timezone.utc).isoformat(),
@@ -1247,7 +1268,9 @@ class ScanOrchestrator:
             vulnerabilities=pp_vulnerabilities,
             artifacts=all_findings,
             model_usages=model_usages,
+            llm_endpoints=llm_endpoints,
             metadata=metadata,
+            governance=governance,
         )
 
     @staticmethod

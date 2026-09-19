@@ -23,6 +23,51 @@ def _output_filename(target: str, fmt: str) -> str:
     ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
     return f"{name}_{ts}.{fmt}"
 
+def _flags_used(
+    cfg: ScannerConfig,
+    *,
+    config: str | None = None,
+    branch: str | None = None,
+    min_confidence: float = 0.0,
+    llm_provider: str | None = None,
+    llm_model: str | None = None,
+    vuln_search_provider: str | None = None,
+    openai_compatible_url: str | None = None,
+) -> list[str]:
+    """CLI flags in effect for this scan, for display in the report.
+
+    Secrets (API keys, tokens) are never listed, and the value of
+    --openai-compatible-url is omitted because URLs can embed credentials.
+    """
+    flags: list[str] = []
+    if config:
+        flags.append(f"--config {Path(config).name}")
+    if cfg.no_llm:
+        flags.append("--no-llm")
+    else:
+        if llm_provider:
+            flags.append(f"--llm-provider {llm_provider}")
+        if llm_model:
+            flags.append(f"--llm-model {llm_model}")
+    if openai_compatible_url:
+        flags.append("--openai-compatible-url")
+    if not cfg.vuln_check_enabled:
+        flags.append("--no-vuln-check")
+    elif vuln_search_provider:
+        flags.append(f"--vuln-search-provider {vuln_search_provider}")
+    if cfg.detect_aegis:
+        flags.append("--detect-aegis")
+    if branch and branch != "main":
+        flags.append(f"--branch {branch}")
+    if min_confidence > 0.0:
+        flags.append(f"--min-confidence {min_confidence:g}")
+    return flags
+
+
+def _record_flags(report, flags: list[str]) -> None:
+    report.metadata["scan_options"] = {"flags": flags}
+
+
 _OUTPUT_CHOICES = click.Choice(["json", "yaml", "html", "sarif"])
 
 
@@ -84,6 +129,10 @@ def cli() -> None:
     type=click.Choice(["perplexity", "gemini", "openai", "anthropic", "none"]),
     help="LLM provider for web-based vulnerability search (reuses that provider's API key env var)",
 )
+@click.option(
+    "--detect-aegis", is_flag=True, default=False,
+    help="Detect Aegis SDK usage and classify the agent as governed (off by default)",
+)
 def scan(
     target: str,
     output: str,
@@ -100,6 +149,7 @@ def scan(
     openai_compatible_url: str | None,
     no_vuln_check: bool,
     vuln_search_provider: str | None,
+    detect_aegis: bool,
 ) -> None:
     """Scan a single repository for GenAI/Agentic AI indicators.
 
@@ -110,6 +160,7 @@ def scan(
       quin-scanner scan ./my-project
       quin-scanner scan owner/repo --no-llm -o yaml
       quin-scanner scan owner/repo --min-confidence 0.7 -d reports/
+      quin-scanner scan ./my-agent --detect-aegis --no-llm
       quin-scanner scan owner/repo --llm-provider anthropic --llm-model claude-sonnet-4-20250514
     """
     # Build config
@@ -133,6 +184,8 @@ def scan(
         )
 
     # CLI overrides for vulnerability checking
+    if detect_aegis:
+        cfg.detect_aegis = True
     if no_vuln_check:
         cfg.vuln_check_enabled = False
     if vuln_search_provider:
@@ -157,6 +210,11 @@ def scan(
     # Run scan
     try:
         report = ScanOrchestrator().run(accessor, cfg, verbose=sys.stderr.isatty())
+        _record_flags(report, _flags_used(
+            cfg, config=config, branch=branch, min_confidence=min_confidence,
+            llm_provider=llm_provider, llm_model=llm_model,
+            vuln_search_provider=vuln_search_provider, openai_compatible_url=openai_compatible_url,
+        ))
 
         # Apply confidence filter if requested
         if min_confidence > 0.0:
@@ -201,6 +259,10 @@ def scan(
     type=click.Choice(["perplexity", "gemini", "openai", "anthropic", "none"]),
     help="LLM provider for web-based vulnerability search",
 )
+@click.option(
+    "--detect-aegis", is_flag=True, default=False,
+    help="Detect Aegis SDK usage and classify the agent as governed (off by default)",
+)
 def scan_batch(
     targets_file: str,
     output: str,
@@ -214,6 +276,7 @@ def scan_batch(
     openai_compatible_url: str | None,
     no_vuln_check: bool,
     vuln_search_provider: str | None,
+    detect_aegis: bool,
 ) -> None:
     """Scan multiple repositories listed in a file.
 
@@ -247,6 +310,8 @@ def scan_batch(
             openai_compatible_url=openai_compatible_url,
         )
 
+    if detect_aegis:
+        base_cfg.detect_aegis = True
     if no_vuln_check:
         base_cfg.vuln_check_enabled = False
     if vuln_search_provider:
@@ -260,6 +325,10 @@ def scan_batch(
         try:
             accessor = RepoAccessorFactory.create(target, github_token=base_cfg.github_token)
             report = ScanOrchestrator().run(accessor, base_cfg, verbose=sys.stderr.isatty())
+            _record_flags(report, _flags_used(
+                base_cfg, config=config, llm_provider=llm_provider, llm_model=llm_model,
+                vuln_search_provider=vuln_search_provider, openai_compatible_url=openai_compatible_url,
+            ))
         except Exception as e:
             click.echo(f"  ERROR: {e}", err=True)
             continue
@@ -288,6 +357,10 @@ def scan_batch(
     type=click.Choice(["perplexity", "gemini", "openai", "anthropic", "none"]),
     help="LLM provider for web-based vulnerability search",
 )
+@click.option(
+    "--detect-aegis", is_flag=True, default=False,
+    help="Detect Aegis SDK usage and classify the agent as governed (off by default)",
+)
 @click.pass_context
 def scan_org(
     ctx: click.Context,
@@ -302,6 +375,7 @@ def scan_org(
     openai_compatible_url: str | None,
     no_vuln_check: bool,
     vuln_search_provider: str | None,
+    detect_aegis: bool,
 ) -> None:
     """Scan all repositories in a GitHub organization or user account.
 
@@ -354,6 +428,8 @@ def scan_org(
             openai_compatible_url=openai_compatible_url,
         )
 
+    if detect_aegis:
+        base_cfg.detect_aegis = True
     if no_vuln_check:
         base_cfg.vuln_check_enabled = False
     if vuln_search_provider:
@@ -372,6 +448,10 @@ def scan_org(
                 branch=repo.default_branch,
             )
             report = ScanOrchestrator().run(accessor, base_cfg, verbose=sys.stderr.isatty())
+            _record_flags(report, _flags_used(
+                base_cfg, config=config, vuln_search_provider=vuln_search_provider,
+                openai_compatible_url=openai_compatible_url,
+            ))
         except Exception as e:
             click.echo(f"  ERROR: {e}", err=True)
             continue

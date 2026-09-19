@@ -11,6 +11,26 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+#### LLM Inference Endpoint Detection
+- New `llm_endpoints` list in the report (all scans): the address of each LLM inference endpoint found in code (`base_url=`, `api_base=`, `azure_endpoint=`, hosted-provider URLs, `/chat/completions`-style paths), config files (YAML/JSON/TOML keys in LLM-related blocks) and `.env` files. Each entry has a `kind` (`hosted_provider`, `local`, `private`, `remote`, `unresolved`), the setting it came from, and file/line. Addresses built from config (e.g. `f"{cfg['url']}/v1"`) are resolved to the config value where possible.
+- Credentials are always omitted: URL userinfo (`user:pass@`) and secret-like query parameters (`api_key`, `token`, `password`, ...) are redacted before anything is stored.
+- HTML report: new "Inference Endpoints" table at the top of the Models tab.
+- Precision guards: build output (`.next`, `.nuxt`, `coverage`, ...), minified files and very long lines are skipped; generic `base_url`/`api_url` kwargs only count with LLM context within three lines; function signatures and pass-through variables are ignored; `/messages`-style paths must be `/v1/...`.
+
+#### Aegis Governed-Agent Detection (opt-in)
+- `--detect-aegis` flag on `scan`, `scan-batch` and `scan-org` (or `governance.detect_aegis: true` in the config file). Off by default; without it scan output is unchanged.
+- New `AegisScanner` (rules in `rules/aegis.yaml`) detects Aegis SDK dependencies (`aegis-core`, `aegis-<framework>`, `aegis-secret-manager-*`, `aegis-openclaw-plugin`), imports, integration calls (`aegis_initialize`, `AegisBaseTool`, `AegisFunctionMiddleware`, ...), OpenClaw/Pi/Claude hook markers, and `aegis:` engine config.
+- Report gains a `governance` object (`status`: `governed` | `declared_only` | `ungoverned` | `not_applicable`, plus evidence). Aegis evidence is kept out of `artifacts`, so AI-detection and confidence are unaffected.
+
+#### Scan Options in Report
+- The report shows the CLI flags the scan was run with (`--no-llm`, `--no-vuln-check`, `--detect-aegis`, `--llm-provider`, `--min-confidence`, ...) in a "Scan options" strip and in `metadata.scan_options.flags`. Secrets are never listed; `--openai-compatible-url` is shown without its value and `--config` shows only the file name.
+
+#### Report UI: Aegis Governance, Standardised Artifact Types, Artifact Filters
+- HTML report shows a "Governed by Aegis" / "Not governed by Aegis" card (with the Aegis artifact count) when `--detect-aegis` is used, and the evidence rows are merged into the Artifacts tab, tagged `aegis-governed:<kind>`.
+- Artifacts tab gains a standardised **Type** column (LLM API, Agent framework, Agent, Tool, Prompt template, RAG & embeddings, Memory, MCP, Infra & config, Aegis governance), filter chips with counts, and a text search. Types are display-only, defined in `rules/artifact_types.yaml`; scanner categories and capability tags in JSON/YAML/SARIF output are unchanged.
+- "About Aegis" panel (opened from the governance card): Aegis as an Agentic AI security platform with runtime enforcement, what it does, the drop-in integration for the detected framework, and links to gaincontrol.ai.
+- When Aegis detection is off (no `--detect-aegis`) and an AI application is found, the report shows a short Aegis promo with a hint to re-run with `--detect-aegis`.
+
 #### Risk Signal Data Model
 - `RiskIndicator.threat_id` — new optional field (`str | None`) identifying the originating threat (e.g. `"T001"`) per risk signal. Additive / backward-compatible: `to_dict()` includes the field, consumers that don't read it are unaffected. Enables downstream reports and UIs to link each signal to its threat in the taxonomy.
 - LLM synthesis prompt updated to emit `threat_id` alongside each KRI in `risk_signals` (both repo-level and per-agent). Parser in `_parse_risk_signals` extracts the field; legacy string-format signals yield `threat_id=None`.

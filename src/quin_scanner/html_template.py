@@ -161,6 +161,36 @@ tr:hover td{background:#fafbfc}
 .vuln-card__meta{font-size:.72rem;color:var(--color-muted);margin-top:6px}
 .vuln-card__meta a{color:var(--color-muted);text-decoration:underline}
 .section-gap{margin-top:28px}
+.scan-options{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:10px;font-size:.75rem;color:var(--color-muted)}
+.scan-options__flag{font-family:var(--font-mono,ui-monospace,SFMono-Regular,Menlo,monospace);font-size:.72rem;padding:2px 9px;border-radius:9999px;background:#eef2ff;color:#3730a3;border:1px solid #c7d2fe;white-space:nowrap}
+.aegis-promo{margin:1.4rem 0;padding:16px 20px;background:var(--color-surface);border:1px solid var(--color-border);border-left:4px solid var(--color-accent);border-radius:var(--radius-md)}
+.aegis-promo__eyebrow{font-size:.68rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--color-accent)}
+.aegis-promo__title{font-size:1rem;font-weight:700;margin:3px 0 6px}
+.aegis-promo__text{font-size:.85rem;line-height:1.6;color:#404040;margin-bottom:8px}
+.aegis-promo code{font-family:var(--font-mono);background:#f3f4f6;padding:1px 6px;border-radius:4px;font-size:.8rem}
+.aegis-more{display:inline-block;margin-top:8px;padding:0;border:0;background:none;color:var(--color-accent);font-size:.78rem;font-weight:600;cursor:pointer;font-family:inherit}
+.aegis-more:hover,.aegis-more:focus{text-decoration:underline;outline:none}
+.aegis-modal{position:fixed;inset:0;z-index:1000;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(17,24,39,.55)}
+.aegis-modal[hidden]{display:none}
+.aegis-modal__box{position:relative;width:560px;max-width:100%;max-height:calc(100vh - 32px);overflow-y:auto;background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-md);box-shadow:var(--shadow-md);padding:24px 26px}
+.aegis-modal__close{position:absolute;top:10px;right:12px;border:0;background:none;font-size:1.4rem;line-height:1;color:var(--color-muted);cursor:pointer}
+.aegis-modal__close:hover{color:#111827}
+.aegis-modal__eyebrow{font-size:.7rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--color-accent)}
+.aegis-modal__title{font-size:1.15rem;font-weight:700;margin:4px 0 6px;letter-spacing:-.01em}
+.aegis-modal__lead{font-size:.88rem;line-height:1.6;color:#404040;margin-bottom:12px}
+.aegis-modal ul{margin:0 0 14px;padding-left:1.1rem;font-size:.84rem;line-height:1.6;color:#374151}
+.aegis-modal li{margin-bottom:4px}
+.aegis-modal__note{font-size:.8rem;background:#f3f4f6;border-radius:var(--radius-sm);padding:9px 12px;margin-bottom:14px;color:#374151}
+.aegis-modal__cta{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.aegis-modal__btn{display:inline-block;padding:8px 16px;border-radius:9999px;background:var(--color-accent);color:#fff;font-size:.82rem;font-weight:600;text-decoration:none}
+.aegis-modal__btn:hover{opacity:.9}
+.aegis-modal__link{font-size:.8rem;color:var(--color-accent)}
+.filter-bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px}
+.chip{border:1px solid var(--color-border);background:var(--color-surface);color:#374151;border-radius:9999px;padding:4px 12px;font-size:.78rem;font-weight:500;cursor:pointer}
+.chip:hover{background:#f3f4f6}
+.chip--active{background:var(--color-accent);border-color:var(--color-accent);color:#fff}
+.chip__n{opacity:.7;margin-left:2px}
+.filter-search{margin-left:auto;min-width:200px;padding:5px 12px;border:1px solid var(--color-border);border-radius:9999px;font-size:.8rem;background:var(--color-surface)}
 
 /* ---------- Infra ---------- */
 .infra-details{list-style:disc;padding-left:20px;font-size:.85rem;margin:8px 0;color:#404040}
@@ -222,6 +252,9 @@ tr:hover td{background:#fafbfc}
   <!-- Capability Pills -->
   <div class="pills" id="pills"></div>
 
+  <!-- Scan options (CLI flags used) -->
+  <div id="scan-options"></div>
+
   <!-- Summary -->
   <div id="summary"></div>
 
@@ -230,6 +263,9 @@ tr:hover td{background:#fafbfc}
 
   <!-- Known Vulnerabilities (framework+version CVE lookup) -->
   <div id="vulnerabilities"></div>
+
+  <!-- Aegis governance evidence (only with --detect-aegis) -->
+  <div id="aegis-evidence"></div>
 
   <!-- Tab Bar -->
   <div class="tab-bar" id="tab-bar"></div>
@@ -318,6 +354,9 @@ window.__REPORT_DATA__ = {{REPORT_DATA_JSON}};
     capabilities:"High-level capabilities detected across the codebase (LLM calls, tool use, file I/O, network, etc.). Narrower capability surface means a narrower blast radius if an agent is compromised.",
     summary:"LLM-generated plain-English summary of what this repo does. Gives reviewers shared context before diving into specific agents, tools, or risk findings.",
     riskSignals:"Cross-cutting risks that apply to the system as a whole — supply chain, observability, governance, system-wide data exposure — not attributable to any single agent. Each signal is assessed against our framework combining OWASP LLM Top 10, OWASP Agentic AI Top 10, and OWASP MCP Top 10; click a signal to expand the recommended controls and the scanner findings that triggered it.",
+    scanOptions:"The command-line flags this scan was run with, so the report can be reproduced and its coverage understood. For example --no-llm means no LLM-written summary or agent analysis; --no-vuln-check means known-CVE lookup was skipped; --detect-aegis means Aegis SDK detection and governance classification were on. Secrets such as API keys are never listed.",
+    endpoints:"Where the model is called. Hosted provider = a public LLM API; Local / Private network = self-hosted inference (higher control, but check who can reach it); Unresolved = the address is built at runtime. Credentials embedded in URLs are redacted.",
+    governance:"Governed = the Aegis SDK is imported or wired in (or an Aegis hook/plugin/config is present), so tool calls are governed. Declared, not used = Aegis is listed as a dependency but no usage was found. Not governed = no Aegis evidence found.",
     vulnerabilities:"Known CVEs matching the framework and dependency versions detected. Patch Critical/High items before running agents in production — AI frameworks have had serious RCE and prompt-leak issues."
   };
 
@@ -449,7 +488,89 @@ window.__REPORT_DATA__ = {{REPORT_DATA_JSON}};
     html+='<div class="hero-card__sub">'+esc(riskSub)+helpIcon(HELP.risk)+'</div>';
     html+='</div>';
 
+    if(D.governance){
+      var g=D.governance,gs=g.status||"not_applicable";
+      var n=(g.evidence||[]).length;
+      var gTitle={governed:"Governed by Aegis",declared_only:"Aegis declared, not used",ungoverned:"Not governed by Aegis",not_applicable:"Not governed by Aegis"}[gs]||"Not governed by Aegis";
+      var gSub=gs==="governed"?n+" Aegis artifact"+(n===1?"":"s"):gs==="declared_only"?n+" dependency artifact"+(n===1?"":"s")+" only":"No Aegis artifacts";
+      var gBorder=gs==="governed"?"hero-card--green":gs==="ungoverned"?"hero-card--red":gs==="declared_only"?"hero-card--yellow":"";
+      html+='<div class="hero-card '+gBorder+'">';
+      html+='<div class="hero-card__title">'+esc(gTitle)+'</div>';
+      html+='<div class="hero-card__sub">'+esc(gSub)+helpIcon(HELP.governance)+'</div>';
+      html+='<button type="button" class="aegis-more" id="aegis-more" aria-haspopup="dialog">'+(gs==="governed"?'About Aegis':'Govern this agent with Aegis')+' &rarr;</button>';
+      html+='</div>';
+    }
+
     $("hero").innerHTML=html;
+    var aegisBtn=$("aegis-more");
+    if(aegisBtn&&D.governance) aegisBtn.addEventListener("click",function(){openAegisInfo(D.governance.status)});
+  })();
+
+  /* ---- About Aegis (opened from the governance card) ---- */
+  var AEGIS_SITE="https://gaincontrol.ai/";
+  var AEGIS_FRAMEWORK_PKGS=[
+    ["langchain","aegis-langchain"],["crewai","aegis-crewai"],["autogen","aegis-autogen"],
+    ["strands","aegis-strands"],["google","aegis-google-adk"],["microsoft","aegis-maf"],
+    ["langflow","aegis-langflow"],["agno","aegis-agno"],["claude","aegis-claude"],["bedrock","aegis-bedrock"]
+  ];
+  function aegisPackageFor(fw){
+    var f=String(fw||"").toLowerCase();
+    for(var i=0;i<AEGIS_FRAMEWORK_PKGS.length;i++){
+      if(f.indexOf(AEGIS_FRAMEWORK_PKGS[i][0])!==-1) return AEGIS_FRAMEWORK_PKGS[i][1];
+    }
+    return null;
+  }
+  function openAegisInfo(status){
+    var governed=status==="governed";
+    var pkg=aegisPackageFor(D.framework);
+    var box=el("div",{"class":"aegis-modal__box","role":"dialog","aria-modal":"true","aria-labelledby":"aegis-modal-title"});
+    var h='<button type="button" class="aegis-modal__close" aria-label="Close">&times;</button>';
+    h+='<div class="aegis-modal__eyebrow">Aegis &middot; Agentic AI Security</div>';
+    h+='<div class="aegis-modal__title" id="aegis-modal-title">'+(governed?"This agent is protected by Aegis runtime enforcement":"Enforce security on this agent at runtime")+'</div>';
+    h+='<div class="aegis-modal__lead">Aegis is an Agentic AI security platform built for runtime enforcement: policy is enforced on every agent action as it happens, so each agent operates only within its granted authority.</div>';
+    h+='<ul>';
+    h+='<li><b>Runtime policy enforcement</b> &mdash; authorize which tools (MCP, REST, shell) each agent may run, at the moment it tries to run them.</li>';
+    h+='<li><b>Credential broker</b> &mdash; the right credentials are supplied automatically for each call, from your secret manager (AWS, Azure, Google, HashiCorp Vault, CyberArk Conjur, OpenBao, Infisical).</li>';
+    h+='<li><b>MCP tool vetting</b> &mdash; new MCP tools are blocked until they are explicitly approved.</li>';
+    h+='<li><b>Tamper-evident audit logs</b> &mdash; audit logs are hash-chained so tampering can be detected.</li>';
+    h+='<li><b>Drop-in framework integrations</b> &mdash; LangChain, AutoGen, CrewAI, Strands, Google ADK, Microsoft Agent Framework and more.</li>';
+    h+='</ul>';
+    if(!governed&&pkg){
+      h+='<div class="aegis-modal__note">This repo uses '+esc(titleCase(String(D.framework)))+'. Aegis has a drop-in integration for it: <code>'+esc(pkg)+'</code>.</div>';
+    }else if(governed){
+      h+='<div class="aegis-modal__note">Aegis evidence was found in this repo &mdash; see the <b>Aegis governance</b> filter in the Artifacts tab for the exact files.</div>';
+    }
+    h+='<div class="aegis-modal__cta"><a class="aegis-modal__btn" href="'+AEGIS_SITE+'" target="_blank" rel="noopener">Learn more about Aegis</a>';
+    h+='<a class="aegis-modal__link" href="mailto:pixiedust@gaincontrol.ai">Talk to the team</a></div>';
+    box.innerHTML=h;
+    var overlay=el("div",{"class":"aegis-modal"});
+    overlay.appendChild(box);
+    function close(){
+      if(overlay.parentNode) overlay.parentNode.removeChild(overlay);
+      document.removeEventListener("keydown",onKey);
+      var b=$("aegis-more"); if(b&&b.focus) b.focus();
+    }
+    function onKey(e){if(e.key==="Escape") close()}
+    overlay.addEventListener("click",function(e){if(e.target===overlay) close()});
+    document.addEventListener("keydown",onKey);
+    document.body.appendChild(overlay);
+    var x=box.querySelector(".aegis-modal__close");
+    if(x){x.addEventListener("click",close);x.focus()}
+  }
+
+  /* ---- Scan options (flags used) ---- */
+  (function renderScanOptions(){
+    var host=$("scan-options");
+    var opts=(D.metadata||{}).scan_options;
+    if(!opts||!Array.isArray(opts.flags)){host.style.display="none";return}
+    var html='<div class="scan-options"><span>Scan options'+helpIcon(HELP.scanOptions)+'</span>';
+    if(!opts.flags.length){
+      html+='<span class="scan-options__flag" style="background:#f3f4f6;color:#374151;border-color:#e5e7eb">default</span>';
+    }else{
+      opts.flags.forEach(function(f){html+='<span class="scan-options__flag">'+esc(f)+'</span>'});
+    }
+    html+='</div>';
+    host.innerHTML=html;
   })();
 
   /* ---- Pills ---- */
@@ -526,6 +647,42 @@ window.__REPORT_DATA__ = {{REPORT_DATA_JSON}};
     $("vulnerabilities").innerHTML=html;
   })();
 
+  /* ---- Aegis governance summary (evidence rows live in the Artifacts tab) ---- */
+  (function renderAegisSummary(){
+    var g=D.governance;
+    if(!g){
+      // Aegis detection was not requested (--detect-aegis is off): promote Aegis on AI applications.
+      if(!D.is_ai_application){$("aegis-evidence").style.display="none";return}
+      var promo='<div class="aegis-promo">';
+      promo+='<div class="aegis-promo__eyebrow">Aegis &middot; Agentic AI Security</div>';
+      promo+='<div class="aegis-promo__title">Is this agent enforced at runtime?</div>';
+      promo+='<div class="aegis-promo__text">This report found an AI application, but it does not check whether it is governed. ';
+      promo+='<b>Aegis</b> is an Agentic AI security platform built for runtime enforcement &mdash; policy on every tool call, credentials brokered per request, and new MCP tools blocked until approved.</div>';
+      promo+='<div class="aegis-promo__text">Re-run with <code>--detect-aegis</code> to see whether this repo already uses Aegis.</div>';
+      promo+='<div class="aegis-modal__cta"><button type="button" class="aegis-modal__btn" id="aegis-promo-more" style="border:0;cursor:pointer">See how Aegis works</button>';
+      promo+='<a class="aegis-modal__link" href="'+AEGIS_SITE+'" target="_blank" rel="noopener">gaincontrol.ai</a></div>';
+      promo+='</div>';
+      $("aegis-evidence").innerHTML=promo;
+      var pb=$("aegis-promo-more");
+      if(pb) pb.addEventListener("click",function(){openAegisInfo("ungoverned")});
+      return;
+    }
+    var n=(g.evidence||[]).length;
+    var why={
+      governed:"Aegis SDK integration found in code or configuration.",
+      declared_only:"Aegis is listed as a dependency, but no import or usage was found in code.",
+      ungoverned:"This is an AI application, but no Aegis SDK, hook, plugin or config was found.",
+      not_applicable:"No Aegis evidence found."
+    }[g.status]||"";
+    var html='<div class="summary" style="margin:1.4rem 0"><b>Aegis governance:</b> '+esc(why);
+    if((g.packages||[]).length) html+=' Packages: <b>'+esc(g.packages.join(", "))+'</b>.';
+    if(n) html+=' <a href="#" id="aegis-view" style="color:var(--color-accent);font-weight:600">View '+n+' evidence item'+(n===1?"":"s")+' in Artifacts &rarr;</a>';
+    html+='</div>';
+    $("aegis-evidence").innerHTML=html;
+    var link=$("aegis-view");
+    if(link) link.addEventListener("click",function(e){e.preventDefault();if(artifactsFilter) artifactsFilter.showAegis()});
+  })();
+
   /* ---- Tabs ---- */
   var TABS=[
     {id:"artifacts",label:"Artifacts"},
@@ -582,12 +739,17 @@ window.__REPORT_DATA__ = {{REPORT_DATA_JSON}};
     this.page=0;
     this.sortCol=null;
     this.sortDir=1;             // 1 asc, -1 desc
+    this.filterFn=null;         // optional row predicate
     this.render();
   }
-  TableEngine.prototype.totalPages=function(){return Math.max(1,Math.ceil(this.allRows.length/this.pageSize))};
+  TableEngine.prototype.visibleRows=function(){
+    return this.filterFn?this.allRows.filter(this.filterFn):this.allRows;
+  };
+  TableEngine.prototype.setFilter=function(fn){this.filterFn=fn;this.page=0;this.render()};
+  TableEngine.prototype.totalPages=function(){return Math.max(1,Math.ceil(this.visibleRows().length/this.pageSize))};
   TableEngine.prototype.sortedRows=function(){
     var self=this;
-    var rows=this.allRows.slice();
+    var rows=this.visibleRows().slice();
     if(this.sortCol!==null){
       var key=this.columns[this.sortCol].key;
       rows.sort(function(a,b){
@@ -602,7 +764,7 @@ window.__REPORT_DATA__ = {{REPORT_DATA_JSON}};
   };
   TableEngine.prototype.render=function(){
     var self=this;
-    if(!this.allRows.length){
+    if(!this.visibleRows().length){
       this.container.innerHTML='<div class="empty">No data to display.</div>';
       return;
     }
@@ -661,17 +823,30 @@ window.__REPORT_DATA__ = {{REPORT_DATA_JSON}};
   };
 
   /* ---- Findings Tab ---- */
+  var artifactsFilter=null;   // set below; lets the governance banner jump to the Aegis filter
   (function renderFindings(){
     var panel=$("panel-artifacts");
-    var artifacts=D.artifacts||[];
+    var artifacts=(D.artifacts||[]).slice();
+
+    // Merge Aegis governance evidence (only present with --detect-aegis) into the
+    // artifact list, tagged so it can be filtered on its own.
+    var aegisCount=0;
+    if(D.governance){
+      (D.governance.evidence||[]).forEach(function(e){
+        var r=Object.assign({},e);
+        r._aegis=true;
+        artifacts.push(r);
+        aegisCount++;
+      });
+    }
     if(!artifacts.length){panel.innerHTML='<div class="empty">No artifacts detected.</div>';return}
 
     // Pre-sort by confidence desc
-    artifacts=artifacts.slice().sort(function(a,b){return (b.confidence||0)-(a.confidence||0)});
+    artifacts.sort(function(a,b){return (b.confidence||0)-(a.confidence||0)});
 
     var columns=[
       {key:"scanner_name",label:"Scanner"},
-      {key:"category",label:"Category"},
+      {key:"artifact_type",label:"Type"},
       {key:"file_path",label:"File",render:function(r){
         return '<span class="cell-mono" title="'+esc(r.file_path)+'">'+esc(truncPath(r.file_path,3))+'</span>';
       }},
@@ -682,7 +857,9 @@ window.__REPORT_DATA__ = {{REPORT_DATA_JSON}};
         return '<span class="cell-mono" title="'+esc(r.match_text)+'">'+esc(r.match_text)+'</span>';
       }},
       {key:"capability_tag",label:"Capability",render:function(r){
-        return r.capability_tag?'<span class="pill">'+esc(r.capability_tag)+'</span>':'';
+        if(!r.capability_tag) return '';
+        if(r._aegis) return '<span class="pill" style="background:#ecfdf5;color:#065f46;border-color:#a7f3d0">'+esc(r.capability_tag)+'</span>';
+        return '<span class="pill">'+esc(r.capability_tag)+'</span>';
       }},
       {key:"confidence",label:"Confidence",render:function(r){
         var c=r.confidence||0;
@@ -690,7 +867,46 @@ window.__REPORT_DATA__ = {{REPORT_DATA_JSON}};
         return '<span class="confidence-pill confidence-pill--'+cls+'">'+confLabel(c)+" "+Math.round(c*100)+"%</span>";
       }}
     ];
-    new TableEngine("panel-artifacts",columns,artifacts,50);
+
+    panel.innerHTML="";
+    var bar=el("div",{"class":"filter-bar","id":"artifacts-filter"});
+    var tableHost=el("div",{"id":"artifacts-table"});
+    panel.appendChild(bar);
+    panel.appendChild(tableHost);
+    var table=new TableEngine("artifacts-table",columns,artifacts,50);
+
+    // Filter chips: All, then one per standardised artifact type (with counts).
+    var types={};
+    artifacts.forEach(function(r){var t=r.artifact_type||"Other";types[t]=(types[t]||0)+1});
+    var order=(D.artifact_type_order||[]).slice();
+    Object.keys(types).forEach(function(t){if(order.indexOf(t)===-1) order.push(t)});
+    var chips=[{key:"all",label:"All",count:artifacts.length}];
+    order.forEach(function(t){if(types[t]) chips.push({key:"type:"+t,label:t,count:types[t]})});
+
+    var active="all",query="";
+    function apply(){
+      var q=query.toLowerCase();
+      table.setFilter(function(r){
+        if(active!=="all"&&(r.artifact_type||"Other")!==active.slice(5)) return false;
+        if(!q) return true;
+        return (String(r.file_path)+" "+String(r.match_text)+" "+String(r.capability_tag)+" "+String(r.artifact_type)).toLowerCase().indexOf(q)!==-1;
+      });
+    }
+    function drawBar(){
+      bar.innerHTML="";
+      chips.forEach(function(c){
+        var b=el("button",{"class":"chip"+(c.key===active?" chip--active":""),"type":"button"},esc(c.label)+' <span class="chip__n">'+c.count+'</span>');
+        b.addEventListener("click",function(){active=c.key;drawBar();apply()});
+        bar.appendChild(b);
+      });
+      var inp=el("input",{"class":"filter-search","type":"search","placeholder":"Search file or match...","value":query});
+      inp.addEventListener("input",function(){query=inp.value||"";apply()});
+      bar.appendChild(inp);
+    }
+    drawBar();
+    artifactsFilter={
+      showAegis:function(){active="type:Aegis governance";drawBar();apply();switchTab("artifacts")}
+    };
   })();
 
   /* ---- Risk signal renderer (handles both string and dict formats) ---- */
@@ -811,7 +1027,37 @@ window.__REPORT_DATA__ = {{REPORT_DATA_JSON}};
   (function renderModels(){
     var panel=$("panel-models");
     var models=D.model_usages||[];
-    if(!models.length){panel.innerHTML='<div class="empty">No model usages detected.</div>';return}
+    var endpoints=D.llm_endpoints||[];
+    if(!models.length&&!endpoints.length){panel.innerHTML='<div class="empty">No model usages detected.</div>';return}
+    panel.innerHTML="";
+    if(endpoints.length){
+      var kindCls={hosted_provider:"pill--blue",local:"pill--emerald",private:"pill--orange",remote:"pill--gray",unknown:"pill--gray",unresolved:"pill--gray"};
+      var kindLabel={hosted_provider:"Hosted provider",local:"Local",private:"Private network",remote:"Remote (other)",unknown:"Unknown",unresolved:"Unresolved"};
+      panel.appendChild(el("div",{"class":"section-title","style":"margin-top:4px"},'Inference Endpoints'+helpIcon(HELP.endpoints)));
+      panel.appendChild(el("div",{"id":"endpoints-table"}));
+      panel.appendChild(el("div",{"class":"section-title section-gap"},'Models'));
+      panel.appendChild(el("div",{"id":"models-table"}));
+      new TableEngine("endpoints-table",[
+        {key:"kind",label:"Where",render:function(r){
+          return '<span class="pill '+(kindCls[r.kind]||"pill--gray")+'">'+esc(kindLabel[r.kind]||r.kind)+'</span>';
+        }},
+        {key:"url",label:"Address",render:function(r){
+          var extra=r.resolved_from?' <span style="color:var(--color-muted);font-size:.72rem">(from '+esc(r.resolved_from)+')</span>':'';
+          return '<span class="cell-mono" title="'+esc(r.url)+'">'+esc(r.url)+'</span>'+extra;
+        }},
+        {key:"key",label:"Setting",render:function(r){return '<span class="cell-mono">'+esc(r.key)+'</span>'}},
+        {key:"source",label:"Source"},
+        {key:"file_path",label:"File",render:function(r){
+          return '<span class="cell-mono" title="'+esc(r.file_path)+'">'+esc(truncPath(r.file_path,3))+'</span>';
+        }},
+        {key:"line_number",label:"Line",render:function(r){
+          return r.line_number!=null?'<span class="cell-mono">'+r.line_number+'</span>':'';
+        }}
+      ],endpoints,50);
+    }else{
+      panel.appendChild(el("div",{"id":"models-table"}));
+    }
+    if(!models.length){$("models-table").innerHTML='<div class="empty">No model usages detected.</div>'}
 
     var providerCls=function(p){
       if(!p) return "pill--gray";
@@ -840,7 +1086,7 @@ window.__REPORT_DATA__ = {{REPORT_DATA_JSON}};
         return r.line_number!=null?'<span class="cell-mono">'+r.line_number+'</span>':'<span style="color:var(--color-muted)">&mdash;</span>';
       }}
     ];
-    new TableEngine("panel-models",columns,models,50);
+    if(models.length) new TableEngine("models-table",columns,models,50);
   })();
 
   /* ---- Tools, Skills & MCP Tab ---- */
