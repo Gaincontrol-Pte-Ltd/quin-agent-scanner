@@ -141,3 +141,13 @@ class TestAboutAegisInHtml:
         r = ScanReport(repo_path="r", scan_timestamp="t", is_ai_application=True, confidence=0.9)
         assert '"governance"' not in ReportGenerator.to_html(r)
 
+
+class TestPromoWhenFlagOff:
+    def _html(self, **kw):
+        from quin_scanner.models import ScanReport
+        from quin_scanner.report import ReportGenerator
+        return ReportGenerator.to_html(ScanReport(repo_path="r", scan_timestamp="t", **kw))
+
+    def test_promo_markup_and_hint_in_template(self):
+        html = self._html(is_ai_application=True, confidence=0.9)
+        assert "aegis-promo" in html and "--detect-aegis" in html and "https://gaincontrol.ai/" in html

@@ -29,6 +29,7 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - HTML report shows a "Governed by Aegis" / "Not governed by Aegis" card (with the Aegis artifact count) when `--detect-aegis` is used, and the evidence rows are merged into the Artifacts tab, tagged `aegis-governed:<kind>`.
 - Artifacts tab gains a standardised **Type** column (LLM API, Agent framework, Agent, Tool, Prompt template, RAG & embeddings, Memory, MCP, Infra & config, Aegis governance), filter chips with counts, and a text search. Types are display-only, defined in `rules/artifact_types.yaml`; scanner categories and capability tags in JSON/YAML/SARIF output are unchanged.
 - "About Aegis" panel (opened from the governance card): Aegis as an Agentic AI security platform with runtime enforcement, what it does, the drop-in integration for the detected framework, and links to gaincontrol.ai.
+- When Aegis detection is off (no `--detect-aegis`) and an AI application is found, the report shows a short Aegis promo with a hint to re-run with `--detect-aegis`.
 
 #### Risk Signal Data Model
 - `RiskIndicator.threat_id` — new optional field (`str | None`) identifying the originating threat (e.g. `"T001"`) per risk signal. Additive / backward-compatible: `to_dict()` includes the field, consumers that don't read it are unaffected. Enables downstream reports and UIs to link each signal to its threat in the taxonomy.

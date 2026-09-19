@@ -163,6 +163,11 @@ tr:hover td{background:#fafbfc}
 .section-gap{margin-top:28px}
 .scan-options{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:10px;font-size:.75rem;color:var(--color-muted)}
 .scan-options__flag{font-family:var(--font-mono,ui-monospace,SFMono-Regular,Menlo,monospace);font-size:.72rem;padding:2px 9px;border-radius:9999px;background:#eef2ff;color:#3730a3;border:1px solid #c7d2fe;white-space:nowrap}
+.aegis-promo{margin:1.4rem 0;padding:16px 20px;background:var(--color-surface);border:1px solid var(--color-border);border-left:4px solid var(--color-accent);border-radius:var(--radius-md)}
+.aegis-promo__eyebrow{font-size:.68rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--color-accent)}
+.aegis-promo__title{font-size:1rem;font-weight:700;margin:3px 0 6px}
+.aegis-promo__text{font-size:.85rem;line-height:1.6;color:#404040;margin-bottom:8px}
+.aegis-promo code{font-family:var(--font-mono);background:#f3f4f6;padding:1px 6px;border-radius:4px;font-size:.8rem}
 .aegis-more{display:inline-block;margin-top:8px;padding:0;border:0;background:none;color:var(--color-accent);font-size:.78rem;font-weight:600;cursor:pointer;font-family:inherit}
 .aegis-more:hover,.aegis-more:focus{text-decoration:underline;outline:none}
 .aegis-modal{position:fixed;inset:0;z-index:1000;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(17,24,39,.55)}
@@ -645,7 +650,23 @@ window.__REPORT_DATA__ = {{REPORT_DATA_JSON}};
   /* ---- Aegis governance summary (evidence rows live in the Artifacts tab) ---- */
   (function renderAegisSummary(){
     var g=D.governance;
-    if(!g){$("aegis-evidence").style.display="none";return}
+    if(!g){
+      // Aegis detection was not requested (--detect-aegis is off): promote Aegis on AI applications.
+      if(!D.is_ai_application){$("aegis-evidence").style.display="none";return}
+      var promo='<div class="aegis-promo">';
+      promo+='<div class="aegis-promo__eyebrow">Aegis &middot; Agentic AI Security</div>';
+      promo+='<div class="aegis-promo__title">Is this agent enforced at runtime?</div>';
+      promo+='<div class="aegis-promo__text">This report found an AI application, but it does not check whether it is governed. ';
+      promo+='<b>Aegis</b> is an Agentic AI security platform built for runtime enforcement &mdash; policy on every tool call, credentials brokered per request, and new MCP tools blocked until approved.</div>';
+      promo+='<div class="aegis-promo__text">Re-run with <code>--detect-aegis</code> to see whether this repo already uses Aegis.</div>';
+      promo+='<div class="aegis-modal__cta"><button type="button" class="aegis-modal__btn" id="aegis-promo-more" style="border:0;cursor:pointer">See how Aegis works</button>';
+      promo+='<a class="aegis-modal__link" href="'+AEGIS_SITE+'" target="_blank" rel="noopener">gaincontrol.ai</a></div>';
+      promo+='</div>';
+      $("aegis-evidence").innerHTML=promo;
+      var pb=$("aegis-promo-more");
+      if(pb) pb.addEventListener("click",function(){openAegisInfo("ungoverned")});
+      return;
+    }
     var n=(g.evidence||[]).length;
     var why={
       governed:"Aegis SDK integration found in code or configuration.",
