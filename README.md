@@ -30,6 +30,29 @@ Quin is built by [Gaincontrol](https://gaincontrol.ai/), headquartered in Singap
 
 ---
 
+## Quin Feature Overview
+
+Quin maps the AI and agent components present in a repository, preserves the evidence behind each detection, and produces reports that can be reviewed locally or used in CI.
+
+| Capability | What Quin discovers or reports |
+|---|---|
+| **Repository scanning** | Local directories, GitHub repositories and organizations, Azure DevOps repositories, and target lists. Scan a selected GitHub branch; run single-repository, batch, organization, or CI scans. |
+| **AI framework and dependency discovery** | AI SDKs and agent frameworks, model providers and model IDs, vector databases, embedding packages, and voice or image AI dependencies. See [Supported Frameworks](#supported-frameworks). |
+| **Agent and prompt discovery** | Named agents and agent configurations, system prompts, prompt templates, agent skills, and related source files. |
+| **Tools and MCP discovery** | Tool definitions, external-service usage, MCP servers and transports, and tool usage evidence. Quin can link detected agents to tools explicitly listed in supported Python `tools=[...]` calls and JavaScript/TypeScript agent objects. It records both source locations when it also detects the tool definition. |
+| **Model endpoint discovery** | Model usage by provider, model, source, and role; LLM endpoint addresses and endpoint types. Credentials in endpoint URLs and expressions are redacted. |
+| **Infrastructure and delivery discovery** | Infrastructure-as-code, Dockerfiles, Jupyter notebooks, and CI pipelines related to AI applications. |
+| **Complete finding inventory** | All raw scanner observations, including observations that are deduplicated in the summary artifact list or omitted from the LLM context to keep synthesis bounded. |
+| **Scan coverage** | Files discovered, indexed, excluded as vendor/generated, read successfully or unsuccessfully, and scanners enabled, completed, or returning findings. |
+| **Risk and vulnerability analysis** | Optional two-pass LLM system classification and agent synthesis, taxonomy-grounded risk signals with evidence references, and OSV.dev checks for detected framework versions. Optional web search can supplement vulnerability lookup. |
+| **Aegis governance detection** | Optional detection of Aegis SDK usage, including whether it is actively used, declared only, or absent from an AI application. Enable with `--detect-aegis`. |
+| **Reports and CI** | HTML, JSON, YAML, and SARIF reports. The HTML report includes inventory, coverage, relationships, agents, models, tools/MCP, infrastructure, artifacts, and raw data. The GitHub Action can publish SARIF findings as code-scanning annotations. |
+| **Static-only operation** | Use `--no-llm` to run repository discovery without an LLM provider or API key. Use `--no-vuln-check` to skip external vulnerability lookups. |
+
+Quin’s detections are evidence for review, not proof that an application is safe or unsafe. Relationship mapping is currently based on explicit source-code tool lists; config-only agent/tool relationships may not be linked.
+
+---
+
 ## Quick Start
 
 ### 1. Install
@@ -84,7 +107,7 @@ llm:
   # api_key_env: ANTHROPIC_API_KEY     # reads from your .env
 
 output:
-  format: html                         # html | json | yaml
+  format: html                         # html | json | yaml | sarif
 
 vuln_check:
   enabled: true                        # OSV.dev lookup for detected framework+version
@@ -310,16 +333,16 @@ uv run quin-scanner scan ./path/to/repo --config scanner-config.yaml
 
 ## How It Works
 
-Quin runs 13 scanner plugins in parallel, looks up known CVEs for the detected framework, then uses a two-pass LLM pipeline:
+Quin runs 13 configurable static scanner plugins in parallel. It then builds inventories and coverage metrics, identifies model usage and endpoints, optionally checks known vulnerabilities, and optionally runs a two-pass LLM pipeline. Aegis governance detection is an additional opt-in scan.
 
 ```
-Repo  -->  13 Scanners (parallel)  -->  Vulnerability Lookup  -->  Pass 1: Classification  -->  Pass 2: Synthesis  -->  Report
+Repo  -->  13 Scanners (parallel)  -->  Inventory + Coverage  -->  Vulnerability Lookup  -->  Optional LLM Analysis  -->  Report
 ```
 
-1. **13 scanners** detect dependencies, code patterns, configs, prompts, frameworks, tools, agents, MCP servers, Dockerfiles, notebooks, CI pipelines, and infrastructure-as-code
+1. **Static discovery** detects dependencies, code patterns, configuration, prompts, frameworks, named agents and tools, MCP servers, Dockerfiles, notebooks, CI pipelines, and infrastructure-as-code. An additional Python/JavaScript/TypeScript pass links explicit agent tool references and preserves the source locations.
 2. **Vulnerability lookup** -- once the agentic framework and its base version are identified (e.g. `CrewAI 0.80.0`), the scanner queries OSV.dev and optionally an LLM with web search for recent advisories. Critical/high findings are promoted into risk signals
-3. **Pass 1 (Classification)** -- an LLM classifies the system type (`standard_ai`, `agentic_ai`, `mcp_enabled`, `multi_agent`) and identifies relevant threats from a taxonomy sourced from OWASP LLM Top 10, OWASP Agentic Top 10, OWASP MCP Top 10, MAESTRO, and Databricks DASF
-4. **Pass 2 (Synthesis)** -- a second LLM call profiles each agent with taxonomy-grounded risk indicators, maps tool usages to service categories, and generates a narrative summary
+3. **Pass 1 (Classification, when LLM analysis is enabled)** -- an LLM classifies the system type (`standard_ai`, `agentic_ai`, `mcp_enabled`, `multi_agent`) and identifies relevant threats from a taxonomy sourced from OWASP LLM Top 10, OWASP Agentic Top 10, OWASP MCP Top 10, MAESTRO, and Databricks DASF
+4. **Pass 2 (Synthesis, when LLM analysis is enabled)** -- a second LLM call profiles agents, adds taxonomy-grounded risk indicators, maps tool usages to service categories, and generates a narrative summary. Static findings, the complete inventory, and coverage metrics remain available without these LLM passes.
 
 Use `--no-llm` to skip both LLM passes and run scanners only. Use `--no-vuln-check` to skip the vulnerability lookup.
 
