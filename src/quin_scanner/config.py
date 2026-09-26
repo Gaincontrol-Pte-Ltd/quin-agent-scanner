@@ -62,6 +62,8 @@ class ScannerConfig:
     # severity-aware sort so the cap keeps the highest-severity entries.
     # Set to 0 or None to disable the cap.
     max_repo_risk_signals: int | None = 10
+    # Opt-in: detect Aegis SDK usage and classify the repo as a governed agent.
+    detect_aegis: bool = False
 
     @classmethod
     def load_from_file(cls, path: str) -> "ScannerConfig":
@@ -102,9 +104,10 @@ class ScannerConfig:
             vuln_web_timeout=float(vuln_cfg.get("web_timeout_seconds", 5.0)),
             vuln_web_retries=max(0, int(vuln_cfg.get("web_retries", 1))),
             max_repo_risk_signals=_parse_max_signals(out_cfg.get("max_repo_risk_signals", 10)),
+            detect_aegis=bool((data.get("governance") or {}).get("detect_aegis", False)),
         )
 
-    _BOOL_FIELDS: frozenset[str] = frozenset({"no_llm"})
+    _BOOL_FIELDS: frozenset[str] = frozenset({"no_llm", "detect_aegis"})
 
     @classmethod
     def load_from_args(cls, **kwargs: Any) -> "ScannerConfig":

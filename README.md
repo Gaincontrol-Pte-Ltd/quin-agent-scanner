@@ -132,6 +132,14 @@ quin-scanner scan ./path/to/repo --config scanner-config.yaml --vuln-search-prov
 
 ---
 
+### Aegis governed-agent detection
+
+Pass `--detect-aegis` to also check whether the code uses the Aegis SDK. The report then includes a `governance` section classifying the repo as `governed` (SDK imported/initialised or hook/plugin/config present), `declared_only` (listed as a dependency but never used), `ungoverned` (AI app with no Aegis) or `not_applicable`. Off by default; also settable via `governance: {detect_aegis: true}` in the config file.
+
+```bash
+quin-scanner scan ./my-agent --detect-aegis --no-llm
+```
+
 ## GitHub Action
 
 Add Quin to your CI to scan every push and surface findings as PR annotations via GitHub code scanning:
