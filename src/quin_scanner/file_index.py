@@ -27,13 +27,22 @@ class FileIndex:
     def __init__(self, accessor: RepoAccessor) -> None:
         self._accessor = accessor
         self._files: list[str] = []
+        self._discovered_files: list[str] = []
+        self._excluded_files: list[str] = []
 
     def build(self) -> None:
         """Populate the index by listing all files via the accessor."""
-        self._files = [
-            f for f in self._accessor.list_files("**/*")
-            if not _is_vendor_path(f)
-        ]
+        self._discovered_files = self._accessor.list_files("**/*")
+        self._files = [f for f in self._discovered_files if not _is_vendor_path(f)]
+        self._excluded_files = [f for f in self._discovered_files if _is_vendor_path(f)]
+
+    def coverage(self) -> dict[str, int]:
+        """Return deterministic file-index coverage counts."""
+        return {
+            "files_discovered": len(self._discovered_files),
+            "files_indexed": len(self._files),
+            "files_excluded_vendor_or_generated": len(self._excluded_files),
+        }
 
     def all_files(self) -> list[str]:
         """Return every file path in the index."""

@@ -50,6 +50,41 @@ _TOP_N_DEFAULT = 5      # top findings per scanner
 _TOP_N_PROMPT = 10      # higher cap for PromptDiscoveryScanner
 
 
+class _ReadTrackingAccessor:
+    """Track scanner file reads without changing scanner behavior."""
+
+    def __init__(self, accessor: RepoAccessor) -> None:
+        self._accessor = accessor
+        self._lock = threading.Lock()
+        self._read_calls = 0
+        self._read_ok: set[str] = set()
+        self._read_failed: set[str] = set()
+
+    def read_file(self, path: str) -> str:
+        with self._lock:
+            self._read_calls += 1
+        try:
+            content = self._accessor.read_file(path)
+        except Exception:
+            with self._lock:
+                self._read_failed.add(path)
+            raise
+        with self._lock:
+            self._read_ok.add(path)
+        return content
+
+    def coverage(self) -> dict[str, int]:
+        with self._lock:
+            return {
+                "file_read_attempts": self._read_calls,
+                "files_read": len(self._read_ok),
+                "files_failed_to_read": len(self._read_failed - self._read_ok),
+            }
+
+    def __getattr__(self, name: str):
+        return getattr(self._accessor, name)
+
+
 def _log(msg: str) -> None:
     with _print_lock:
         print(msg, file=sys.stderr, flush=True)
@@ -798,6 +833,7 @@ class ScanOrchestrator:
             _log("Indexing files...")
         file_index = FileIndex(accessor)
         file_index.build()
+        tracked_accessor = _ReadTrackingAccessor(accessor)
         if verbose:
             file_count = len(file_index.all_files())
             _log(f"  {file_count} file{'s' if file_count != 1 else ''} indexed\n")
@@ -825,7 +861,7 @@ class ScanOrchestrator:
         completed_results: list[tuple[str, list[ScanFinding]]] = []
 
         def _run_scanner(scanner: BaseScanner) -> tuple[str, list[ScanFinding]]:
-            return scanner.name(), scanner.scan(accessor, file_index)
+            return scanner.name(), scanner.scan(tracked_accessor, file_index)
 
         with ThreadPoolExecutor() as executor:
             futures = {executor.submit(_run_scanner, s): s for s in scanners}
@@ -845,6 +881,17 @@ class ScanOrchestrator:
                 label = "artifact" if n == 1 else "artifacts"
                 _log(f"  [ ✓ ] {name:<30} {n} {label}")
             _log("")
+
+        # Preserve every raw scanner observation for complete inventory, even
+        # when report artifacts are later deduplicated or LLM context is capped.
+        inventory = [finding.to_dict() for finding in all_findings]
+        coverage = {
+            **file_index.coverage(),
+            **tracked_accessor.coverage(),
+            "scanners_enabled": len(scanners),
+            "scanners_completed": len(completed_results),
+            "scanners_with_findings": sum(bool(findings) for _, findings in completed_results),
+        }
 
         # 2b. Deduplicate findings by (file_path, line_number, capability_tag)
         all_findings = self._deduplicate(all_findings)
@@ -1268,6 +1315,8 @@ class ScanOrchestrator:
             vulnerabilities=pp_vulnerabilities,
             artifacts=all_findings,
             model_usages=model_usages,
+            inventory=inventory,
+            coverage=coverage,
             llm_endpoints=llm_endpoints,
             metadata=metadata,
             governance=governance,

@@ -685,6 +685,8 @@ window.__REPORT_DATA__ = {{REPORT_DATA_JSON}};
 
   /* ---- Tabs ---- */
   var TABS=[
+    {id:"inventory",label:"Inventory"},
+    {id:"coverage",label:"Coverage"},
     {id:"artifacts",label:"Artifacts"},
     {id:"agents",label:"Agents"},
     {id:"models",label:"Models"},
@@ -693,6 +695,33 @@ window.__REPORT_DATA__ = {{REPORT_DATA_JSON}};
     {id:"raw",label:"Raw Data"}
   ];
   var activeTab="artifacts";
+
+  /* ---- Complete scanner inventory ---- */
+  (function renderInventory(){
+    var panel=$("panel-inventory");
+    var inventory=D.inventory||[];
+    if(!inventory.length){panel.innerHTML='<div class="empty">No scanner observations recorded.</div>';return}
+    var columns=[
+      {key:"scanner_name",label:"Scanner"},{key:"category",label:"Category"},
+      {key:"file_path",label:"File",render:function(r){return '<span class="cell-mono" title="'+esc(r.file_path)+'">'+esc(truncPath(r.file_path,3))+'</span>'}},
+      {key:"line_number",label:"Line"},{key:"match_text",label:"Match",render:function(r){return '<span class="cell-mono" title="'+esc(r.match_text)+'">'+esc(r.match_text)+'</span>'}},
+      {key:"capability_tag",label:"Capability"},{key:"confidence",label:"Confidence",render:function(r){return Math.round((r.confidence||0)*100)+"%"}}
+    ];
+    new TableEngine("panel-inventory",columns,inventory,50);
+  })();
+
+  /* ---- Scan coverage ---- */
+  (function renderCoverage(){
+    var panel=$("panel-coverage"), c=D.coverage||{};
+    var rows=[
+      ["Files discovered",c.files_discovered], ["Files indexed for scanning",c.files_indexed],
+      ["Excluded vendor/generated files",c.files_excluded_vendor_or_generated],
+      ["File read attempts",c.file_read_attempts], ["Files read",c.files_read],
+      ["Files failed to read",c.files_failed_to_read], ["Scanners enabled",c.scanners_enabled],
+      ["Scanners completed",c.scanners_completed], ["Scanners with findings",c.scanners_with_findings]
+    ];
+    panel.innerHTML='<div class="raw-block"><table><tbody>'+rows.map(function(r){return '<tr><th>'+esc(r[0])+'</th><td>'+esc(String(r[1]===undefined?0:r[1]))+'</td></tr>'}).join('')+'</tbody></table></div><p style="color:var(--color-muted);font-size:.8rem">Excluded files are vendor or generated paths omitted by the file index. Read counts are unique files; attempts can include repeat reads by different scanners.</p>';
+  })();
 
   function renderTabBar(){
     var bar=$("tab-bar");

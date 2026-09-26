@@ -289,6 +289,8 @@ class ScanReport:
     vulnerabilities: list[Vulnerability] = field(default_factory=list)
     # Existing fields
     model_usages: list[ModelUsage] = field(default_factory=list)
+    inventory: list[dict[str, Any]] = field(default_factory=list)
+    coverage: dict[str, Any] = field(default_factory=dict)
     llm_endpoints: list[EndpointUsage] = field(default_factory=list)
     metadata: dict[str, Any] = field(default_factory=dict)
     # Populated only when Aegis detection is requested (--detect-aegis).
@@ -317,6 +319,8 @@ class ScanReport:
             "vulnerabilities": [v.to_dict() for v in self.vulnerabilities],
             "artifacts": [f.to_dict() for f in self.artifacts],
             "model_usages": [m.to_dict() for m in self.model_usages],
+            "inventory": self.inventory,
+            "coverage": self.coverage,
             "llm_endpoints": [e.to_dict() for e in self.llm_endpoints],
             "metadata": self.metadata,
         }
