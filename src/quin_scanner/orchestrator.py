@@ -42,6 +42,7 @@ from quin_scanner.scanners.mcp_scanner import MCPScanner
 from quin_scanner.scanners.prompt_discovery import PromptDiscoveryScanner
 from quin_scanner.scanners.agent_instance_scanner import AgentInstanceScanner
 from quin_scanner.scanners.tool_definition_scanner import ToolDefinitionScanner
+from quin_scanner.agent_tool_relationships import discover_agent_tool_relationships
 
 _print_lock = threading.Lock()
 
@@ -885,6 +886,9 @@ class ScanOrchestrator:
         # Preserve every raw scanner observation for complete inventory, even
         # when report artifacts are later deduplicated or LLM context is capped.
         inventory = [finding.to_dict() for finding in all_findings]
+        agent_tool_relationships = discover_agent_tool_relationships(
+            tracked_accessor, file_index, all_findings
+        )
         coverage = {
             **file_index.coverage(),
             **tracked_accessor.coverage(),
@@ -1315,6 +1319,7 @@ class ScanOrchestrator:
             vulnerabilities=pp_vulnerabilities,
             artifacts=all_findings,
             model_usages=model_usages,
+            agent_tool_relationships=agent_tool_relationships,
             inventory=inventory,
             coverage=coverage,
             llm_endpoints=llm_endpoints,

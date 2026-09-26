@@ -74,6 +74,7 @@ export interface ScanReport {
   vulnerabilities: Vulnerability[];
   inventory?: Array<Record<string, unknown>>;
   coverage?: Record<string, number>;
+  agent_tool_relationships?: Array<Record<string, unknown>>;
   metadata: Record<string, unknown>;
 }
 

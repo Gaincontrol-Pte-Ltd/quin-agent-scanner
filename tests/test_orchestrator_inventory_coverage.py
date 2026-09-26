@@ -24,7 +24,7 @@ def test_scan_reports_complete_scanner_observations_and_coverage(tmp_path):
         "files_discovered": 1,
         "files_indexed": 1,
         "files_excluded_vendor_or_generated": 0,
-        "file_read_attempts": 2,
+        "file_read_attempts": 3,
         "files_read": 1,
         "files_failed_to_read": 0,
         "scanners_enabled": 2,

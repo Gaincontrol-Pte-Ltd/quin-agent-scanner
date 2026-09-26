@@ -687,6 +687,7 @@ window.__REPORT_DATA__ = {{REPORT_DATA_JSON}};
   var TABS=[
     {id:"inventory",label:"Inventory"},
     {id:"coverage",label:"Coverage"},
+    {id:"relationships",label:"Agent ↔ Tools"},
     {id:"artifacts",label:"Artifacts"},
     {id:"agents",label:"Agents"},
     {id:"models",label:"Models"},
@@ -695,6 +696,20 @@ window.__REPORT_DATA__ = {{REPORT_DATA_JSON}};
     {id:"raw",label:"Raw Data"}
   ];
   var activeTab="artifacts";
+
+  /* ---- Agent to tool relationships ---- */
+  (function renderRelationships(){
+    var panel=$("panel-relationships");
+    var rows=D.agent_tool_relationships||[];
+    if(!rows.length){panel.innerHTML='<div class="empty">No direct agent-to-tool references detected.</div>';return}
+    var columns=[
+      {key:"agent_name",label:"Agent"},{key:"tool_name",label:"Tool"},
+      {key:"source_file",label:"Agent reference",render:function(r){return '<span class="cell-mono" title="'+esc(r.source_file)+'">'+esc(truncPath(r.source_file,3))+(r.line_number?':'+r.line_number:'')+'</span>'}},
+      {key:"tool_source_file",label:"Tool definition",render:function(r){return r.tool_source_file?'<span class="cell-mono" title="'+esc(r.tool_source_file)+'">'+esc(truncPath(r.tool_source_file,3))+(r.tool_line_number?':'+r.tool_line_number:'')+'</span>':'<span style="color:var(--color-muted)">Reference only</span>'}},
+      {key:"evidence",label:"Evidence"}
+    ];
+    new TableEngine("panel-relationships",columns,rows,50);
+  })();
 
   /* ---- Complete scanner inventory ---- */
   (function renderInventory(){
