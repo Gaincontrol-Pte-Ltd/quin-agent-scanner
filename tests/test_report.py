@@ -37,6 +37,15 @@ class TestToJson:
         assert data["framework"] == "LangChain"
         assert data["summary"] == "Test summary"
 
+    def test_inventory_and_coverage_are_serialized(self):
+        report = _minimal_report(
+            inventory=[{"scanner_name": "PromptDiscoveryScanner", "match_text": "all observations"}],
+            coverage={"files_discovered": 10, "files_indexed": 8},
+        )
+        data = json.loads(ReportGenerator.to_json(report))
+        assert data["inventory"][0]["match_text"] == "all observations"
+        assert data["coverage"] == {"files_discovered": 10, "files_indexed": 8}
+
 
 class TestToYaml:
     def test_valid_yaml_output(self):
@@ -53,6 +62,16 @@ class TestToHtml:
         html = ReportGenerator.to_html(report)
         assert "window.__REPORT_DATA__" in html
         assert "/tmp/test-repo" in html
+
+    def test_inventory_and_coverage_tabs_render(self):
+        report = _minimal_report(
+            inventory=[{"scanner_name": "TestScanner", "category": "prompt", "file_path": "agent.py", "match_text": "instruction", "confidence": 0.9}],
+            coverage={"files_discovered": 3, "files_indexed": 2, "files_excluded_vendor_or_generated": 1},
+        )
+        html = ReportGenerator.to_html(report)
+        assert 'label:"Inventory"' in html
+        assert 'label:"Coverage"' in html
+        assert '"files_discovered": 3' in html
 
     def test_xss_script_tag_escaped(self):
         """Ensure </script> in scan data cannot break out of the script tag."""

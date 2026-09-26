@@ -243,6 +243,8 @@ class ScanReport:
     vulnerabilities: list[Vulnerability] = field(default_factory=list)
     # Existing fields
     model_usages: list[ModelUsage] = field(default_factory=list)
+    inventory: list[dict[str, Any]] = field(default_factory=list)
+    coverage: dict[str, Any] = field(default_factory=dict)
     metadata: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -262,5 +264,7 @@ class ScanReport:
             "vulnerabilities": [v.to_dict() for v in self.vulnerabilities],
             "artifacts": [f.to_dict() for f in self.artifacts],
             "model_usages": [m.to_dict() for m in self.model_usages],
+            "inventory": self.inventory,
+            "coverage": self.coverage,
             "metadata": self.metadata,
         }

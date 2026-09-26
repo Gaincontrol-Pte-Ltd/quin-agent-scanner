@@ -72,6 +72,8 @@ export interface ScanReport {
   mcp_servers: MCPServer[];
   model_usages: ModelUsage[];
   vulnerabilities: Vulnerability[];
+  inventory?: Array<Record<string, unknown>>;
+  coverage?: Record<string, number>;
   metadata: Record<string, unknown>;
 }
 
