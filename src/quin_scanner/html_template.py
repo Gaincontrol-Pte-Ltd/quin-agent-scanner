@@ -697,8 +697,7 @@ window.__REPORT_DATA__ = {{REPORT_DATA_JSON}};
   ];
   var activeTab="artifacts";
 
-  /* ---- Agent to tool relationships ---- */
-  (function renderRelationships(){
+  function renderRelationships(){
     var panel=$("panel-relationships");
     var rows=D.agent_tool_relationships||[];
     if(!rows.length){panel.innerHTML='<div class="empty">No direct agent-to-tool references detected.</div>';return}
@@ -709,10 +708,10 @@ window.__REPORT_DATA__ = {{REPORT_DATA_JSON}};
       {key:"evidence",label:"Evidence"}
     ];
     new TableEngine("panel-relationships",columns,rows,50);
-  })();
+  }
 
   /* ---- Complete scanner inventory ---- */
-  (function renderInventory(){
+  function renderInventory(){
     var panel=$("panel-inventory");
     var inventory=D.inventory||[];
     if(!inventory.length){panel.innerHTML='<div class="empty">No scanner observations recorded.</div>';return}
@@ -723,10 +722,10 @@ window.__REPORT_DATA__ = {{REPORT_DATA_JSON}};
       {key:"capability_tag",label:"Capability"},{key:"confidence",label:"Confidence",render:function(r){return Math.round((r.confidence||0)*100)+"%"}}
     ];
     new TableEngine("panel-inventory",columns,inventory,50);
-  })();
+  }
 
   /* ---- Scan coverage ---- */
-  (function renderCoverage(){
+  function renderCoverage(){
     var panel=$("panel-coverage"), c=D.coverage||{};
     var rows=[
       ["Files discovered",c.files_discovered], ["Files indexed for scanning",c.files_indexed],
@@ -736,7 +735,7 @@ window.__REPORT_DATA__ = {{REPORT_DATA_JSON}};
       ["Scanners completed",c.scanners_completed], ["Scanners with findings",c.scanners_with_findings]
     ];
     panel.innerHTML='<div class="raw-block"><table><tbody>'+rows.map(function(r){return '<tr><th>'+esc(r[0])+'</th><td>'+esc(String(r[1]===undefined?0:r[1]))+'</td></tr>'}).join('')+'</tbody></table></div><p style="color:var(--color-muted);font-size:.8rem">Excluded files are vendor or generated paths omitted by the file index. Read counts are unique files; attempts can include repeat reads by different scanners.</p>';
-  })();
+  }
 
   function renderTabBar(){
     var bar=$("tab-bar");
@@ -865,6 +864,11 @@ window.__REPORT_DATA__ = {{REPORT_DATA_JSON}};
     if(prevBtn) prevBtn.addEventListener("click",function(){if(self.page>0){self.page--;self.render()}});
     if(nextBtn) nextBtn.addEventListener("click",function(){if(self.page<self.totalPages()-1){self.page++;self.render()}});
   };
+
+  /* Tab panels and the sortable table engine are ready; now render their data. */
+  renderRelationships();
+  renderInventory();
+  renderCoverage();
 
   /* ---- Findings Tab ---- */
   var artifactsFilter=null;   // set below; lets the governance banner jump to the Aegis filter

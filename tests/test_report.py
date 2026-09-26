@@ -73,6 +73,11 @@ class TestToHtml:
         assert 'label:"Coverage"' in html
         assert '"files_discovered": 3' in html
 
+    def test_report_panels_are_created_before_renderers_run(self):
+        html = ReportGenerator.to_html(_minimal_report())
+        assert html.index("createPanels();") < html.index("renderRelationships();")
+        assert html.index("TableEngine.prototype.render=function(){") < html.index("renderRelationships();")
+
     def test_xss_script_tag_escaped(self):
         """Ensure </script> in scan data cannot break out of the script tag."""
         report = _minimal_report(
