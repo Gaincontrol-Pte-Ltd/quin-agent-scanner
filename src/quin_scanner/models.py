@@ -99,6 +99,29 @@ class AgentProfile:
 
 
 @dataclass
+class AgentToolRelationship:
+    """A tool reference explicitly configured on a detected agent."""
+    agent_name: str
+    tool_name: str
+    source_file: str
+    line_number: int | None
+    tool_source_file: str = ""
+    tool_line_number: int | None = None
+    evidence: str = "explicit_tools_argument"
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "agent_name": self.agent_name,
+            "tool_name": self.tool_name,
+            "source_file": self.source_file,
+            "line_number": self.line_number,
+            "tool_source_file": self.tool_source_file,
+            "tool_line_number": self.tool_line_number,
+            "evidence": self.evidence,
+        }
+
+
+@dataclass
 class MCPServer:
     name: str
     transport: str = "unknown"           # "stdio" | "http" | "sse" | "unknown"
@@ -289,6 +312,7 @@ class ScanReport:
     vulnerabilities: list[Vulnerability] = field(default_factory=list)
     # Existing fields
     model_usages: list[ModelUsage] = field(default_factory=list)
+    agent_tool_relationships: list[AgentToolRelationship] = field(default_factory=list)
     inventory: list[dict[str, Any]] = field(default_factory=list)
     coverage: dict[str, Any] = field(default_factory=dict)
     llm_endpoints: list[EndpointUsage] = field(default_factory=list)
@@ -319,6 +343,7 @@ class ScanReport:
             "vulnerabilities": [v.to_dict() for v in self.vulnerabilities],
             "artifacts": [f.to_dict() for f in self.artifacts],
             "model_usages": [m.to_dict() for m in self.model_usages],
+            "agent_tool_relationships": [r.to_dict() for r in self.agent_tool_relationships],
             "inventory": self.inventory,
             "coverage": self.coverage,
             "llm_endpoints": [e.to_dict() for e in self.llm_endpoints],
