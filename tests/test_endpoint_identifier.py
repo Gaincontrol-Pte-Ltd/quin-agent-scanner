@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import json
 
+import pytest
+
 from quin_scanner.endpoint_identifier import EndpointIdentifier, classify_host, redact
 from quin_scanner.file_index import FileIndex
 from quin_scanner.repo_accessor import LocalRepoAccessor
@@ -116,3 +118,33 @@ class TestFalsePositives:
     def test_ollama_path_only_for_local_or_private(self, tmp_path):
         r = _find(tmp_path, {"a.py": 'a("https://shop.example.com/api/chat")\nb("http://10.0.0.2:11434/api/chat")\n'})
         assert [e.url for e in r] == ["http://10.0.0.2:11434/api/chat"]
+
+
+class TestKnownProviders:
+    """Hosts that a check of ten public AI-agent repositories found tagged `remote` although they are genuine inference providers
+    (gap 18.4/18.16); `remote` is for addresses the scanner does not recognise, which the overview asks a person to approve."""
+
+    @pytest.mark.parametrize("host", [
+        "api.moonshot.ai", "api.novita.ai", "api-inference.modelscope.cn", "dashscope.aliyuncs.com", "api.tokenfactory.nebius.com",
+        "api.minimax.io", "api.z.ai", "api.githubcopilot.com", "api.aimlapi.com", "api.atlascloud.ai", "api.avian.io", "api.forge.tensorblock.co",
+        "api.cerebras.ai", "api.sambanova.ai", "api.deepinfra.com", "integrate.api.nvidia.com", "open.bigmodel.cn", "models.github.ai",
+    ])
+    def test_real_providers_are_recognised(self, host):
+        assert classify_host(host) == "hosted_provider"
+
+    @pytest.mark.parametrize("host", ["API.MOONSHOT.AI", "eu.api.moonshot.ai", "acme.cognitiveservices.azure.com", "us-central1-aiplatform.googleapis.com",
+                                       "europe-west4-aiplatform.googleapis.com", "[api.z.ai]"])
+    def test_case_subdomains_regional_and_bracketed_forms(self, host):
+        assert classify_host(host) == "hosted_provider"
+
+    @pytest.mark.parametrize("host", [
+        "google.serper.dev", "my-provider.com", "llm.api.browser-use.com", "inference.example.com",    # not on the list: still `remote`
+        "api.moonshot.ai.evil.com", "fake-api.moonshot.ai", "notapi.z.ai", "api.z.ai.attacker.net", "moonshot.ai",   # look-alikes never match
+        "evil-aiplatform.googleapis.com.example.org", "aiplatform.googleapis.com.evil.io",
+    ])
+    def test_unlisted_and_lookalike_hosts_stay_remote(self, host):
+        assert classify_host(host) == "remote"
+
+    def test_the_original_kinds_are_unchanged(self):
+        assert [classify_host(h) for h in ("api.openai.com", "localhost", "192.168.1.5", "vllm", "{host}", None)] == [
+            "hosted_provider", "local", "private", "private", "unknown", "unknown"]
