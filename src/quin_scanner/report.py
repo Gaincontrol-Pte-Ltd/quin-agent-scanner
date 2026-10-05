@@ -36,6 +36,7 @@ class ReportGenerator:
         from quin_scanner.html_template import HTML_TEMPLATE
 
         data = report.to_dict()
+        data.pop("file_hashes", None)  # for matching agents to repositories, not for reading: keeps the page small
         # Display-only standardised type for the Artifacts tab (JSON/YAML/SARIF unchanged).
         from quin_scanner.artifact_types import annotate, type_order
 

@@ -27,6 +27,7 @@ from quin_scanner.models import (
 )
 from quin_scanner.vuln_checker import VulnChecker, parse_framework_ref
 from quin_scanner.repo_accessor import RepoAccessor
+from quin_scanner.file_fingerprint import compute_file_hashes
 from quin_scanner.scanners.aegis import AegisScanner, classify_governance
 from quin_scanner.scanners.base import BaseScanner
 from quin_scanner.scanners.ci_scanner import CIScanner
@@ -1326,6 +1327,7 @@ class ScanOrchestrator:
             coverage=coverage,
             llm_endpoints=llm_endpoints,
             metadata=metadata,
+            file_hashes=compute_file_hashes(tracked_accessor, file_index),
             governance=governance,
         )
 
