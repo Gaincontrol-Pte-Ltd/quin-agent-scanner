@@ -1300,7 +1300,9 @@ class ScanOrchestrator:
 
         governance = None
         if config.detect_aegis:
-            governance = classify_governance(is_ai, aegis_findings)
+            # A detected framework (langchain, crewai, ...) makes it an AI application for this purpose
+            # even when the overall AI confidence fell short: with no Aegis evidence it is ungoverned.
+            governance = classify_governance(is_ai or pp_framework != "unknown", aegis_findings)
             metadata["aegis_detection"] = "enabled"
 
         return ScanReport(

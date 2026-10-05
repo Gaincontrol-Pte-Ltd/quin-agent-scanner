@@ -20,6 +20,20 @@ _LANGUAGE_EXTENSIONS: dict[str, set[str]] = {
 _PYTHON_MANIFEST_GLOBS = ("**/requirements*.txt", "**/pyproject.toml")
 
 
+# Test and fixture files hold *examples* of Aegis code (the scanner's own tests, a sample in a test
+# suite), not the application's integration, so they are never evidence that it is governed.
+# Same patterns as the orchestrator's; not imported from there because it imports this module.
+_TEST_PATH_RE = re.compile(
+    r"(^|[\\/])(test_|tests[\\/]|test[\\/]|__tests__[\\/]|fixtures[\\/]"
+    r"|conftest\.py$)|\.spec\.|_test\.|\.test\.",
+    re.IGNORECASE,
+)
+
+
+def _is_test_path(path: str) -> bool:
+    return bool(_TEST_PATH_RE.search(path))
+
+
 def _norm(pkg: str) -> str:
     return pkg.strip().lower().replace("_", "-")
 
@@ -53,7 +67,7 @@ class AegisScanner(BaseScanner):
         findings.extend(self._scan_code(accessor, file_index))
         findings.extend(self._scan_file_markers(accessor, file_index))
         findings.extend(self._scan_config(accessor, file_index))
-        return findings
+        return [f for f in findings if not _is_test_path(f.file_path)]
 
     # --- helpers ---
 
