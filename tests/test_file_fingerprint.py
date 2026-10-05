@@ -4,7 +4,7 @@ from __future__ import annotations
 import hashlib
 
 from quin_scanner.config import ScannerConfig
-from quin_scanner.file_fingerprint import MAX_FILES, MIN_CHARS, compute_file_hashes, normalized_digest
+from quin_scanner.file_fingerprint import MAX_FILES, MIN_CHARS, compute_file_fingerprint, compute_file_hashes, normalized_digest
 from quin_scanner.file_index import FileIndex
 from quin_scanner.repo_accessor import LocalRepoAccessor
 
@@ -65,7 +65,7 @@ def test_hash_matches_between_crlf_and_lf_checkouts(tmp_path):
 def test_cap(tmp_path, monkeypatch):
     monkeypatch.setattr("quin_scanner.file_fingerprint.MAX_FILES", 3)
     out = _hashes(tmp_path, {f"m{i}.py": BODY + f"# {i}\n" for i in range(6)})
-    assert len(out) == 3 and MAX_FILES == 3000
+    assert len(out) == 3
 
 
 def test_unreadable_file_is_skipped(tmp_path):
@@ -83,3 +83,61 @@ def test_report_carries_hashes_in_json_but_not_in_html(tmp_path):
     r = ScanReport(repo_path="x", scan_timestamp="t", is_ai_application=False, confidence=0.0, file_hashes=[{"path": "a.py", "sha256": "ab" * 32}])
     assert r.to_dict()["file_hashes"] == [{"path": "a.py", "sha256": "ab" * 32}]
     assert "ab" * 32 not in ReportGenerator.to_html(r)
+
+
+def _fingerprint(tmp_path, files):
+    for rel, body in files.items():
+        p = tmp_path / rel
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(body, newline="")
+    accessor = LocalRepoAccessor(tmp_path)
+    index = FileIndex(accessor)
+    index.build()
+    return compute_file_fingerprint(accessor, index)
+
+
+def test_the_cap_is_large_enough_for_a_big_monorepo():
+    # a real monorepo had about 3200 qualifying files and was silently cut at 3000 (gap 19.11, found 2026-10-05)
+    assert MAX_FILES >= 10_000
+
+
+def test_stats_say_what_was_considered_and_what_was_hashed(tmp_path):
+    hashes, stats = _fingerprint(tmp_path, {
+        "a.py": BODY, "b.py": BODY + "# b\n", "tiny.py": "x = 1\n",      # tiny: considered, not hashed
+        "tests/test_a.py": BODY, "README.md": BODY,                      # test file and non-source: not even considered
+    })
+    assert len(hashes) == 2 and stats == {"candidates": 3, "hashed": 2, "truncated": False}
+
+
+def test_a_cut_list_says_so(tmp_path, monkeypatch):
+    monkeypatch.setattr("quin_scanner.file_fingerprint.MAX_FILES", 3)
+    hashes, stats = _fingerprint(tmp_path, {f"m{i}.py": BODY + f"# {i}\n" for i in range(6)})
+    assert len(hashes) == 3 and stats == {"candidates": 6, "hashed": 3, "truncated": True}
+
+
+def test_exactly_at_the_cap_with_nothing_after_it_is_not_a_cut(tmp_path, monkeypatch):
+    monkeypatch.setattr("quin_scanner.file_fingerprint.MAX_FILES", 3)
+    hashes, stats = _fingerprint(tmp_path, {f"m{i}.py": BODY + f"# {i}\n" for i in range(3)})
+    assert len(hashes) == 3 and stats["truncated"] is False
+
+
+def test_the_files_that_were_kept_are_the_first_in_path_order(tmp_path, monkeypatch):
+    monkeypatch.setattr("quin_scanner.file_fingerprint.MAX_FILES", 2)
+    hashes, _ = _fingerprint(tmp_path, {"b/z.py": BODY + "# 1\n", "a/y.py": BODY + "# 2\n", "c/x.py": BODY + "# 3\n"})
+    assert [h["path"] for h in hashes] == ["a/y.py", "b/z.py"]
+
+
+def test_the_stats_reach_the_report(tmp_path):
+    import json
+
+    from click.testing import CliRunner
+
+    from quin_scanner.cli import cli
+
+    (tmp_path / "agent.py").write_text(BODY)
+    out = tmp_path / "report.json"
+    res = CliRunner().invoke(cli, ["scan", str(tmp_path), "--no-llm", "--no-vuln-check", "-o", "json", "-f", str(out)])
+    assert res.exit_code == 0, res.output
+    report = json.loads(out.read_text())
+    assert report["metadata"]["file_hash_stats"] == {"candidates": 1, "hashed": 1, "truncated": False}
+    assert [h["path"] for h in report["file_hashes"]] == ["agent.py"]

@@ -27,7 +27,7 @@ from quin_scanner.models import (
 )
 from quin_scanner.vuln_checker import VulnChecker, parse_framework_ref
 from quin_scanner.repo_accessor import RepoAccessor
-from quin_scanner.file_fingerprint import compute_file_hashes
+from quin_scanner.file_fingerprint import compute_file_fingerprint
 from quin_scanner.scanners.aegis import AegisScanner, classify_governance
 from quin_scanner.scanners.base import BaseScanner
 from quin_scanner.scanners.ci_scanner import CIScanner
@@ -1299,6 +1299,10 @@ class ScanOrchestrator:
         if cap is not None and cap > 0 and len(pp_risk_signals) > cap:
             pp_risk_signals = pp_risk_signals[:cap]
 
+        # Content hashes to match a running agent to this repository. The stats go in the metadata so a cut-off list is visible.
+        file_hashes, file_hash_stats = compute_file_fingerprint(tracked_accessor, file_index)
+        metadata["file_hash_stats"] = file_hash_stats
+
         governance = None
         if config.detect_aegis:
             # A detected framework (langchain, crewai, ...) makes it an AI application for this purpose
@@ -1327,7 +1331,7 @@ class ScanOrchestrator:
             coverage=coverage,
             llm_endpoints=llm_endpoints,
             metadata=metadata,
-            file_hashes=compute_file_hashes(tracked_accessor, file_index),
+            file_hashes=file_hashes,
             governance=governance,
         )
 

@@ -22,7 +22,9 @@ from quin_scanner.file_index import FileIndex
 from quin_scanner.repo_accessor import RepoAccessor
 
 MIN_CHARS = 100
-MAX_FILES = 3000
+# 20000 files is about 3 MB of report and a few seconds; a large monorepo (about 3200 qualifying files) was cut by the earlier 3000
+# and silently lost everything after the cut. If even this is exceeded the report says so (file_hash_stats.truncated).
+MAX_FILES = 20000
 # The SDK is Python today; the other extensions are hashed so a JavaScript or TypeScript SDK can match later.
 FINGERPRINT_EXTENSIONS = (".py", ".js", ".mjs", ".cjs", ".ts", ".tsx", ".jsx")
 
@@ -40,18 +42,30 @@ def normalized_digest(text: str) -> str | None:
     return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
 
 
-def compute_file_hashes(accessor: RepoAccessor, file_index: FileIndex) -> list[dict[str, str]]:
-    """``[{"path", "sha256"}]`` for the repository's source files, test files excluded (an agent does not load them)."""
+def compute_file_fingerprint(accessor: RepoAccessor, file_index: FileIndex) -> tuple[list[dict[str, str]], dict[str, int | bool]]:
+    """``(hashes, stats)``: ``hashes`` is ``[{"path", "sha256"}]`` for the repository's source files, test files excluded (an agent does
+    not load them). ``stats`` says what was and was not covered: ``candidates`` source files considered, ``hashed`` of them, and
+    ``truncated`` when MAX_FILES stopped the list before the end (files after the cut, in path order, are then missing, so an agent
+    whose files live there cannot match). Files too small to hash are in ``candidates`` but not ``hashed``."""
+    candidates = [
+        path for path in sorted(file_index.all_files())
+        if Path(path).suffix in FINGERPRINT_EXTENSIONS and not _TEST_PATH.search(path)
+    ]
     out: list[dict[str, str]] = []
-    for path in sorted(file_index.all_files()):
-        if Path(path).suffix not in FINGERPRINT_EXTENSIONS or _TEST_PATH.search(path):
-            continue
+    truncated = False
+    for position, path in enumerate(candidates):
+        if len(out) >= MAX_FILES:
+            truncated = True
+            break
         try:
             digest = normalized_digest(accessor.read_file(path))
         except Exception:
             continue
         if digest:
             out.append({"path": path, "sha256": digest})
-        if len(out) >= MAX_FILES:
-            break
-    return out
+    return out, {"candidates": len(candidates), "hashed": len(out), "truncated": truncated}
+
+
+def compute_file_hashes(accessor: RepoAccessor, file_index: FileIndex) -> list[dict[str, str]]:
+    """Just the hashes of :func:`compute_file_fingerprint`."""
+    return compute_file_fingerprint(accessor, file_index)[0]
