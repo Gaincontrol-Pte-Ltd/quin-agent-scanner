@@ -157,6 +157,7 @@ def cli() -> None:
       quin-scanner scan https://dev.azure.com/org/project/_git/repo --azure-token $AZURE_DEVOPS_TOKEN
       quin-scanner scan-batch targets.txt -d reports/
       quin-scanner scan-org my-org --skip-archived --skip-forks
+      quin-scanner skills scan ./my-skill.zip
 
     \b
     Environment variables:
