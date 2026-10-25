@@ -161,6 +161,13 @@ def is_quoted_mention(text: str, start: int) -> bool:
     prefix = _before_open_quote(text[line_start:start])
     if prefix is None:
         return False
+    # A sentence wrapped across lines keeps its cue on the previous line, so include that
+    # line (within the same paragraph) before looking for the cue.
+    if line_start > 1:
+        prev_start = text.rfind("\n", 0, line_start - 1) + 1
+        previous = text[prev_start:line_start - 1]
+        if previous.strip():
+            prefix = f"{previous} {prefix}"
     sentence = _after_last(_MENTION_SENTENCE_END, prefix)[-160:]
     return bool(_MENTION_CUE.search(sentence)) and not _MENTION_VETO.search(sentence)
 

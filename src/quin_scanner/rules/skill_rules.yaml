@@ -54,7 +54,7 @@ rules:
     applies_to: [markdown, text]
     skip_in_fence: true
     # "do not tell the user to run X" / "...they need to" asks the agent to act, not to hide
-    pattern: '(?i)\b(do not|don.?t|never)\b[^.\n]{0,20}\b(tell|inform|notify|alert)\b[^.\n]{0,12}\b(the )?user\b(?!\s+(?:to|they)\b)'
+    pattern: '(?i)\b(do not|don.?t|never)\b[^.\n:;]{0,20}\b(tell|inform|notify|alert)\b[^.\n:;]{0,12}\b(the )?user\b(?!\s+(?:to|they)\b)'
 
   - id: SK-PI-005
     title: Invisible or bidirectional Unicode characters

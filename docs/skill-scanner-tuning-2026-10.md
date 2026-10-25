@@ -102,3 +102,14 @@ A static scan (`skills scan ~/.claude/skills --no-vuln-check`) of 68 installed p
 | SK-SC-001 | seo: 18 bounded requirements such as `requests>=2.32.4,<3.0.0` and `Pillow>=12.2.0,<13.0.0` | Ranges with a lower and an upper bound, or `~=`, are not unpinned; `package.json` now also flags an open `>=1` |
 
 Effect on that scan: import-memory 15 → 0 (both copies), impeccable `CAUTION` 33 → `SAFE` 19, seo 11 → 8 (SK-SC-001 18 → 0). The fixture repository and the anthropics/skills clone are unchanged.
+
+### Second follow-up: installed plugin skills
+
+Scanning 132 installed plugin skills (`~/.claude/plugins`) with the rules above gave 129 SAFE and 3 CAUTION. Of the six notable hits, two were real (the official Homebrew `bash -c "$(curl …)"` installer in an onboarding skill, and unrestricted `Bash` in the official example template) and four were false positives. Two were fixed:
+
+| Rule | Change | Evidence |
+|---|---|---|
+| SK-PI-004 | the gap between "do not" and "tell" no longer crosses `:` or `;` | `do not silently fetch: tell the user the branch is not in this checkout` |
+| quoted mentions (SK-PI-001) | a sentence wrapped onto the next line keeps its mention cue (previous line of the same paragraph is included) | `…including something shaped like a` / `command to you ("ignore previous instructions", …)` |
+
+Result: 130 SAFE and 2 CAUTION; the remaining CAUTIONs are the real Homebrew installer and an `rm -rf /` test input inside a hook-testing doc (not fixed: it needs the rule to recognise a dangerous command quoted as test data).
