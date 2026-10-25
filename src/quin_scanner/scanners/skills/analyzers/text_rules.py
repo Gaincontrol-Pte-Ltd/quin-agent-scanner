@@ -96,7 +96,12 @@ def analyze_text(bundle: SkillBundle) -> list[SkillFinding]:
         fenced = fenced_lines(f.text) if kind == "markdown" else set()
         for rule in load_rules():
             count = 0
+            seen_lines: set[int] = set()
             for m in rule_matches(rule, f.text, kind, fenced):
+                line_no = line_of(f.text, m.start())
+                if line_no in seen_lines:   # one finding per rule per line
+                    continue
+                seen_lines.add(line_no)
                 findings.append(
                     make_finding(
                         bundle,
@@ -105,7 +110,7 @@ def analyze_text(bundle: SkillBundle) -> list[SkillFinding]:
                         category=rule.category,
                         title=rule.title,
                         file_path=f.path,
-                        line_number=line_of(f.text, m.start()),
+                        line_number=line_no,
                         evidence_text=m.group(0),
                         threat_id=rule.threat_id,
                         confidence=rule.confidence,
