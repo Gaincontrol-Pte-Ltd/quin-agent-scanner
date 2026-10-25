@@ -11,7 +11,7 @@ Point Quin at a repo and get back: every AI agent, what it does, what tools it h
 
 Learn more at [gaincontrol.ai/quin](https://gaincontrol.ai/quin).
 
-> **Note:** This is version **0.1.0b2** -- an early public release under active development. Scan results are provided **as-is** and may be incomplete, inaccurate, or contain false positives/negatives. **Always review and validate findings independently before making security, compliance, or architectural decisions based on them.** The authors and contributors of Quin accept no responsibility or liability for any actions taken, or not taken, based on the output of this tool. If you encounter any issues, please [open an issue](https://github.com/Gaincontrol-Pte-Ltd/quin-agent-scanner/issues) or email us at [pixiedust@gaincontrol.ai](mailto:pixiedust@gaincontrol.ai) -- your feedback helps us improve the scanner.
+> **Note:** This is version **0.1.0b4** -- an early public release under active development. Scan results are provided **as-is** and may be incomplete, inaccurate, or contain false positives/negatives. **Always review and validate findings independently before making security, compliance, or architectural decisions based on them.** The authors and contributors of Quin accept no responsibility or liability for any actions taken, or not taken, based on the output of this tool. If you encounter any issues, please [open an issue](https://github.com/Gaincontrol-Pte-Ltd/quin-agent-scanner/issues) or email us at [pixiedust@gaincontrol.ai](mailto:pixiedust@gaincontrol.ai) -- your feedback helps us improve the scanner.
 
 ---
 
@@ -47,7 +47,7 @@ Quin maps the AI and agent components present in a repository, preserves the evi
 | **Scan coverage** | Files discovered, indexed, excluded as vendor/generated, read successfully or unsuccessfully, and scanners enabled, completed, or returning findings. |
 | **Risk and vulnerability analysis** | Optional two-pass LLM system classification and agent synthesis, taxonomy-grounded risk signals with evidence references, and OSV.dev checks for detected framework versions. Optional web search can supplement vulnerability lookup. |
 | **Aegis governance detection** | Optional detection of Aegis SDK usage, including whether it is actively used, declared only, or absent from an AI application. Enable with `--detect-aegis`. |
-| **Reports and CI** | HTML, JSON, YAML, and SARIF reports. The HTML report includes inventory, coverage, relationships, agents, models, tools/MCP, infrastructure, artifacts, and raw data. The GitHub Action can publish SARIF findings as code-scanning annotations. |
+| **Reports and CI** | HTML, JSON, YAML, and SARIF reports. The HTML report includes inventory, coverage, relationships, agents, models, tools/MCP (with per-skill risk cards), infrastructure, artifacts, and raw data. The GitHub Action can publish SARIF findings, including high and critical skill findings, as code-scanning annotations. |
 | **Static-only operation** | Use `--no-llm` to run repository discovery without an LLM provider or API key. Use `--no-vuln-check` to skip external vulnerability lookups. |
 
 Quin’s detections are evidence for review, not proof that an application is safe or unsafe. Relationship mapping is currently based on explicit source-code tool lists; config-only agent/tool relationships may not be linked.
@@ -202,6 +202,34 @@ quin-scanner scan . --skills-baseline skills-baseline.yaml
 
 The baseline file lists one fingerprint per finding with its rule, skill and file (no evidence, no line numbers), plus an empty `note` you can fill in. Scan the same target root you baselined, since file paths are part of the fingerprint. See [docs/skill-rules.md](docs/skill-rules.md#baselines).
 
+## CLI Reference
+
+| Command | What it does |
+|---|---|
+| `quin-scanner scan <target>` | Scan one repository: a local path, a GitHub URL or `owner/repo`, or an Azure DevOps URL. Writes an HTML, JSON, YAML or SARIF report. |
+| `quin-scanner scan-batch <file>` | Scan every target listed in a file (one per line; `#` starts a comment). |
+| `quin-scanner scan-org <org>` | Scan every repository of a GitHub organization or user (`--skip-archived`, `--skip-forks`). |
+| `quin-scanner skills scan <target>` | Check Agent Skills on their own, for example before installing one. Target is a skill folder, a `.zip`, or a repo URL. Static by default. |
+| `quin-scanner skills baseline <target> -o FILE` | Accept the current skill findings so later scans report only new ones. |
+
+Common `scan` options:
+
+| Option | Meaning |
+|---|---|
+| `-o json\|yaml\|html\|sarif`, `-f FILE`, `-d DIR` | Output format, file, or output directory. |
+| `--no-llm` | Static analysis only; no LLM provider or API key. |
+| `--llm-provider`, `--llm-model`, `--llm-api-key`, `--openai-compatible-url`, `-c/--config` | Choose and configure the LLM provider. |
+| `--no-vuln-check`, `--vuln-search-provider` | Skip or configure vulnerability lookups. |
+| `--detect-aegis` | Classify whether the code uses the Aegis SDK. |
+| `--skills-baseline FILE` | Suppress skill findings accepted in a baseline file. |
+| `--min-confidence`, `--branch`, `--github-token`, `--azure-token` | Filter artifacts, pick a branch, or authenticate. |
+
+`quin-scanner skills scan` options: `-o terminal|json|sarif`, `-f FILE`, `--fail-on caution|high_risk`, `--baseline FILE`, `--no-vuln-check`, the LLM options above, `--branch`, and the token options. Exit codes: `0` when no skill reaches `--fail-on` (default `high_risk`), `1` when at least one does, `2` on an error.
+
+Run `quin-scanner --help` or `quin-scanner <command> --help` for the full list.
+
+---
+
 ## GitHub Action
 
 Add Quin to your CI to scan every push and surface findings as PR annotations via GitHub code scanning:
@@ -245,6 +273,8 @@ By default this runs in `--no-llm` mode — static findings plus CVE vulnerabili
 | `min-confidence` | `'0.0'` | Exclude artifacts below this confidence threshold (0.0–1.0). |
 
 The workflow's `permissions: security-events: write` is required for the SARIF upload step to succeed — GitHub Actions doesn't grant it by default.
+
+The skills scanner runs as part of this scan, so high and critical findings in Agent Skills, MCP tool definitions and instruction files show up as code-scanning alerts with file and line. To gate a pull request on skills alone, or to check a skill before it is added, run `quin-scanner skills scan` in a workflow step; see [CI examples](docs/skills-scanning.md#in-ci).
 
 ---
 
@@ -336,7 +366,7 @@ Sample HTML reports for several supported frameworks live in [`examples/reports/
 ### Prerequisites
 
 - **Python 3.11+** -- [download](https://www.python.org/downloads/)
-- **An LLM API key** -- OpenAI, Anthropic, Google, or a local Ollama model
+- **An LLM API key** _(optional)_ -- OpenAI, Anthropic, Google, or a local Ollama model. Not needed with `--no-llm`, and not needed for `quin-scanner skills scan`, which is static unless you pass an LLM option
 - **git** -- for scanning GitHub repos
 - **GitHub token** _(optional)_ -- for private repos or org scanning
 
@@ -378,7 +408,7 @@ Quin runs 14 configurable static scanner plugins in parallel. They share a bound
 Repo  -->  14 Scanners (parallel)  -->  Inventory + Coverage  -->  Vulnerability Lookup  -->  Optional LLM Analysis  -->  Report
 ```
 
-1. **Static discovery** detects dependencies, code patterns, configuration, prompts, frameworks, named agents and tools, MCP servers, Dockerfiles, notebooks, CI pipelines, and infrastructure-as-code. An additional Python/JavaScript/TypeScript pass links explicit agent tool references and preserves the source locations.
+1. **Static discovery** detects dependencies, code patterns, configuration, prompts, frameworks, named agents and tools, MCP servers, Dockerfiles, notebooks, CI pipelines, and infrastructure-as-code. An additional Python/JavaScript/TypeScript pass links explicit agent tool references and preserves the source locations. The `skills` scanner finds Agent Skills, MCP tool definitions and agent instruction files, scores each one (SAFE / CAUTION / HIGH_RISK), and its high and critical findings join the risk signals; see the [skills scanning guide](docs/skills-scanning.md).
 2. **Vulnerability lookup** -- once the agentic framework and its base version are identified (e.g. `CrewAI 0.80.0`), the scanner queries OSV.dev and optionally an LLM with web search for recent advisories. Critical/high findings are promoted into risk signals
 3. **Pass 1 (Classification, when LLM analysis is enabled)** -- an LLM classifies the system type (`standard_ai`, `agentic_ai`, `mcp_enabled`, `multi_agent`) and identifies relevant threats from a taxonomy sourced from OWASP LLM Top 10, OWASP Agentic Top 10, OWASP MCP Top 10, MAESTRO, and Databricks DASF
 4. **Pass 2 (Synthesis, when LLM analysis is enabled)** -- a second LLM call profiles agents, adds taxonomy-grounded risk indicators, maps tool usages to service categories, and generates a narrative summary. Static findings, the complete inventory, and coverage metrics remain available without these LLM passes.
@@ -409,6 +439,20 @@ The skills scanner also checks dependencies pinned inside skills: `requirements*
 | `none` | -- | disables web search (OSV still runs) |
 
 Precedence: `--vuln-search-provider` CLI flag > `VULN_SEARCH_PROVIDER` env var > `vuln_check.search_provider` in YAML.
+
+---
+
+## Documentation
+
+| Document | What it covers |
+|---|---|
+| [Skills scanning guide](docs/skills-scanning.md) | Scan skills, MCP tool definitions and instruction files; verdicts, baselines, CI examples, LLM review, limits |
+| [Skill rules](docs/skill-rules.md) | Every skill rule: severity, threat mapping, and what it flags |
+| [Skill scanner tuning notes](docs/skill-scanner-tuning-2026-10.md) | How the rules were tuned against public skill repositories |
+| [Risk framework](docs/risk-framework.md) | The threat and control taxonomy that findings map to |
+| [OWASP and DASF references](docs/) | LLM, Agentic, MCP and MAESTRO Top 10 references and the Databricks AI Security Framework |
+| [Example reports](examples/README.md) | Sample HTML reports for supported agent frameworks |
+| [Changelog](CHANGELOG.md) | What changed in each release |
 
 ---
 
