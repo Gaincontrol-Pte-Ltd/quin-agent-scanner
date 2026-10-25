@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from quin_scanner.file_index import FileIndex
-from quin_scanner.models import ScanFinding, SkillAssessment, SkillFinding, SkillRecord, Vulnerability
+from quin_scanner.models import ScanFinding, SkillAssessment, SkillFinding, Vulnerability
 from quin_scanner.repo_accessor import RepoAccessor
 from quin_scanner.scanners.base import BaseScanner
 from quin_scanner.scanners.skills.analyzers.code_ast import analyze_python
