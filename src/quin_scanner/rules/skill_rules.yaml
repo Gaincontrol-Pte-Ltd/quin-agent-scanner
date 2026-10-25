@@ -57,7 +57,7 @@ rules:
     threat_id: T001
     confidence: 0.7
     applies_to: [any]
-    pattern: '[​‌⁠‪-‮⁦-⁩]'
+    pattern: '[\u200b\u2060\u202a-\u202e\u2066-\u2069]'
 
   - id: SK-PI-006
     title: Unicode tag characters (hidden text)
