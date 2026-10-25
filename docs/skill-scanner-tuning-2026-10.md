@@ -84,7 +84,7 @@ True positives the tests keep firing: `curl … | sh` outside negation (includin
 
 ## Findings worth a human look
 
-No malicious content was found. Patterns worth a review before installing, described neutrally:
+The static scan flagged nothing that looked clearly malicious, but a static scan cannot prove a skill is safe. Patterns worth a review before installing, described neutrally:
 
 - Several deployment and integration skills tell the agent to install CLIs with `curl … | bash` or `| sh` (gsd-browser, cloudflare-deploy, render-deploy, sentry, Azure deploy/prepare, Teams app developer). One also runs such an installer inside a sandbox from code.
 - A Teams app developer reference pipes a script from a raw GitHub branch (`…/dev/.github/scripts/…`) into `bash`; the branch can change after review.
