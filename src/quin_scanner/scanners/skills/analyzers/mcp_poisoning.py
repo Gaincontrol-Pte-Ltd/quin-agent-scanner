@@ -18,7 +18,8 @@ _MCP_INJECTION = re.compile(
     r"|\botherwise the tool (?:will )?(?:not work|fail|break)"
 )
 _CREDENTIAL = re.compile(
-    r"(?i)(\.ssh/|\.aws/|\.gnupg/|\.netrc\b|\bid_rsa\b|\bid_ed25519\b|\.git-credentials|credentials?\b)"
+    r"(?i)(\.ssh/|\.aws/|\.gnupg/|\.netrc\b|\bid_rsa\b|\bid_ed25519\b|\.git-credentials"
+    r"|\b(?:read|send|include|pass|attach|upload|exfiltrate|copy)\b[^.\n]{0,40}\bcredentials?\b)"
 )
 _TOOL_DECORATORS = {"tool", "resource", "prompt"}
 _TOOL_CALLS = {"Tool", "tool", "add_tool", "registerTool", "register_tool", "Field"}
