@@ -15,7 +15,7 @@ from quin_scanner.scanners.skills.bundle import SkillBundle, file_kind
 _RULES_PATH = Path(__file__).parents[3] / "rules" / "skill_rules.yaml"
 _MAX_PER_RULE_PER_FILE = 5
 _NEGATION = re.compile(
-    r"(?i)\b(never|do not|don.?t|must not|should not|shouldn.?t|avoid|warn(?:s|ing)?"
+    r"(?i)\b(never(?!\s+mind)|do not|don.?t|must not|should not|shouldn.?t|avoid|warn(?:s|ing)?"
     r"|prevent|detect|block|refuse)\b"
 )
 
@@ -32,6 +32,7 @@ class TextRule:
     applies_to: frozenset[str]
     skip_in_fence: bool
     negatable: bool
+    skip_comment_lines: bool = False
 
 
 @lru_cache(maxsize=1)
@@ -49,6 +50,7 @@ def load_rules() -> tuple[TextRule, ...]:
             applies_to=frozenset(r["applies_to"]),
             skip_in_fence=bool(r.get("skip_in_fence", False)),
             negatable=bool(r.get("negatable", False)),
+            skip_comment_lines=bool(r.get("skip_comment_lines", False)),
         )
         for r in data["rules"]
     )
@@ -75,7 +77,7 @@ def fenced_lines(text: str) -> set[int]:
     return out
 
 
-_CLAUSE_END = re.compile(r"[.;!?]")
+_CLAUSE_END = re.compile(r"[.;!?:]")
 
 
 def is_negated(text: str, start: int) -> bool:
@@ -88,6 +90,14 @@ def is_negated(text: str, start: int) -> bool:
     return bool(_NEGATION.search(before[-60:]))
 
 
+def _is_comment_line(text: str, pos: int) -> bool:
+    """True when the whole line containing *pos* is a code comment (#, //, /*, *)."""
+    start = text.rfind("\n", 0, pos) + 1
+    end = text.find("\n", pos)
+    line = text[start: end if end != -1 else len(text)].lstrip()
+    return line.startswith(("#", "//", "/*", "*")) and not line.startswith("#!")
+
+
 def rule_matches(
     rule: TextRule, text: str, kind: str, fenced: set[int]
 ) -> Iterator[re.Match[str]]:
@@ -97,6 +107,8 @@ def rule_matches(
         if rule.skip_in_fence and kind == "markdown" and line_of(text, m.start()) in fenced:
             continue
         if rule.negatable and is_negated(text, m.start()):
+            continue
+        if rule.skip_comment_lines and _is_comment_line(text, m.start()):
             continue
         yield m
 

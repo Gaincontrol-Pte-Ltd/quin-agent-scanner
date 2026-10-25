@@ -5,6 +5,7 @@
 #                (prose rules: fenced blocks are usually quoted examples)
 # negatable:    ignore a match when the same line, before the match, contains a
 #               negation such as "never" / "do not" / "avoid"
+# skip_comment_lines: ignore matches on lines that are entirely a code comment
 # threat_id:    taxonomy threat in risk_taxonomy.yaml
 
 rules:
@@ -129,7 +130,8 @@ rules:
     threat_id: T002
     confidence: 0.7
     applies_to: [any]
-    pattern: '(?i)(\.ssh/|\.aws/|\.gnupg/|\.kube/config|\.netrc\b|\bid_rsa\b|\bid_ed25519\b|\.git-credentials|Library/Keychains|Login Data\b|cookies\.sqlite)'
+    skip_comment_lines: true
+    pattern: '(?i)((?<![A-Za-z0-9-])\.(?:ssh|aws|gnupg)/|\.kube/config|\.netrc\b|\bid_rsa\b|\bid_ed25519\b|\.git-credentials|Library/Keychains|Login Data\b|cookies\.sqlite)'
 
   - id: SK-EX-002
     title: Uploads data with curl/wget
@@ -157,6 +159,7 @@ rules:
     threat_id: T005
     confidence: 0.9
     applies_to: [any]
+    negatable: true
     pattern: '(?i)\b(curl|wget)\b[^\n|]{0,200}\|\s*(sudo\s+)?(?:(ba|z|da|k)?sh|python[0-9.]*(?!\s+-m\s+json\.tool)|node|perl|ruby)\b|\b(ba|z|da|k)?sh\s+(?:-c\s+["'']?(?:\$\(|`)\s*|<\(\s*)(curl|wget)\b'
 
   - id: SK-EXEC-002
@@ -166,6 +169,7 @@ rules:
     threat_id: T005
     confidence: 0.8
     applies_to: [any]
+    negatable: true
     pattern: '\brm\s+-(?:rf|fr|r\s+-f|f\s+-r)\s+(?:["'']?(?:\$HOME|\$\{HOME\}|~)(?:/[^\s"'']*)?["'']?|/\*?|\*)(?=\s|$|["'';&|])'
 
   - id: SK-EXEC-003
