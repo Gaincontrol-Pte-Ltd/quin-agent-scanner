@@ -99,3 +99,26 @@ def test_osv_unknown_severity_becomes_medium():
     [f] = [f for f in _scan({"requirements.txt": "a-lib==1.0\n"}, osv_lookup=lookup)
            if f.rule_id == "SK-SC-006"]
     assert f.severity == "medium"
+
+
+# ── Regressions from the 2026-10 public skill-repo tuning run ───────────────
+
+
+def test_pip_install_args_stop_at_the_end_of_the_command_in_prose():
+    md = ("Install them with its own package manager (e.g. npm install, pip install -r "
+          "requirements.txt) unless told not to. Only if no real check can run here, say so.\n")
+    assert _scan({"SKILL.md": md}) == []
+    md2 = "Run pip install pypdf, then open the file. Use pip install rich. Done.\n"
+    assert sorted(f.evidence for f in _scan({"SKILL.md": md2})) == [
+        "pip install pypdf", "pip install rich"]
+
+
+def test_unpinned_install_reported_once_per_package_per_file():
+    md = "".join(f"Step {i}: `npx wrangler deploy`\n" for i in range(30))
+    md += "`pip install azure-identity`\n`pip install azure-identity`\n"
+    findings = _scan({"SKILL.md": md, "other.md": "`npx wrangler dev`\n"})
+    assert sorted((f.file_path, f.evidence) for f in findings) == [
+        ("SKILL.md", "npx wrangler"), ("SKILL.md", "pip install azure-identity"),
+        ("other.md", "npx wrangler")]
+    assert next(f for f in findings if f.evidence == "npx wrangler"
+                and f.file_path == "SKILL.md").line_number == 1
