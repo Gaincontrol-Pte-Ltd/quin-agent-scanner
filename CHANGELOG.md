@@ -11,6 +11,13 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+#### Skills Security Scanner
+- New `skills` scanner (on by default): discovers Agent Skills (`SKILL.md` packages, including `.claude/skills`, `.codex/skills`, `.opencode/skill(s)`) and MCP tool definitions, and assesses each for prompt injection, hidden Unicode/HTML-comment instructions, credential access and exfiltration, dangerous code (Python AST and taint tracking), supply-chain risk (unpinned/typosquatted dependencies, optional OSV lookup), excessive `allowed-tools`, description/capability mismatch, and MCP tool-description poisoning. Rules are listed in `docs/skill-rules.md`.
+- Report gains a `skills` array: per skill a record, findings (rule, severity, `file:line`, redacted evidence, taxonomy threat) and a deterministic 0–100 risk score with a SAFE / CAUTION / HIGH_RISK verdict. The HTML report shows per-skill risk cards; the CLI prints a verdict summary to stderr.
+- High and critical findings are promoted into `risk_signals`, so they appear in SARIF output with file and line locations.
+- Optional LLM review (skipped with `--no-llm`) confirms or disputes findings and explains them; disputed findings count at half weight and are not promoted. It sends only flagged evidence snippets and fails soft.
+- Skill artifacts use confidence 0.45, so a repository containing only skills is not by itself classified as an AI application.
+
 #### LLM Inference Endpoint Detection
 - New `llm_endpoints` list in the report (all scans): the address of each LLM inference endpoint found in code (`base_url=`, `api_base=`, `azure_endpoint=`, hosted-provider URLs, `/chat/completions`-style paths), config files (YAML/JSON/TOML keys in LLM-related blocks) and `.env` files. Each entry has a `kind` (`hosted_provider`, `local`, `private`, `remote`, `unresolved`), the setting it came from, and file/line. Addresses built from config (e.g. `f"{cfg['url']}/v1"`) are resolved to the config value where possible.
 - Credentials are always omitted: URL userinfo (`user:pass@`) and secret-like query parameters (`api_key`, `token`, `password`, ...) are redacted before anything is stored.
