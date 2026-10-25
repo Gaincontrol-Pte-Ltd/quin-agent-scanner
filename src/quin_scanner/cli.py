@@ -8,6 +8,7 @@ import click
 from dotenv import find_dotenv, load_dotenv
 
 from quin_scanner.config import ScannerConfig
+from quin_scanner.models import ScanReport
 from quin_scanner.orchestrator import ScanOrchestrator
 from quin_scanner.repo_accessor import RepoAccessorFactory
 from quin_scanner.report import ReportGenerator
@@ -84,6 +85,49 @@ def skill_summary_lines(report) -> list[str]:
     for a in mcp:
         lines.append(f"MCP tool definitions: {a.verdict} {a.risk_score}")
     return lines
+
+
+def _build_config(
+    *,
+    config: str | None,
+    llm_provider: str | None,
+    llm_model: str | None,
+    llm_api_key: str | None,
+    output_format: str | None,
+    no_llm: bool,
+    github_token: str | None,
+    openai_compatible_url: str | None,
+) -> ScannerConfig:
+    """ScannerConfig from a config file (with CLI overrides) or from CLI options alone."""
+    if config:
+        cfg = ScannerConfig.load_from_file(config)
+        if no_llm:
+            cfg.no_llm = True
+        if github_token:
+            cfg.github_token = github_token
+        if openai_compatible_url:
+            cfg.openai_compatible_url = openai_compatible_url
+        return cfg
+    return ScannerConfig.load_from_args(
+        llm_provider=llm_provider,
+        llm_model=llm_model,
+        llm_api_key=llm_api_key,
+        output_format=output_format,
+        no_llm=no_llm,
+        github_token=github_token,
+        openai_compatible_url=openai_compatible_url,
+    )
+
+
+def _warn_if_no_llm_key(cfg: ScannerConfig) -> None:
+    """Early check: warn if LLM analysis is enabled but no API key is available."""
+    if not cfg.no_llm and not cfg.llm_api_key and cfg.llm_provider != "ollama" and not cfg.openai_compatible_url:
+        click.echo(
+            f"Warning: No API key found for provider '{cfg.llm_provider}'. "
+            "LLM analysis will likely fail.\n"
+            "  Hint: set the appropriate env var in .env, or run with --no-llm for static-only scanning.",
+            err=True,
+        )
 
 
 _OUTPUT_CHOICES = click.Choice(["json", "yaml", "html", "sarif"])
@@ -186,25 +230,11 @@ def scan(
       quin-scanner scan ./my-agent --detect-aegis --no-llm
       quin-scanner scan owner/repo --llm-provider anthropic --llm-model claude-sonnet-4-20250514
     """
-    # Build config
-    if config:
-        cfg = ScannerConfig.load_from_file(config)
-        if no_llm:
-            cfg.no_llm = True
-        if github_token:
-            cfg.github_token = github_token
-        if openai_compatible_url:
-            cfg.openai_compatible_url = openai_compatible_url
-    else:
-        cfg = ScannerConfig.load_from_args(
-            llm_provider=llm_provider,
-            llm_model=llm_model,
-            llm_api_key=llm_api_key,
-            output_format=output,
-            no_llm=no_llm,
-            github_token=github_token,
-            openai_compatible_url=openai_compatible_url,
-        )
+    cfg = _build_config(
+        config=config, llm_provider=llm_provider, llm_model=llm_model, llm_api_key=llm_api_key,
+        output_format=output, no_llm=no_llm, github_token=github_token,
+        openai_compatible_url=openai_compatible_url,
+    )
 
     # CLI overrides for vulnerability checking
     if detect_aegis:
@@ -214,14 +244,7 @@ def scan(
     if vuln_search_provider:
         cfg.vuln_search_provider = None if vuln_search_provider == "none" else vuln_search_provider
 
-    # Early check: warn if LLM analysis is enabled but no API key is available
-    if not cfg.no_llm and not cfg.llm_api_key and cfg.llm_provider != "ollama" and not cfg.openai_compatible_url:
-        click.echo(
-            f"Warning: No API key found for provider '{cfg.llm_provider}'. "
-            "LLM analysis will likely fail.\n"
-            "  Hint: set the appropriate env var in .env, or run with --no-llm for static-only scanning.",
-            err=True,
-        )
+    _warn_if_no_llm_key(cfg)
 
     # Create accessor
     try:
@@ -494,3 +517,170 @@ def scan_org(
 
     import json
     click.echo(json.dumps(reports, indent=2))
+
+
+# ── quin-scanner skills ──────────────────────────────────────────────────────
+
+_VERDICT_RANK = {"SAFE": 0, "CAUTION": 1, "HIGH_RISK": 2}
+_FAIL_ON = {"caution": 1, "high_risk": 2}
+_SEVERITY_RANK = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
+_EVIDENCE_WIDTH = 160
+
+
+def _skills_report(target: str, result) -> ScanReport:
+    """Minimal ScanReport holding only the skills results (for the summary lines and SARIF)."""
+    from quin_scanner.scanners.skills.promotion import promote_skill_findings
+
+    return ScanReport(
+        repo_path=target,
+        scan_timestamp=datetime.now(timezone.utc).isoformat(),
+        is_ai_application=False,
+        confidence=0.0,
+        risk_signals=promote_skill_findings(result.assessments),
+        coverage=result.coverage,
+        metadata={"skills_notes": result.notes[:50]} if result.notes else {},
+        skills=list(result.assessments),
+    )
+
+
+def _skills_terminal(report, notes: list[str]) -> str:
+    """Per-skill verdict table, then findings grouped per skill (highest risk first)."""
+    lines = skill_summary_lines(report)
+    if not lines:
+        lines = ["No skills found."]
+    with_findings = [a for a in sorted(report.skills, key=lambda s: -s.risk_score) if a.findings]
+    if with_findings:
+        lines += ["", "Findings"]
+    for a in with_findings:
+        lines.append(f"{a.record.name} ({a.verdict} {a.risk_score})")
+        for f in sorted(a.findings, key=lambda f: (_SEVERITY_RANK.get(f.severity, 9), f.file_path, f.line_number or 0)):
+            loc = f"{f.file_path}:{f.line_number}" if f.line_number is not None else f.file_path
+            lines.append(f"  {f.severity.upper():<9} {f.rule_id:<12} {f.title}")
+            lines.append(f"  {'':<9} {loc}")
+            evidence = " ".join(f.evidence.split())
+            if evidence:
+                if len(evidence) > _EVIDENCE_WIDTH:
+                    evidence = evidence[: _EVIDENCE_WIDTH - 3] + "..."
+                lines.append(f"  {'':<9} evidence: {evidence}")
+            if f.llm_verdict != "none":
+                lines.append(f"  {'':<9} LLM {f.llm_verdict}: {f.explanation}".rstrip())
+    if notes:
+        lines += ["", "Notes"] + [f"  {n}" for n in notes]
+    return "\n".join(lines)
+
+
+def _skills_json(target: str, report, notes: list[str]) -> str:
+    import json
+
+    return json.dumps({
+        "target": target,
+        "scanned_at": report.scan_timestamp,
+        "skills": [s.to_dict() for s in report.skills],
+        "notes": notes,
+        "coverage": report.coverage,
+    }, indent=2, default=str)
+
+
+@cli.group()
+def skills() -> None:
+    """Agent Skills security commands (pre-install checks)."""
+
+
+@skills.command("scan")
+@click.argument("target")
+@click.option(
+    "--output", "-o", default="terminal", type=click.Choice(["terminal", "json", "sarif"]),
+    show_default=True, help="Output format",
+)
+@click.option("--output-file", "-f", default=None, help="Write output to a file instead of stdout")
+@click.option(
+    "--fail-on", default="high_risk", type=click.Choice(["caution", "high_risk"]), show_default=True,
+    help="Exit 1 when any skill's verdict is at or above this level",
+)
+@click.option(
+    "--llm-provider", default=None,
+    help="Enable LLM review with this provider (openai|anthropic|google|ollama|openai-compatible)",
+)
+@click.option("--llm-model", default=None, help="Override the default model for the provider")
+@click.option("--llm-api-key", default=None, help="API key (overrides env var)")
+@click.option("--config", "-c", default=None, help="Path to a scanner-config.yaml file")
+@click.option("--branch", default="main", show_default=True, help="Branch to scan (for repo URL targets)")
+@click.option("--no-llm", is_flag=True, default=False, help="Never run the LLM review")
+@click.option("--github-token", default=None, envvar="GITHUB_TOKEN", help="GitHub PAT (overrides GITHUB_TOKEN env var)")
+@click.option("--azure-token", default=None, envvar="AZURE_DEVOPS_TOKEN", help="Azure DevOps PAT (overrides AZURE_DEVOPS_TOKEN env var)")
+@click.option("--openai-compatible-url", default=None, help="Base URL for OpenAI-compatible endpoints (vLLM, LiteLLM, Azure, etc.)")
+@click.option("--no-vuln-check", is_flag=True, default=False, help="Skip OSV lookups for pinned skill dependencies")
+def skills_scan(
+    target: str,
+    output: str,
+    output_file: str | None,
+    fail_on: str,
+    llm_provider: str | None,
+    llm_model: str | None,
+    llm_api_key: str | None,
+    config: str | None,
+    branch: str,
+    no_llm: bool,
+    github_token: str | None,
+    azure_token: str | None,
+    openai_compatible_url: str | None,
+    no_vuln_check: bool,
+) -> None:
+    """Scan Agent Skills on their own, e.g. before installing them.
+
+    TARGET is a skill directory, a .zip file, a GitHub/Azure DevOps URL or owner/repo.
+    Static by default; passing an LLM option (--llm-provider, --llm-model, --llm-api-key,
+    --openai-compatible-url or --config) adds the LLM review. Nothing in the target is executed.
+
+    \b
+    Exit codes:
+      0  every skill is below --fail-on (default: SAFE or CAUTION)
+      1  at least one skill is at or above --fail-on (default: HIGH_RISK)
+      2  error (bad target, unreadable or unsafe zip, bad config)
+
+    \b
+    Examples:
+      quin-scanner skills scan ./my-skill
+      quin-scanner skills scan downloaded-skill.zip --fail-on caution
+      quin-scanner skills scan https://github.com/owner/repo/tree/main/skills/pdf -o sarif -f skills.sarif
+    """
+    from quin_scanner.scanners.skills.runner import open_skill_target, run_skill_scan
+
+    try:
+        cfg = _build_config(
+            config=config, llm_provider=llm_provider, llm_model=llm_model, llm_api_key=llm_api_key,
+            output_format=None, no_llm=no_llm, github_token=github_token,
+            openai_compatible_url=openai_compatible_url,
+        )
+        if no_vuln_check:
+            cfg.vuln_check_enabled = False
+        if not any((llm_provider, llm_model, llm_api_key, openai_compatible_url, config)):
+            cfg.no_llm = True
+        _warn_if_no_llm_key(cfg)
+
+        with open_skill_target(target, github_token=cfg.github_token, azure_token=azure_token, branch=branch) as accessor:
+            result = run_skill_scan(accessor, cfg)
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(2)
+
+    report = _skills_report(target, result)
+    if output == "json":
+        rendered = _skills_json(target, report, result.notes)
+    elif output == "sarif":
+        rendered = ReportGenerator.to_sarif(report)
+    else:
+        rendered = _skills_terminal(report, result.notes)
+
+    if output_file:
+        try:
+            Path(output_file).write_text(rendered + "\n", encoding="utf-8")
+        except OSError as e:
+            click.echo(f"Error: cannot write {output_file}: {e}", err=True)
+            sys.exit(2)
+        click.echo(f"Report written to {output_file}", err=True)
+    else:
+        click.echo(rendered)
+
+    threshold = _FAIL_ON[fail_on]
+    sys.exit(1 if any(_VERDICT_RANK.get(a.verdict, 0) >= threshold for a in result.assessments) else 0)
