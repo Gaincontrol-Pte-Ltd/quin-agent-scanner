@@ -24,7 +24,9 @@ class AnthropicProvider(BaseLLMProvider):
         response = self._client.messages.create(
             model=self._model,
             max_tokens=16384,
-            temperature=0,
             messages=[{"role": "user", "content": prompt}],
+            # anthropic>=2 removed `temperature` from the method signature (the API still honours it
+            # for models that predate the change); extra_body sends the same JSON on every SDK version.
+            extra_body={"temperature": 0},
         )
         return response.content[0].text if response.content else "{}"
