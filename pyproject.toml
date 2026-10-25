@@ -61,6 +61,10 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["src/quin_scanner"]
 
+[tool.ruff.lint]
+# Explicit so CI and any local ruff version agree. CI uses the version pinned in uv.lock.
+select = ["F", "E4", "E7", "E9"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
