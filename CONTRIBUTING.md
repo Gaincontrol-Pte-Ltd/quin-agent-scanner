@@ -63,6 +63,23 @@ Releases are tag-driven. Pushing a `v*.*.*` tag runs `.github/workflows/publish.
 
 ---
 
+## Adding or Changing a Skill Rule
+
+Skill rules live in two places:
+
+- **Text rules** (regex over skill files) are entries in `src/quin_scanner/rules/skill_rules.yaml`: `id` (`SK-<AREA>-<NNN>`), `title`, `severity`, `category`, `threat_id` (a `T0xx` in the risk taxonomy), `confidence`, `applies_to` (`markdown`, `code`, `shell`, `config`, `text` or `any`) and `pattern`. Optional switches: `skip_in_fence` (ignore fenced examples in Markdown), `negatable` (ignore defensive phrasing such as "never run …" and quoted mentions), `skip_comment_lines`, `skip_patterns` and `skip_hosts`. The header of the YAML file explains each one.
+- **Code analyzers** (AST, taint, supply chain, permissions, MCP) are modules in `src/quin_scanner/scanners/skills/analyzers/`. Each takes a `SkillBundle` and returns `SkillFinding`s.
+
+When you add or change a rule:
+
+1. Write the failing test first: one case that must fire and one near-miss that must not (for text rules, `tests/test_skill_text_rules.py`). Prefer a short snippet of the real false positive over an invented one.
+2. Document the rule in `docs/skill-rules.md`. A test fails if a rule id exists in code but not in the doc, or the other way round.
+3. Check the effect on real content: `quin-scanner skills scan <folder> --no-vuln-check` on a few public skill repositories and on `tests/fixtures/skills_repo`. `evil-formatter` must stay `HIGH_RISK`; `commit-helper` and `injection-awareness` must stay `SAFE` with no findings.
+4. Never weaken a rule so that an obvious true positive stops firing; tighten the context instead.
+5. Run `python3 -m pytest tests/ -q` and `ruff check src/ --select F,E4,E7,E9`, and add a line under `[Unreleased]` in `CHANGELOG.md`.
+
+---
+
 ## Adding a New Scanner Plugin
 
 1. Create `src/quin_scanner/scanners/my_scanner.py` extending `BaseScanner`

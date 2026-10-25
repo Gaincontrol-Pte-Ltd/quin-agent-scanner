@@ -24,6 +24,14 @@ This policy covers the `quin-scanner` Python package and its source code. It doe
 - Third-party dependencies (report those to the respective upstream projects)
 - Issues in repositories that `quin-scanner` scans (those are the user's responsibility)
 
+## Handling of untrusted input
+
+Quin reads repositories, skills and archives that you do not control, so the following are in scope for a report:
+
+- Anything that makes Quin execute code from a scanned repository, skill, archive or LLM response.
+- Writing outside the temporary directory when extracting a `.zip` for `quin-scanner skills scan`, or exceeding its limits (5000 members, 200 MB uncompressed) without an error. Archives with absolute paths, `..` components, symlinks or special files are rejected.
+- Credentials from a scanned repository leaking into reports or into text sent to an LLM. Evidence snippets are redacted before they are stored, and with LLM review enabled only flagged, redacted snippets are sent, never whole files.
+
 ## Disclosure Policy
 
 Once a fix is available, we will publish a GitHub Security Advisory with full details. We follow coordinated disclosure — we ask that reporters keep details private until a fix is released.
