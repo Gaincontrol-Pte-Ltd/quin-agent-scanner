@@ -179,3 +179,38 @@ def test_osv_npm_ranges_urls_and_tags_are_not_looked_up():
 
 def test_npm_pinned_dependency_without_lookup_yields_no_vuln_finding():
     assert _scan({"package.json": '{"dependencies": {"lodash": "4.17.20"}}'}) == []
+
+
+# ── Regressions from the 2026-10 personal-skills scan (seo requirements.txt) ──
+
+
+def test_bounded_requirement_ranges_are_not_unpinned():
+    req = (
+        "requests>=2.32.4,<3.0.0 # CVE fixes\n"
+        "Pillow>=12.2.0,<13.0.0\n"
+        "lxml >= 6.1, <= 6.9\n"
+        "httpx>0.27,<1\n"
+        "rich~=13.7\n"
+    )
+    assert _ids(_scan({"requirements.txt": req})) == []
+
+
+def test_open_ended_requirements_are_still_unpinned():
+    req = "flask>=2\nrich\nclick>=8.0,!=8.1.0\nnumpy<2\n"
+    findings = _scan({"requirements.txt": req})
+    assert [f.line_number for f in findings if f.rule_id == "SK-SC-001"] == [1, 2, 3, 4]
+
+
+def test_package_json_caret_and_tilde_are_bounded_but_open_ranges_are_not():
+    pkg = ('{"dependencies": {"a": "^1.2.3", "b": "~1.2.3", "c": "*", "d": "latest",'
+           ' "e": "", "f": ">=1", "g": ">=1.0.0 <2.0.0"}}')
+    findings = _scan({"package.json": pkg})
+    flagged = sorted(f.evidence.split('"')[1] for f in findings if f.rule_id == "SK-SC-001")
+    assert flagged == ["c", "d", "e", "f"]
+
+
+def test_bounded_ranges_are_not_sent_to_osv():
+    calls = []
+    _scan({"requirements.txt": "requests>=2.32.4,<3.0.0\nflask==3.0.0\n"},
+          osv_lookup=lambda n, v, e: calls.append((n, v, e)) or [])
+    assert calls == [("flask", "3.0.0", "PyPI")]

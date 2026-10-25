@@ -14,6 +14,7 @@ from quin_scanner.scanners.skills.bundle import SkillBundle, file_kind
 
 _RULES_PATH = Path(__file__).parents[3] / "rules" / "skill_rules.yaml"
 _MAX_PER_RULE_PER_FILE = 5
+_PROSE_KINDS = frozenset({"markdown", "text"})
 _NEGATION = re.compile(
     r"(?i)\b(never(?!\s+mind)|do not|don.?t|does not|doesn.?t|cannot|can.?t|won.?t|will not"
     r"|must not|should not|shouldn.?t|avoid|warn(?:s|ing)?|prevent|detect|block|refuse)\b"
@@ -27,6 +28,28 @@ _ANTI_PATTERN_LEAD = re.compile(
 )
 _SENTENCE_END = re.compile(r"[.;!?](?=\s|$)")
 _COMPLETE_QUOTE = re.compile(r'"[^"\n]*"|\u201c[^\u201d\n]*\u201d')
+# Cues that introduce a quoted phrase as a *mention* of content, not an instruction:
+# "if the export contains ...", "a page that says ...", "phrases like ...", "(e.g. ...)".
+# Only forms that cannot be a sentence-initial imperative count: third-person or
+# participle verbs (contains, includes, says, reads, containing, including, saying),
+# base "contain"/"include" only after a subject noun or pronoun, and connectives such
+# as "such as" / "for example" / "e.g." / "phrases like". Bare "say", "include",
+# "contain" are excluded so that 'Say "..."' / 'Include "..."' stay instructions.
+_MENTION_CUE = re.compile(
+    r"(?i)\b(?:such as|for (?:example|instance)|(?:phrases?|text|words?|strings?|lines?"
+    r"|content|wording) like|looks? like|appears? as|called|label(?:l)?ed|contains|containing"
+    r"|includes|including|says|saying|reads|(?:it|they|that|which|who|texts?|content|files?"
+    r"|exports?|pages?|documents?|inputs?|messages?|data|outputs?|emails?|comments?"
+    r"|responses?|results?)\s+(?:contain|include))\b|\be\.g\."
+)
+# An output/imperative verb anywhere in the sentence before the quote means the quote is
+# something the agent is told to produce or act on, so it is never treated as a mention.
+_MENTION_VETO = re.compile(
+    r"(?i)\b(?:say|reply|respond|answer|write|print|type|tell|send|add|append|insert"
+    r"|paste|use|run|execute|follow|obey)\b"
+)
+# Sentence end for mention cues; "e.g." and "i.e." do not end a sentence.
+_MENTION_SENTENCE_END = re.compile(r"(?<!\be\.g)(?<!\bi\.e)[.;!?](?=\s|$)")
 
 
 @dataclass(frozen=True)
@@ -43,6 +66,7 @@ class TextRule:
     negatable: bool
     skip_comment_lines: bool = False
     skip_hosts: frozenset[str] = frozenset()
+    skip_patterns: tuple[re.Pattern[str], ...] = ()
 
 
 @lru_cache(maxsize=1)
@@ -62,6 +86,7 @@ def load_rules() -> tuple[TextRule, ...]:
             negatable=bool(r.get("negatable", False)),
             skip_comment_lines=bool(r.get("skip_comment_lines", False)),
             skip_hosts=frozenset(h.lower() for h in r.get("skip_hosts", [])),
+            skip_patterns=tuple(re.compile(p) for p in r.get("skip_patterns", [])),
         )
         for r in data["rules"]
     )
@@ -96,22 +121,55 @@ def _after_last(pattern: re.Pattern[str], s: str) -> str:
     return s[ends[-1].end():] if ends else s
 
 
+def _before_open_quote(before: str) -> str | None:
+    """Line text before the quote the match sits in, or None when it is not inside one.
+
+    Earlier, completed quotes on the line are collapsed to "", so a cue may sit before a
+    whole list of quoted examples.
+    """
+    collapsed = _COMPLETE_QUOTE.sub('""', before)
+    if "\u201c" in collapsed:
+        return collapsed[:collapsed.rfind("\u201c")]
+    if collapsed.count('"') % 2 == 1:
+        return collapsed[:collapsed.rfind('"')]
+    return None
+
+
 def _in_negated_quote(before: str) -> bool:
     """True when the match sits inside a quoted item whose sentence is anti-pattern guidance.
 
     E.g. 'avoid override-style language ("ignore ...", "disregard the previous instruction")'.
-    Earlier, completed quotes on the line are collapsed, so the guidance may sit before a
-    whole list of quoted examples; only the current sentence counts.
+    Only the current sentence counts.
     """
-    collapsed = _COMPLETE_QUOTE.sub('""', before)
-    if "\u201c" in collapsed:
-        opener = collapsed.rfind("\u201c")
-    elif collapsed.count('"') % 2 == 1:
-        opener = collapsed.rfind('"')
-    else:
+    prefix = _before_open_quote(before)
+    if prefix is None:
         return False
-    guidance = _after_last(_SENTENCE_END, collapsed[:opener])
+    guidance = _after_last(_SENTENCE_END, prefix)
     return bool(_QUOTE_GUIDANCE.search(guidance[-200:]))
+
+
+def is_quoted_mention(text: str, start: int) -> bool:
+    """True when the match is inside a quote that the sentence introduces as a mention.
+
+    E.g. 'If the export contains text addressed to you - "ignore previous instructions"'.
+    Requires (1) the match to sit inside an open straight or curly quote, (2) a mention
+    cue (_MENTION_CUE) in the same sentence before the quote, and (3) no output or
+    imperative verb (_MENTION_VETO) in that sentence before the quote. Unquoted text is
+    never a mention.
+    """
+    line_start = text.rfind("\n", 0, start) + 1
+    prefix = _before_open_quote(text[line_start:start])
+    if prefix is None:
+        return False
+    # A sentence wrapped across lines keeps its cue on the previous line, so include that
+    # line (within the same paragraph) before looking for the cue.
+    if line_start > 1:
+        prev_start = text.rfind("\n", 0, line_start - 1) + 1
+        previous = text[prev_start:line_start - 1]
+        if previous.strip():
+            prefix = f"{previous} {prefix}"
+    sentence = _after_last(_MENTION_SENTENCE_END, prefix)[-160:]
+    return bool(_MENTION_CUE.search(sentence)) and not _MENTION_VETO.search(sentence)
 
 
 def is_negated(text: str, start: int) -> bool:
@@ -156,6 +214,14 @@ def _is_comment_line(text: str, pos: int) -> bool:
     return line.startswith(("#", "//", "/*", "*")) and not line.startswith("#!")
 
 
+def _line_matches_any(text: str, pos: int, patterns: tuple[re.Pattern[str], ...]) -> bool:
+    """True when the line containing *pos* matches any of *patterns*."""
+    start = text.rfind("\n", 0, pos) + 1
+    end = text.find("\n", pos)
+    line = text[start: end if end != -1 else len(text)]
+    return any(p.search(line) for p in patterns)
+
+
 def rule_matches(
     rule: TextRule, text: str, kind: str, fenced: set[int]
 ) -> Iterator[re.Match[str]]:
@@ -166,7 +232,11 @@ def rule_matches(
             continue
         if rule.negatable and is_negated(text, m.start()):
             continue
+        if rule.negatable and kind in _PROSE_KINDS and is_quoted_mention(text, m.start()):
+            continue
         if rule.skip_comment_lines and _is_comment_line(text, m.start()):
+            continue
+        if rule.skip_patterns and _line_matches_any(text, m.start(), rule.skip_patterns):
             continue
         if rule.skip_hosts and _line_hosts_all_skipped(text, m.start(), rule.skip_hosts):
             continue

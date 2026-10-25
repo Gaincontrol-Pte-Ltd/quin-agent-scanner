@@ -8,6 +8,8 @@
 # skip_comment_lines: ignore matches on lines that are entirely a code comment
 # skip_hosts:   ignore a match when every URL on its line points at one of these
 #               hosts (exact host match, port and userinfo ignored)
+# skip_patterns: list of regexes; ignore a match when its whole line matches any of
+#               them (e.g. the line is a regex/denylist definition, not a file access)
 # threat_id:    taxonomy threat in risk_taxonomy.yaml
 
 rules:
@@ -52,7 +54,7 @@ rules:
     applies_to: [markdown, text]
     skip_in_fence: true
     # "do not tell the user to run X" / "...they need to" asks the agent to act, not to hide
-    pattern: '(?i)\b(do not|don.?t|never)\b[^.\n]{0,20}\b(tell|inform|notify|alert)\b[^.\n]{0,12}\b(the )?user\b(?!\s+(?:to|they)\b)'
+    pattern: '(?i)\b(do not|don.?t|never)\b[^.\n:;]{0,20}\b(tell|inform|notify|alert)\b[^.\n:;]{0,12}\b(the )?user\b(?!\s+(?:to|they)\b)'
 
   - id: SK-PI-005
     title: Invisible or bidirectional Unicode characters
@@ -134,6 +136,16 @@ rules:
     confidence: 0.7
     applies_to: [any]
     skip_comment_lines: true
+    # a line that defines a regex (String.raw template, RegExp / re.compile call, or
+    # regex syntax such as (?: lookarounds, [^ classes, a $/ literal end) is a
+    # sensitive-path denylist, not a read
+    skip_patterns:
+      - 'String\.raw\s*`'
+      - '\bnew\s+RegExp\s*\('
+      - '\bre\.(?:compile|match|search|fullmatch|findall|finditer|sub|split)\s*\('
+      - '\(\?(?:[:=!]|<[=!])'
+      - '\[\^'
+      - '\$/[dgimsuyv]*(?=[\s,;)\]]|$)'
     # public keys (*.pub) are not secrets
     pattern: '(?i)((?<![A-Za-z0-9-])\.ssh/(?![\w.-]*\.pub\b)|(?<![A-Za-z0-9-])\.(?:aws|gnupg)/|\.kube/config|\.netrc\b|\bid_rsa\b(?!\.pub)|\bid_ed25519\b(?!\.pub)|\.git-credentials|Library/Keychains|Login Data\b|cookies\.sqlite)'
 

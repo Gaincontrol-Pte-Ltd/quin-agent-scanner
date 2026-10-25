@@ -23,6 +23,9 @@ _POPULAR_NPM = frozenset({
     "debug", "openai", "typescript", "vue", "webpack", "eslint", "jest", "dotenv",
 })
 _REQ_NAME = re.compile(r"^\s*([A-Za-z0-9][A-Za-z0-9._-]*)\s*(\[[^\]]*\])?\s*(?:(===|==|~=|!=|>=|<=|>|<)\s*([^\s;#,]+))?")
+_REQ_SPEC = re.compile(r"(===|==|~=|!=|>=|<=|>|<)\s*[^\s;#,]+")
+# npm open-ended lower bound with no upper bound (">=1", "> 2.0.0")
+_NPM_OPEN_RANGE = re.compile(r"\s*>=?\s*v?\d[\w.+-]*\s*")
 # args end at a shell separator, a bracket, or a sentence break (". " / ", ") in prose
 _PIP = re.compile(r"\bpip3?\s+install\b(?P<args>[^\n`|;&()]*?)(?=[\n`|;&()]|[.,](?:\s|$)|$)")
 _NPX = re.compile(r"\bnpx\s+(?:(?:-y|--yes)\s+)?(?P<pkg>@?[A-Za-z0-9][\w./-]*(?:@[\w.^~-]+)?)")
@@ -81,6 +84,16 @@ def _sc(bundle: SkillBundle, f: SkillFile, rule_id: str, severity: str, title: s
     )
 
 
+def _is_bounded(spec: str) -> bool:
+    """True for a requirement range with both a lower and an upper bound.
+
+    "~=1.2" (compatible release) is bounded on its own; otherwise a lower bound (>=, >)
+    and an upper bound (<, <=) are both required. "!=" bounds nothing.
+    """
+    ops = {m.group(1) for m in _REQ_SPEC.finditer(spec.split(";", 1)[0].split("#", 1)[0])}
+    return "~=" in ops or bool(ops & {">=", ">"} and ops & {"<", "<="})
+
+
 def _scan_requirements(
     bundle: SkillBundle, f: SkillFile, osv_lookup: OsvLookup | None
 ) -> list[SkillFinding]:
@@ -102,8 +115,9 @@ def _scan_requirements(
             findings.append(_sc(bundle, f, "SK-SC-002", "medium",
                                 f"Possible typosquat of '{squat}'", n, stripped, 0.6))
         if op != "==":
-            findings.append(_sc(bundle, f, "SK-SC-001", "low",
-                                "Unpinned dependency", n, stripped, 0.6))
+            if not _is_bounded(stripped[m.end(1):]):
+                findings.append(_sc(bundle, f, "SK-SC-001", "low",
+                                    "Unpinned dependency", n, stripped, 0.6))
         elif osv_lookup and version and _OSV_VERSION.match(version):
             findings.extend(_vuln_findings(
                 bundle, f, n, f"{name}=={version}", osv_lookup(_normalise(name), version, "PyPI")
@@ -153,7 +167,7 @@ def _scan_package_json(
             if spec_s.startswith(("git", "http", "github:", "file:")):
                 findings.append(_sc(bundle, f, "SK-SC-003", "medium",
                                     "Dependency installed from a URL or VCS", line, ev, 0.7))
-            elif spec_s in {"*", "latest", ""}:
+            elif spec_s in {"*", "latest", ""} or _NPM_OPEN_RANGE.fullmatch(spec_s):
                 findings.append(_sc(bundle, f, "SK-SC-001", "low",
                                     "Unpinned dependency", line, ev, 0.6))
             elif osv_lookup and (exact := _NPM_EXACT.match(spec_s.strip())):
