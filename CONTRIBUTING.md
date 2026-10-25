@@ -52,6 +52,17 @@ Check the [drop plan](docs/plans/2026-03-31-quin-agent-scanner-drop-plan.md) fir
 
 ---
 
+## Releasing
+
+Releases are tag-driven. Pushing a `v*.*.*` tag runs `.github/workflows/publish.yml`, which builds the package, publishes it to PyPI (trusted publishing, `pypi` environment) and moves the `v1` tag that the GitHub Action uses to the new release. A PyPI version cannot be reused, so check everything first.
+
+1. Land the work on `main` with CI green and `CHANGELOG.md` updated under `[Unreleased]`.
+2. In a release PR: move the `[Unreleased]` entries into a new `## [x.y.z] — YYYY-MM-DD` section, update the compare links at the bottom, and bump the version in `pyproject.toml`, `src/quin_scanner/__init__.py` and the `quin-scanner` entry in `uv.lock`.
+3. After the PR is merged, tag the merge commit and push the tag: `git tag vX.Y.Z && git push origin vX.Y.Z`.
+4. Watch the "Publish to PyPI" run, then check `pip install quin-scanner==X.Y.Z` in a clean environment and publish GitHub release notes from the changelog section.
+
+---
+
 ## Adding a New Scanner Plugin
 
 1. Create `src/quin_scanner/scanners/my_scanner.py` extending `BaseScanner`

@@ -167,6 +167,8 @@ quin-scanner scan ./my-agent --detect-aegis --no-llm
 
 ### Scan a skill before installing it
 
+See the [skills scanning guide](docs/skills-scanning.md) for verdicts, baselines, CI examples and limits.
+
 `quin-scanner skills scan` runs only the Agent Skills scanner on a skill folder, a `.zip` file or a repo URL, without a whole-repo scan. It is static by default (add `--llm-provider`/`--config` to get the LLM review) and never executes anything in the target. Zip files are extracted into a temporary directory with limits (5000 members, 200 MB uncompressed) and rejected if they contain absolute paths, `..` or symlinks.
 
 ```bash

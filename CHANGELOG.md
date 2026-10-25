@@ -9,6 +9,19 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.1.0b4] — 2026-10-25
+
+**Agent Skills security scanning.** Quin now scans Agent Skills, MCP tool definitions and agent instruction files for prompt injection, hidden content, exfiltration, dangerous code, supply-chain risk and excessive permissions, scores each skill (SAFE / CAUTION / HIGH_RISK), and can check a skill before you install it:
+
+- `skills` scanner, on by default in `quin-scanner scan` (see [docs/skills-scanning.md](docs/skills-scanning.md) and [docs/skill-rules.md](docs/skill-rules.md)).
+- `quin-scanner skills scan <folder|zip|url>` for pre-install checks, with `--fail-on` exit codes, JSON and SARIF output, and hardened zip extraction.
+- `quin-scanner skills baseline` and `--baseline` / `scan --skills-baseline` to accept reviewed findings and report only new ones.
+- Optional LLM review that confirms or disputes findings (never downgrades critical, AST or taint findings).
+- OSV lookups for exact-pinned PyPI and npm skill dependencies, and a bounded shared read cache that reduces repeated file fetches for hosted scans.
+- Noise tuning against 532 public skills (`docs/skill-scanner-tuning-2026-10.md`).
+
+This changelog was not split per beta, so the sections below also list changes first shipped in 0.1.0b1–b3.
+
 ### Added
 
 #### Skills Security Scanner
@@ -188,5 +201,6 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
-[Unreleased]: https://github.com/quin-scanner/quin-agent-scanner/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/Gaincontrol-Pte-Ltd/quin-agent-scanner/compare/v0.1.0b4...HEAD
+[0.1.0b4]: https://github.com/Gaincontrol-Pte-Ltd/quin-agent-scanner/releases/tag/v0.1.0b4
 [0.1.0]: https://github.com/quin-scanner/quin-agent-scanner/releases/tag/v0.1.0
