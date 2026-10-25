@@ -182,7 +182,23 @@ quin-scanner skills scan ./my-skill -o json -f skills.json
 quin-scanner skills scan ./my-skill -o sarif -f skills.sarif
 ```
 
-Exit codes: `0` when every skill is below `--fail-on` (default `high_risk`), `1` when at least one skill is at or above it, `2` on an error (bad target, unreadable or unsafe zip).
+Exit codes: `0` when every skill is below `--fail-on` (default `high_risk`), `1` when at least one skill is at or above it, `2` on an error (bad target, unreadable or unsafe zip, missing or malformed baseline).
+
+To accept the findings you have already reviewed and see only new ones later, write a baseline and pass it on later scans:
+
+```bash
+# Record every current finding (static, no LLM). Refuses to overwrite without --force.
+quin-scanner skills baseline ./skills -o skills-baseline.yaml
+
+# Later: only findings not in the baseline are reported, scored and counted for the exit code
+quin-scanner skills scan ./skills --baseline skills-baseline.yaml
+#   Baseline: 9 finding(s) suppressed, 0 stale entries
+
+# The full scan accepts the same file
+quin-scanner scan . --skills-baseline skills-baseline.yaml
+```
+
+The baseline file lists one fingerprint per finding with its rule, skill and file (no evidence, no line numbers), plus an empty `note` you can fill in. Scan the same target root you baselined, since file paths are part of the fingerprint. See [docs/skill-rules.md](docs/skill-rules.md#baselines).
 
 ## GitHub Action
 

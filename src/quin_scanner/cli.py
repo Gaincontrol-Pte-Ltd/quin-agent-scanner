@@ -166,6 +166,7 @@ def cli() -> None:
       quin-scanner scan-batch targets.txt -d reports/
       quin-scanner scan-org my-org --skip-archived --skip-forks
       quin-scanner skills scan ./my-skill.zip
+      quin-scanner skills baseline ./skills -o skills-baseline.yaml
 
     \b
     Environment variables:

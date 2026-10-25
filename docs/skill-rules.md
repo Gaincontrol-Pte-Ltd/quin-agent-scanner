@@ -84,6 +84,28 @@ Prose rules ignore matches inside closed fenced code blocks (usually quoted exam
 
 Static analysis only: no runtime behavior is observed. Non-English text and text inside images are not analyzed. At most 200 skills per repository, 500 files per skill, and 1 MB per file are analyzed; anything beyond that is recorded in `metadata.skills_notes`, and `coverage.skills_capped` counts how many limits were hit (also the MCP source read cap and the OSV lookup cap).
 
+## Baselines
+
+`quin-scanner skills baseline <target> -o skills-baseline.yaml` records every current finding so later scans with `skills scan --baseline skills-baseline.yaml` or `scan --skills-baseline skills-baseline.yaml` report only new ones. It always scans statically (no LLM review) and will not overwrite an existing file without `--force`.
+
+```yaml
+version: 1
+generated: '2026-10-25T09:00:00+00:00'
+entries:
+- fingerprint: 2aee06c3...           # sha256, see below
+  rule_id: SK-PI-001
+  skill: evil-formatter
+  file_path: evil-formatter/SKILL.md
+  note: ''                            # free text for reviewers, ignored by the scanner
+```
+
+- The fingerprint is `sha256(rule_id | skill name | file_path | evidence)`, with runs of whitespace in the evidence collapsed to one space (case is kept). Line numbers, severity, confidence and LLM verdicts are not part of it, so edits elsewhere in a file do not invalidate an entry. Only `fingerprint` is used for matching; the other fields are for review. The file never contains evidence text.
+- File paths are relative to the scanned target, so baseline and scan the same root.
+- Identical findings (same rule, skill, file and evidence) share one entry, and a new copy of the same text in that file is also suppressed.
+- Suppressed findings are removed before the LLM review, scoring, promotion to risk signals, SARIF and JSON output; skill scores, verdicts, counts and top rules are recomputed from what remains, and in `scan` the per-skill artifacts and inventory entries are rebuilt too.
+- `metadata.skills_baseline` records `file` (name only), `suppressed_count` and `stale_count` (distinct baseline fingerprints that matched no finding). Stale entries are not an error; regenerate the file with `--force` to drop them.
+- A missing file, invalid YAML, a `version` other than 1, or an entry without a string `fingerprint` is an error (exit `2`); the scan never runs without the baseline you asked for. Duplicate entries are allowed.
+
 ## LLM review
 
 The optional LLM pass can mark findings `confirmed` or `disputed`. A disputed finding counts at half weight and is not promoted to a repo-level risk signal. LLM disputes never downgrade critical, AST (`SK-CODE-*`) or taint (`SK-TAINT-*`) findings: their verdict and explanation are recorded, but they keep full weight and stay promoted. Skill name, description and evidence are embedded in delimited, length-capped data blocks and the model is told nothing inside them is an instruction.
