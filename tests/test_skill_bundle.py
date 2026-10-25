@@ -87,3 +87,25 @@ def test_load_bundle_caps_file_count(tmp_path):
     bundle = load_bundle(record, LocalRepoAccessor(tmp_path))
     assert len(bundle.files) == 500
     assert any("10 files beyond cap" in s for s in bundle.skipped)
+
+
+def test_evidence_redacts_more_secret_shapes():
+    from quin_scanner.scanners.skills.bundle import evidence
+
+    jwt = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.abcDEF123_-xyz"
+    secrets = {
+        "Authorization: Bearer abc123tokenvalue": "abc123tokenvalue",
+        "Authorization: Basic dXNlcjpwYXNzd29yZA==": "dXNlcjpwYXNzd29yZA",
+        "Authorization: token ghs_zzzzzzzzzz": "ghs_zzzzzzzzzz",
+        "AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG": "wJalrXUtnFEMI",
+        "export MY_DB_PASSWD=hunter22xyz": "hunter22xyz",
+        "GITHUB_TOKEN=abcd1234": "abcd1234",
+        f"x = {jwt}": jwt,
+        "password=abc123": "abc123",
+        "api_key: s3cr3t": "s3cr3t",
+        "-----BEGIN RSA PRIVATE KEY-----\nMIIEowIBAAKCAQEAxyz\n-----END RSA PRIVATE KEY-----": "MIIEowIBAAKCAQEAxyz",
+        "-----BEGIN PRIVATE KEY-----": "BEGIN PRIVATE KEY",
+    }
+    for text, secret in secrets.items():
+        out = evidence(text)
+        assert secret not in out, (text, out)

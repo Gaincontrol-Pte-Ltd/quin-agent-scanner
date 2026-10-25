@@ -24,7 +24,13 @@ _KIND_BY_SUFFIX = {
 _KIND_BY_NAME = {"makefile": "shell", "dockerfile": "shell"}
 
 _SECRET_ASSIGN = re.compile(
-    r"(?i)\b(api[_-]?key|secret|token|password|passwd)\b(\s*[=:]\s*)['\"]?[A-Za-z0-9_\-./+]{12,}['\"]?"
+    r"(?i)\b(api[_-]?key|secret|token|password|passwd)\b(\s*[=:]\s*)['\"]?[A-Za-z0-9_\-./+]{6,}['\"]?"
+)
+_PEM = re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----.*?(?:-----END [A-Z ]*PRIVATE KEY-----|$)")
+_AUTH_HEADER = re.compile(r"(?i)\b(authorization\s*[:=]\s*)(?:(?:bearer|basic|token)\s+)?[^\s'\"]+")
+_JWT = re.compile(r"\beyJ[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]*")
+_ENV_SECRET = re.compile(
+    r"\b([A-Z][A-Z0-9_]*(?:SECRET|TOKEN|KEY|PASSWORD|PASSWD)[A-Z0-9_]*)(\s*=\s*)['\"]?[^\s'\"]{4,}['\"]?"
 )
 _KEY_PREFIX = re.compile(
     r"\b(sk-[A-Za-z0-9_-]{20,}|ghp_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{30,}"
@@ -45,6 +51,10 @@ def evidence(text: str) -> str:
     """Collapse whitespace, redact credentials, and cap length."""
     out = " ".join(text.split())
     out = redact(out)
+    out = _PEM.sub("REDACTED", out)
+    out = _AUTH_HEADER.sub(lambda m: f"{m.group(1)}REDACTED", out)
+    out = _JWT.sub("REDACTED", out)
+    out = _ENV_SECRET.sub(lambda m: f"{m.group(1)}{m.group(2)}REDACTED", out)
     out = _SECRET_ASSIGN.sub(lambda m: f"{m.group(1)}{m.group(2)}REDACTED", out)
     out = _KEY_PREFIX.sub("REDACTED", out)
     if len(out) > MAX_EVIDENCE_CHARS:
