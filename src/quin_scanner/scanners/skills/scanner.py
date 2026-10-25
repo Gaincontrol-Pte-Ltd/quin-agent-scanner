@@ -98,7 +98,7 @@ class SkillScanner(BaseScanner):
             for item in bundle.skipped:
                 self.notes.append(f"{record.name}: skipped {item}")
             self.assessments.append(build_assessment(record, self._analyze(bundle, osv)))
-        return self._scan_findings()
+        return self.summary_findings()
 
     def _analyze(self, bundle: SkillBundle, osv: OsvLookup | None) -> list[SkillFinding]:
         if bundle.record.ecosystem == "mcp":
@@ -123,7 +123,11 @@ class SkillScanner(BaseScanner):
                 )
         return findings
 
-    def _scan_findings(self) -> list[ScanFinding]:
+    def summary_findings(self) -> list[ScanFinding]:
+        """Per-skill summary ScanFindings (plus one per high/critical finding) from the current assessments.
+
+        Called again after a baseline is applied so suppressed findings never reach the inventory.
+        """
         out: list[ScanFinding] = []
         for a in self.assessments:
             rec = a.record

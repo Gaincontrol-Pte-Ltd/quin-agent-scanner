@@ -12,6 +12,7 @@ from quin_scanner.models import ScanReport
 from quin_scanner.orchestrator import ScanOrchestrator
 from quin_scanner.repo_accessor import RepoAccessorFactory
 from quin_scanner.report import ReportGenerator
+from quin_scanner.scanners.skills.baseline import BaselineError
 
 load_dotenv(find_dotenv(usecwd=True))
 
@@ -58,6 +59,8 @@ def _flags_used(
         flags.append(f"--vuln-search-provider {vuln_search_provider}")
     if cfg.detect_aegis:
         flags.append("--detect-aegis")
+    if cfg.skills_baseline_path:
+        flags.append(f"--skills-baseline {Path(cfg.skills_baseline_path).name}")
     if branch and branch != "main":
         flags.append(f"--branch {branch}")
     if min_confidence > 0.0:
@@ -73,7 +76,10 @@ def skill_summary_lines(report) -> list[str]:
     """Human-readable per-skill verdict lines, highest risk first. Empty when no skills.
 
     The MCP tool-definition pseudo-skill is not a skill: it gets its own trailing line.
+    A skills baseline, when one was applied, adds a final ``Baseline: ...`` line.
     """
+    from quin_scanner.scanners.skills.baseline import baseline_summary
+
     skills = [a for a in report.skills if a.record.ecosystem != "mcp"]
     mcp = [a for a in report.skills if a.record.ecosystem == "mcp"]
     lines: list[str] = []
@@ -84,6 +90,8 @@ def skill_summary_lines(report) -> list[str]:
             lines.append(f"  {a.record.name:<30} {a.verdict:<10} {a.risk_score:>3}  ({counts})")
     for a in mcp:
         lines.append(f"MCP tool definitions: {a.verdict} {a.risk_score}")
+    if report.metadata.get("skills_baseline"):
+        lines.append(baseline_summary(report.metadata["skills_baseline"]))
     return lines
 
 
@@ -200,6 +208,10 @@ def cli() -> None:
     "--detect-aegis", is_flag=True, default=False,
     help="Detect Aegis SDK usage and classify the agent as governed (off by default)",
 )
+@click.option(
+    "--skills-baseline", default=None, metavar="FILE",
+    help="Suppress skill findings listed in this baseline (from 'quin-scanner skills baseline')",
+)
 def scan(
     target: str,
     output: str,
@@ -218,6 +230,7 @@ def scan(
     no_vuln_check: bool,
     vuln_search_provider: str | None,
     detect_aegis: bool,
+    skills_baseline: str | None,
 ) -> None:
     """Scan a single repository for GenAI/Agentic AI indicators.
 
@@ -229,6 +242,7 @@ def scan(
       quin-scanner scan owner/repo --no-llm -o yaml
       quin-scanner scan owner/repo --min-confidence 0.7 -d reports/
       quin-scanner scan ./my-agent --detect-aegis --no-llm
+      quin-scanner scan ./my-agent --skills-baseline skills-baseline.yaml
       quin-scanner scan owner/repo --llm-provider anthropic --llm-model claude-sonnet-4-20250514
     """
     cfg = _build_config(
@@ -240,6 +254,8 @@ def scan(
     # CLI overrides for vulnerability checking
     if detect_aegis:
         cfg.detect_aegis = True
+    if skills_baseline:
+        cfg.skills_baseline_path = skills_baseline
     if no_vuln_check:
         cfg.vuln_check_enabled = False
     if vuln_search_provider:
@@ -284,6 +300,9 @@ def scan(
 
         for line in skill_summary_lines(report):
             click.echo(line, err=True)
+    except BaselineError as e:
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(2)
     except Exception as e:
         click.echo(f"Scan failed: {e}", err=True)
         sys.exit(1)
@@ -528,10 +547,14 @@ _SEVERITY_RANK = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
 _EVIDENCE_WIDTH = 160
 
 
-def _skills_report(target: str, result) -> ScanReport:
+def _skills_report(target: str, result, baseline_path: str | None = None) -> ScanReport:
     """Minimal ScanReport holding only the skills results (for the summary lines and SARIF)."""
+    from quin_scanner.scanners.skills.baseline import baseline_metadata
     from quin_scanner.scanners.skills.promotion import promote_skill_findings
 
+    metadata: dict = {"skills_notes": result.notes[:50]} if result.notes else {}
+    if baseline_path and result.baseline is not None:
+        metadata["skills_baseline"] = baseline_metadata(baseline_path, result.baseline)
     return ScanReport(
         repo_path=target,
         scan_timestamp=datetime.now(timezone.utc).isoformat(),
@@ -539,7 +562,7 @@ def _skills_report(target: str, result) -> ScanReport:
         confidence=0.0,
         risk_signals=promote_skill_findings(result.assessments),
         coverage=result.coverage,
-        metadata={"skills_notes": result.notes[:50]} if result.notes else {},
+        metadata=metadata,
         skills=list(result.assessments),
     )
 
@@ -547,8 +570,8 @@ def _skills_report(target: str, result) -> ScanReport:
 def _skills_terminal(report, notes: list[str]) -> str:
     """Per-skill verdict table, then findings grouped per skill (highest risk first)."""
     lines = skill_summary_lines(report)
-    if not lines:
-        lines = ["No skills found."]
+    if not report.skills:
+        lines.insert(0, "No skills found.")
     with_findings = [a for a in sorted(report.skills, key=lambda s: -s.risk_score) if a.findings]
     if with_findings:
         lines += ["", "Findings"]
@@ -573,13 +596,16 @@ def _skills_terminal(report, notes: list[str]) -> str:
 def _skills_json(target: str, report, notes: list[str]) -> str:
     import json
 
-    return json.dumps({
+    envelope = {
         "target": target,
         "scanned_at": report.scan_timestamp,
         "skills": [s.to_dict() for s in report.skills],
         "notes": notes,
         "coverage": report.coverage,
-    }, indent=2, default=str)
+    }
+    if "skills_baseline" in report.metadata:
+        envelope["metadata"] = {"skills_baseline": report.metadata["skills_baseline"]}
+    return json.dumps(envelope, indent=2, default=str)
 
 
 @cli.group()
@@ -611,6 +637,10 @@ def skills() -> None:
 @click.option("--azure-token", default=None, envvar="AZURE_DEVOPS_TOKEN", help="Azure DevOps PAT (overrides AZURE_DEVOPS_TOKEN env var)")
 @click.option("--openai-compatible-url", default=None, help="Base URL for OpenAI-compatible endpoints (vLLM, LiteLLM, Azure, etc.)")
 @click.option("--no-vuln-check", is_flag=True, default=False, help="Skip OSV lookups for pinned skill dependencies")
+@click.option(
+    "--baseline", "baseline_file", default=None, metavar="FILE",
+    help="Suppress findings listed in this baseline file (from 'quin-scanner skills baseline')",
+)
 def skills_scan(
     target: str,
     output: str,
@@ -626,6 +656,7 @@ def skills_scan(
     azure_token: str | None,
     openai_compatible_url: str | None,
     no_vuln_check: bool,
+    baseline_file: str | None,
 ) -> None:
     """Scan Agent Skills on their own, e.g. before installing them.
 
@@ -637,17 +668,23 @@ def skills_scan(
     Exit codes:
       0  every skill is below --fail-on (default: SAFE or CAUTION)
       1  at least one skill is at or above --fail-on (default: HIGH_RISK)
-      2  error (bad target, unreadable or unsafe zip, bad config)
+      2  error (bad target, unreadable or unsafe zip, bad config, missing or malformed baseline)
+
+    --baseline suppresses findings accepted earlier with 'skills baseline', so only new
+    findings are reported, scored and counted towards the exit code.
 
     \b
     Examples:
       quin-scanner skills scan ./my-skill
       quin-scanner skills scan downloaded-skill.zip --fail-on caution
+      quin-scanner skills scan ./skills --baseline skills-baseline.yaml
       quin-scanner skills scan https://github.com/owner/repo/tree/main/skills/pdf -o sarif -f skills.sarif
     """
+    from quin_scanner.scanners.skills.baseline import load_baseline
     from quin_scanner.scanners.skills.runner import open_skill_target, run_skill_scan
 
     try:
+        baseline = load_baseline(baseline_file) if baseline_file else None
         cfg = _build_config(
             config=config, llm_provider=llm_provider, llm_model=llm_model, llm_api_key=llm_api_key,
             output_format=None, no_llm=no_llm, github_token=github_token,
@@ -660,12 +697,12 @@ def skills_scan(
         _warn_if_no_llm_key(cfg)
 
         with open_skill_target(target, github_token=cfg.github_token, azure_token=azure_token, branch=branch) as accessor:
-            result = run_skill_scan(accessor, cfg)
+            result = run_skill_scan(accessor, cfg, baseline=baseline)
     except Exception as e:
         click.echo(f"Error: {e}", err=True)
         sys.exit(2)
 
-    report = _skills_report(target, result)
+    report = _skills_report(target, result, baseline_file)
     if output == "json":
         rendered = _skills_json(target, report, result.notes)
     elif output == "sarif":
@@ -682,6 +719,76 @@ def skills_scan(
         click.echo(f"Report written to {output_file}", err=True)
     else:
         click.echo(rendered)
+    if output != "terminal" and "skills_baseline" in report.metadata:
+        from quin_scanner.scanners.skills.baseline import baseline_summary
+
+        click.echo(baseline_summary(report.metadata["skills_baseline"]), err=True)
 
     threshold = _FAIL_ON[fail_on]
     sys.exit(1 if any(_VERDICT_RANK.get(a.verdict, 0) >= threshold for a in result.assessments) else 0)
+
+
+@skills.command("baseline")
+@click.argument("target")
+@click.option("--output", "-o", "output_file", required=True, metavar="FILE", help="Baseline file to write (YAML)")
+@click.option("--force", is_flag=True, default=False, help="Overwrite FILE if it already exists")
+@click.option("--config", "-c", default=None, help="Path to a scanner-config.yaml file")
+@click.option("--branch", default="main", show_default=True, help="Branch to scan (for repo URL targets)")
+@click.option("--github-token", default=None, envvar="GITHUB_TOKEN", help="GitHub PAT (overrides GITHUB_TOKEN env var)")
+@click.option("--azure-token", default=None, envvar="AZURE_DEVOPS_TOKEN", help="Azure DevOps PAT (overrides AZURE_DEVOPS_TOKEN env var)")
+@click.option("--no-vuln-check", is_flag=True, default=False, help="Skip OSV lookups for pinned skill dependencies")
+def skills_baseline(
+    target: str,
+    output_file: str,
+    force: bool,
+    config: str | None,
+    branch: str,
+    github_token: str | None,
+    azure_token: str | None,
+    no_vuln_check: bool,
+) -> None:
+    """Accept the current skill findings so later scans report only new ones.
+
+    Scans TARGET (same targets as 'skills scan') statically, with no LLM review, and writes
+    every current finding to FILE as a fingerprint (rule, skill, file and evidence, no line
+    numbers and no raw evidence). Review the file, add a 'note' to entries if you like, and
+    commit it. Then pass it to 'skills scan --baseline FILE' or 'scan --skills-baseline FILE'.
+
+    \b
+    Exit codes:
+      0  baseline written
+      2  error (bad target, FILE exists without --force, cannot write FILE)
+
+    \b
+    Examples:
+      quin-scanner skills baseline ./skills -o skills-baseline.yaml
+      quin-scanner skills baseline ./skills -o skills-baseline.yaml --force
+    """
+    from quin_scanner.scanners.skills.baseline import write_baseline
+    from quin_scanner.scanners.skills.runner import open_skill_target, run_skill_scan
+
+    try:
+        if Path(output_file).exists() and not force:
+            raise click.ClickException(f"{output_file} already exists (use --force to overwrite)")
+        cfg = _build_config(
+            config=config, llm_provider=None, llm_model=None, llm_api_key=None,
+            output_format=None, no_llm=True, github_token=github_token, openai_compatible_url=None,
+        )
+        cfg.no_llm = True
+        if no_vuln_check:
+            cfg.vuln_check_enabled = False
+        with open_skill_target(target, github_token=cfg.github_token, azure_token=azure_token, branch=branch) as accessor:
+            result = run_skill_scan(accessor, cfg)
+        count = write_baseline(output_file, result.assessments)
+    except click.ClickException as e:
+        click.echo(f"Error: {e.message}", err=True)
+        sys.exit(2)
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(2)
+
+    skills_n = sum(1 for a in result.assessments if a.record.ecosystem != "mcp")
+    click.echo(
+        f"Baseline written to {output_file}: {count} {'entry' if count == 1 else 'entries'} "
+        f"from {skills_n} skill{'s' if skills_n != 1 else ''}"
+    )

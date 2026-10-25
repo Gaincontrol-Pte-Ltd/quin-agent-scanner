@@ -45,6 +45,12 @@ from quin_scanner.scanners.prompt_discovery import PromptDiscoveryScanner
 from quin_scanner.scanners.agent_instance_scanner import AgentInstanceScanner
 from quin_scanner.scanners.tool_definition_scanner import ToolDefinitionScanner
 from quin_scanner.scanners.skills import SkillScanner
+from quin_scanner.scanners.skills.baseline import (
+    BaselineResult,
+    apply_baseline,
+    baseline_metadata,
+    load_baseline,
+)
 from quin_scanner.scanners.skills.llm_review import review_skills
 from quin_scanner.scanners.skills.promotion import promote_skill_findings
 from quin_scanner.agent_tool_relationships import discover_agent_tool_relationships
@@ -835,6 +841,10 @@ class ScanOrchestrator:
     def run(self, accessor: RepoAccessor, config: ScannerConfig, verbose: bool = True) -> ScanReport:
         scan_start = time.monotonic()
 
+        # 0. Load the skills baseline first: a missing/malformed file fails the scan (BaselineError).
+        skills_baseline = load_baseline(config.skills_baseline_path) if config.skills_baseline_path else None
+        skills_baseline_result: BaselineResult | None = None
+
         # 1. Build file index
         if verbose:
             _log("Indexing files...")
@@ -872,7 +882,14 @@ class ScanOrchestrator:
         completed_results: list[tuple[str, list[ScanFinding]]] = []
 
         def _run_scanner(scanner: BaseScanner) -> tuple[str, list[ScanFinding]]:
-            return scanner.name(), scanner.scan(tracked_accessor, file_index)
+            nonlocal skills_baseline_result
+            findings = scanner.scan(tracked_accessor, file_index)
+            if scanner is skill_scanner and skills_baseline is not None:
+                # Suppress baselined findings before anything sees them (inventory,
+                # artifacts, LLM review, promotion), then rebuild the summaries.
+                skills_baseline_result = apply_baseline(skill_scanner.assessments, skills_baseline)
+                findings = skill_scanner.summary_findings()
+            return scanner.name(), findings
 
         with ThreadPoolExecutor() as executor:
             futures = {executor.submit(_run_scanner, s): s for s in scanners}
@@ -1341,6 +1358,12 @@ class ScanOrchestrator:
 
         if skill_scanner is not None and skill_scanner.notes:
             metadata["skills_notes"] = skill_scanner.notes[:50]
+        if skills_baseline is not None:
+            # Skills scanner disabled: nothing matched, every entry is stale.
+            metadata["skills_baseline"] = baseline_metadata(
+                config.skills_baseline_path,
+                skills_baseline_result or apply_baseline([], skills_baseline),
+            )
         # Content hashes to match a running agent to this repository. The stats go in the metadata so a cut-off list is visible.
         file_hashes, file_hash_stats = compute_file_fingerprint(tracked_accessor, file_index)
         metadata["file_hash_stats"] = file_hash_stats

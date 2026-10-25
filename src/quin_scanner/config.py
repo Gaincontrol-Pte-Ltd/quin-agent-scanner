@@ -65,6 +65,9 @@ class ScannerConfig:
     max_repo_risk_signals: int | None = 10
     # Opt-in: detect Aegis SDK usage and classify the repo as a governed agent.
     detect_aegis: bool = False
+    # Optional skills baseline file (see `quin-scanner skills baseline`). Findings it lists
+    # are removed before scoring and promotion; a missing/malformed file fails the scan.
+    skills_baseline_path: str | None = None
 
     @classmethod
     def load_from_file(cls, path: str) -> "ScannerConfig":
