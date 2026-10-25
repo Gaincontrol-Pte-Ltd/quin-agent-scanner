@@ -24,12 +24,18 @@ _CREDENTIAL_WORDS = (
 )
 
 
+_DANGEROUS_BASH_GRANTS = {f"{c}:*" for c in ("curl", "wget", "rm", "sudo", "sh", "bash", "eval")}
+
+
 def _unrestricted_bash(tool: str) -> bool:
     t = tool.strip()
     if t.lower() == "bash":
         return True
     m = re.fullmatch(r"(?i)bash\((.*)\)", t)
-    return bool(m and m.group(1).strip() in {"*", ":*"})
+    if not m:
+        return False
+    inner = m.group(1).strip()
+    return inner in {"*", ":*"} or inner.lower() in _DANGEROUS_BASH_GRANTS
 
 
 def _is_wildcard(tool: str) -> bool:

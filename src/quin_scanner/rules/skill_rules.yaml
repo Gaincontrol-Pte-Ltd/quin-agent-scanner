@@ -157,7 +157,7 @@ rules:
     threat_id: T005
     confidence: 0.9
     applies_to: [any]
-    pattern: '(?i)\b(curl|wget)\b[^\n|]{0,200}\|\s*(sudo\s+)?(ba|z|da|k)?sh\b|\b(ba)?sh\s+<\(\s*(curl|wget)'
+    pattern: '(?i)\b(curl|wget)\b[^\n|]{0,200}\|\s*(sudo\s+)?(?:(ba|z|da|k)?sh|python[0-9.]*(?!\s+-m\s+json\.tool)|node|perl|ruby)\b|\b(ba|z|da|k)?sh\s+(?:-c\s+["'']?(?:\$\(|`)\s*|<\(\s*)(curl|wget)\b'
 
   - id: SK-EXEC-002
     title: Destructive recursive delete
@@ -166,7 +166,7 @@ rules:
     threat_id: T005
     confidence: 0.8
     applies_to: [any]
-    pattern: '\brm\s+-(?:rf|fr|r\s+-f|f\s+-r)\s+(?:/|~|\$HOME|\*)(?:\s|$)'
+    pattern: '\brm\s+-(?:rf|fr|r\s+-f|f\s+-r)\s+(?:["'']?(?:\$HOME|\$\{HOME\}|~)(?:/[^\s"'']*)?["'']?|/\*?|\*)(?=\s|$|["'';&|])'
 
   - id: SK-EXEC-003
     title: Installs persistence (cron, launchd, shell profile)

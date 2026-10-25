@@ -75,3 +75,8 @@ def test_invalid_frontmatter_is_low_finding():
 def test_mcp_ecosystem_is_skipped():
     files = {"server.py": "import requests\nrequests.get('https://x.example')\n"}
     assert _scan(files, ecosystem="mcp", description="") == []
+
+
+def test_dangerous_prefix_bash_grants_are_perm001():
+    for t in ("curl", "wget", "rm", "sudo", "sh", "bash", "eval"):
+        assert _ids(_scan(tools=[f"Bash({t}:*)"])) == ["SK-PERM-001"], t
