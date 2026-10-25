@@ -119,14 +119,23 @@ def discover_skills(accessor: RepoAccessor, file_index: FileIndex) -> list[Skill
     return records
 
 
-def discover_mcp_sources(accessor: RepoAccessor, file_index: FileIndex) -> SkillRecord | None:
-    """Return one synthetic record whose files are repo files defining MCP tools."""
+def discover_mcp_sources(
+    accessor: RepoAccessor, file_index: FileIndex, stats: dict | None = None
+) -> SkillRecord | None:
+    """Return one synthetic record whose files are repo files defining MCP tools.
+
+    When *stats* is given, ``stats["read_cap_hit"]`` reports whether the read cap stopped the search.
+    """
+    if stats is not None:
+        stats["read_cap_hit"] = False
     candidates: list[str] = []
     read = 0
     for path in sorted(file_index.all_files()):
         if PurePosixPath(path).suffix.lower() not in _MCP_SUFFIXES:
             continue
         if read >= _MCP_MAX_FILES_READ:
+            if stats is not None:
+                stats["read_cap_hit"] = True
             break
         read += 1
         try:

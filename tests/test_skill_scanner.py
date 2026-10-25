@@ -146,3 +146,51 @@ def test_osv_network_failure_is_counted_not_raised(tmp_path, monkeypatch):
 
 def test_rules_are_loaded_once():
     assert text_rules.load_rules() is text_rules.load_rules()
+
+
+def test_skills_capped_is_zero_without_cap_events(tmp_path):
+    (tmp_path / "app.py").write_text("print(1)")
+    scanner, _ = _run(tmp_path)
+    assert scanner.coverage()["skills_capped"] == 0
+
+
+def test_skill_cap_counts_in_coverage(monkeypatch, tmp_path):
+    monkeypatch.setattr("quin_scanner.scanners.skills.scanner.MAX_SKILLS", 2)
+    for i in range(4):
+        d = tmp_path / "skills" / f"s{i}"
+        d.mkdir(parents=True)
+        (d / "SKILL.md").write_text(f"---\nname: s{i}\n---\nbody")
+    scanner, _ = _run(tmp_path)
+    assert scanner.coverage()["skills_capped"] == 1
+
+
+def test_per_skill_file_cap_counts_in_coverage(monkeypatch, tmp_path):
+    monkeypatch.setattr("quin_scanner.scanners.skills.bundle.MAX_FILES_PER_SKILL", 3)
+    d = tmp_path / "skills" / "big"
+    d.mkdir(parents=True)
+    (d / "SKILL.md").write_text("---\nname: big\n---\nbody")
+    for i in range(6):
+        (d / f"f{i}.py").write_text("x = 1")
+    scanner, _ = _run(tmp_path)
+    assert scanner.coverage()["skills_capped"] == 1
+
+
+def test_mcp_read_cap_counts_in_coverage(monkeypatch, tmp_path):
+    monkeypatch.setattr("quin_scanner.scanners.skills.discovery._MCP_MAX_FILES_READ", 2)
+    for i in range(5):
+        (tmp_path / f"m{i}.py").write_text("print(1)")
+    scanner, _ = _run(tmp_path)
+    assert scanner.coverage()["skills_capped"] == 1
+    assert any("MCP" in n and "cap" in n for n in scanner.notes)
+
+
+def test_osv_lookup_cap_counts_in_coverage(monkeypatch, tmp_path):
+    monkeypatch.setattr("quin_scanner.scanners.skills.scanner.MAX_OSV_LOOKUPS", 1)
+    d = tmp_path / "skills" / "dep"
+    d.mkdir(parents=True)
+    (d / "SKILL.md").write_text("---\nname: dep\n---\n")
+    (d / "requirements.txt").write_text("requests==2.0.0\nflask==1.0.0\n")
+    monkeypatch.setattr("quin_scanner.vuln_checker.query_osv", lambda ref: [])
+    scanner, _ = _run(tmp_path, vuln_check_enabled=True)
+    assert scanner.coverage()["skills_capped"] == 1
+    assert any("osv" in n.lower() and "cap" in n.lower() for n in scanner.notes)

@@ -16,6 +16,7 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Report gains a `skills` array: per skill a record, findings (rule, severity, `file:line`, redacted evidence, taxonomy threat) and a deterministic 0–100 risk score with a SAFE / CAUTION / HIGH_RISK verdict. The HTML report shows per-skill risk cards; the CLI prints a verdict summary to stderr.
 - High and critical findings are promoted into `risk_signals`, so they appear in SARIF output with file and line locations.
 - Optional LLM review (skipped with `--no-llm`) confirms or disputes findings and explains them; disputed findings count at half weight and are not promoted. It sends only flagged evidence snippets and fails soft.
+- Coverage gains `skills_capped`, the number of times a limit was hit (skill cap, per-skill file cap, MCP source read cap, OSV lookup cap); the details are in `metadata.skills_notes`.
 - Skill artifacts use confidence 0.45, so a repository containing only skills is not by itself classified as an AI application.
 
 #### LLM Inference Endpoint Detection

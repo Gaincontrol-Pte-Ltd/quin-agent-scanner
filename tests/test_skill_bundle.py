@@ -87,6 +87,7 @@ def test_load_bundle_caps_file_count(tmp_path):
     bundle = load_bundle(record, LocalRepoAccessor(tmp_path))
     assert len(bundle.files) == 500
     assert any("10 files beyond cap" in s for s in bundle.skipped)
+    assert bundle.capped is True
 
 
 def test_evidence_redacts_more_secret_shapes():

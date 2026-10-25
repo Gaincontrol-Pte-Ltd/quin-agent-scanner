@@ -102,3 +102,17 @@ def test_discover_mcp_sources_finds_tool_definitions(tmp_path):
     assert rec is not None
     assert rec.ecosystem == "mcp"
     assert sorted(rec.files) == ["server.py", "tools.json"]
+
+
+def test_discover_mcp_sources_reports_read_cap(monkeypatch, tmp_path):
+    monkeypatch.setattr("quin_scanner.scanners.skills.discovery._MCP_MAX_FILES_READ", 2)
+    for i in range(4):
+        _write(tmp_path, f"f{i}.py", "print(1)")
+    accessor, fi = _index(tmp_path)
+    stats = {}
+    discover_mcp_sources(accessor, fi, stats=stats)
+    assert stats["read_cap_hit"] is True
+    stats = {}
+    monkeypatch.setattr("quin_scanner.scanners.skills.discovery._MCP_MAX_FILES_READ", 10)
+    discover_mcp_sources(accessor, fi, stats=stats)
+    assert stats["read_cap_hit"] is False

@@ -32,6 +32,8 @@ class SkillScanner(BaseScanner):
         self._analyzer_errors = 0
         self._osv_calls = 0
         self._osv_errors = 0
+        self._capped = 0
+        self._osv_cap_noted = False
 
     def name(self) -> str:
         return "SkillScanner"
@@ -42,11 +44,16 @@ class SkillScanner(BaseScanner):
             "skills_files_skipped": self._files_skipped,
             "skills_analyzer_errors": self._analyzer_errors,
             "skills_osv_lookup_errors": self._osv_errors,
+            "skills_capped": self._capped,
         }
 
     # ── OSV ──────────────────────────────────────────────────────────────────
     def _query_osv(self, package: str, version: str) -> list[Vulnerability]:
         if self._osv_calls >= MAX_OSV_LOOKUPS:
+            if not self._osv_cap_noted:
+                self._osv_cap_noted = True
+                self._capped += 1
+                self.notes.append(f"osv lookup cap reached: at most {MAX_OSV_LOOKUPS} lookups per scan")
             return []
         self._osv_calls += 1
         try:
@@ -66,12 +73,19 @@ class SkillScanner(BaseScanner):
         self.assessments = []
         self.notes = []
         self._files_skipped = self._analyzer_errors = self._osv_calls = self._osv_errors = 0
+        self._capped = 0
+        self._osv_cap_noted = False
 
         records = discover_skills(accessor, file_index)
         if len(records) > MAX_SKILLS:
             self.notes.append(f"skill cap reached: analysed {MAX_SKILLS} of {len(records)} skills")
             records = records[:MAX_SKILLS]
-        mcp = discover_mcp_sources(accessor, file_index)
+            self._capped += 1
+        mcp_stats: dict = {}
+        mcp = discover_mcp_sources(accessor, file_index, stats=mcp_stats)
+        if mcp_stats.get("read_cap_hit"):
+            self._capped += 1
+            self.notes.append("MCP discovery read cap reached: some source files were not inspected")
         if mcp is not None:
             records.append(mcp)
 
@@ -79,6 +93,8 @@ class SkillScanner(BaseScanner):
         for record in records:
             bundle = load_bundle(record, accessor)
             self._files_skipped += len(bundle.skipped)
+            if bundle.capped:
+                self._capped += 1
             for item in bundle.skipped:
                 self.notes.append(f"{record.name}: skipped {item}")
             self.assessments.append(build_assessment(record, self._analyze(bundle, osv)))

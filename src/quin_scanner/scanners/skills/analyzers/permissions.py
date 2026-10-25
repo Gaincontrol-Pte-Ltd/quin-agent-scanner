@@ -19,7 +19,7 @@ _NETWORK_WORDS = (
     "webhook", "notif", "sync", "deploy", "publish",
 )
 _CREDENTIAL_WORDS = (
-    "credential", "secret", "token", "ssh", "aws", "auth", "login", "password",
+    "credential", "secret", "token", "ssh", "aws", "auth", "authenticat", "authoriz", "login", "password",
     "keychain", "vault", "key",
 )
 

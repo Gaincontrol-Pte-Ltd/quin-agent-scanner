@@ -82,7 +82,7 @@ Prose rules ignore matches inside closed fenced code blocks (usually quoted exam
 
 ## Limits
 
-Static analysis only: no runtime behavior is observed. Non-English text and text inside images are not analyzed. At most 200 skills per repository, 500 files per skill, and 1 MB per file are analyzed; anything beyond that is recorded in `metadata.skills_notes` and `coverage`.
+Static analysis only: no runtime behavior is observed. Non-English text and text inside images are not analyzed. At most 200 skills per repository, 500 files per skill, and 1 MB per file are analyzed; anything beyond that is recorded in `metadata.skills_notes`, and `coverage.skills_capped` counts how many limits were hit (also the MCP source read cap and the OSV lookup cap).
 
 ## LLM review
 

@@ -74,6 +74,7 @@ class SkillBundle:
     record: SkillRecord
     files: list[SkillFile]
     skipped: list[str] = field(default_factory=list)
+    capped: bool = False     # True when the per-skill file cap truncated the file list
 
     def of_kind(self, *kinds: str) -> list[SkillFile]:
         return [f for f in self.files if file_kind(f.path) in kinds]
@@ -114,7 +115,8 @@ def load_bundle(record: SkillRecord, accessor: RepoAccessor) -> SkillBundle:
     files: list[SkillFile] = []
     skipped: list[str] = []
     candidates = record.files[:MAX_FILES_PER_SKILL]
-    if len(record.files) > MAX_FILES_PER_SKILL:
+    capped = len(record.files) > MAX_FILES_PER_SKILL
+    if capped:
         skipped.append(f"{len(record.files) - MAX_FILES_PER_SKILL} files beyond cap")
     for path in candidates:
         if file_kind(path) is None:
@@ -131,4 +133,4 @@ def load_bundle(record: SkillRecord, accessor: RepoAccessor) -> SkillBundle:
             skipped.append(f"{path}: binary")
             continue
         files.append(SkillFile(path, text))
-    return SkillBundle(record=record, files=files, skipped=skipped)
+    return SkillBundle(record=record, files=files, skipped=skipped, capped=capped)
