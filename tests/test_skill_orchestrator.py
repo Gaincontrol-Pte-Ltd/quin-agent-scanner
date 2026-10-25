@@ -100,3 +100,33 @@ def test_no_llm_makes_no_provider_call(monkeypatch):
 
     monkeypatch.setattr(ScannerConfig, "provider_factory", boom)
     ScanOrchestrator().run(LocalRepoAccessor(FIXTURES), _config(), verbose=False)
+
+
+def test_discovered_skills_appear_as_skill_tool_usages():
+    report = ScanOrchestrator().run(LocalRepoAccessor(FIXTURES), _config(), verbose=False)
+    skills = {t.tool_name: t for t in report.tool_usages if t.tool_type == "skill"}
+    assert {"commit-helper", "evil-formatter", "injection-awareness"} <= set(skills)
+    for a in report.skills:
+        if a.record.ecosystem != "mcp":
+            t = skills[a.record.name]
+            assert t.source_file == a.record.skill_md_path and t.line_number is None
+
+
+def test_classify_leaves_skill_entries_alone():
+    from quin_scanner.models import ToolUsage
+    from quin_scanner.orchestrator import _classify_tool_usages
+
+    class Srv:
+        name = "commit-helper"
+
+    t = ToolUsage(tool_name="commit-helper", tool_type="skill", source_file="x/foo.py")
+    _classify_tool_usages([t], [Srv()])
+    assert t.tool_type == "skill"
+
+
+def test_skill_usage_does_not_invent_agent_links():
+    report = ScanOrchestrator().run(LocalRepoAccessor(FIXTURES), _config(), verbose=False)
+    assert all(
+        not {"commit-helper", "evil-formatter", "injection-awareness"} & set(a.skills)
+        for a in report.agents
+    )

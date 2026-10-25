@@ -523,8 +523,8 @@ def _classify_tool_usages(
     mcp_names = {s.name.lower() for s in mcp_servers}
 
     for t in tool_usages:
-        # Don't reclassify external_service entries
-        if t.tool_type == "external_service":
+        # Don't reclassify external_service or already-identified skill entries
+        if t.tool_type in ("external_service", "skill"):
             continue
 
         # Skill heuristic: markdown file in a skill-like directory
@@ -1179,6 +1179,22 @@ class ScanOrchestrator:
                     )
                     for f in all_tool_defs[:100]
                 ]
+
+        # Rule 3a-0: surface discovered Agent Skills as ToolUsage(tool_type="skill")
+        if skill_scanner is not None:
+            from quin_scanner.models import ToolUsage
+            _known_names = {t.tool_name.lower() for t in pp_tool_usages}
+            for _a in skill_scanner.assessments:
+                _rec = _a.record
+                if _rec.ecosystem == "mcp" or _rec.name.lower() in _known_names:
+                    continue
+                _known_names.add(_rec.name.lower())
+                pp_tool_usages.append(ToolUsage(
+                    tool_name=_rec.name,
+                    tool_type="skill",
+                    source_file=_rec.skill_md_path,
+                    line_number=None,
+                ))
 
         # Rule 3a: classify tool_usages as skill / mcp_tool / tool_definition
         _classify_tool_usages(pp_tool_usages, mcp_servers)
