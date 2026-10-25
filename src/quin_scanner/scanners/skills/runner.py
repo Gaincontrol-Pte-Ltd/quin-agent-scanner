@@ -12,6 +12,7 @@ from quin_scanner.file_index import FileIndex
 from quin_scanner.models import SkillAssessment
 from quin_scanner.repo_accessor import LocalRepoAccessor, RepoAccessor, RepoAccessorFactory
 from quin_scanner.scanners.skills.archive import ArchiveError, extracted_zip
+from quin_scanner.scanners.skills.baseline import Baseline, BaselineResult, apply_baseline
 from quin_scanner.scanners.skills.llm_review import review_skills
 from quin_scanner.scanners.skills.scanner import SkillScanner
 
@@ -21,18 +22,24 @@ class SkillScanResult:
     assessments: list[SkillAssessment] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
     coverage: dict[str, Any] = field(default_factory=dict)
+    baseline: BaselineResult | None = None
 
 
-def run_skill_scan(accessor: RepoAccessor, config: ScannerConfig) -> SkillScanResult:
+def run_skill_scan(
+    accessor: RepoAccessor, config: ScannerConfig, baseline: Baseline | None = None
+) -> SkillScanResult:
     """Run only SkillScanner on *accessor*, then the optional LLM review unless ``config.no_llm``.
 
-    The LLM review fails soft: provider errors are recorded in ``notes`` and static results stand.
+    A *baseline* is applied before the LLM review, so suppressed findings are never reviewed,
+    scored or promoted. The LLM review fails soft: provider errors are recorded in ``notes``
+    and static results stand.
     """
     file_index = FileIndex(accessor)
     file_index.build()
     scanner = SkillScanner(vuln_check_enabled=config.vuln_check_enabled)
     scanner.scan(accessor, file_index)
     notes = list(scanner.notes)
+    baseline_result = apply_baseline(scanner.assessments, baseline) if baseline is not None else None
     if not config.no_llm and scanner.assessments:
         try:
             provider = config.provider_factory()
@@ -44,6 +51,7 @@ def run_skill_scan(accessor: RepoAccessor, config: ScannerConfig) -> SkillScanRe
         assessments=list(scanner.assessments),
         notes=notes,
         coverage={**file_index.coverage(), **scanner.coverage()},
+        baseline=baseline_result,
     )
 
 

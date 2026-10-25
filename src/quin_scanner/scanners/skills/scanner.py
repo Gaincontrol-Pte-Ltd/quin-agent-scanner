@@ -11,7 +11,12 @@ from quin_scanner.scanners.skills.analyzers.supply_chain import OsvLookup, analy
 from quin_scanner.scanners.skills.analyzers.taint import analyze_taint
 from quin_scanner.scanners.skills.analyzers.text_rules import analyze_text
 from quin_scanner.scanners.skills.bundle import SkillBundle, load_bundle
-from quin_scanner.scanners.skills.discovery import discover_mcp_sources, discover_skills
+from quin_scanner.scanners.skills.discovery import (
+    discover_instruction_files,
+    discover_mcp_sources,
+    discover_skills,
+    is_pseudo_record,
+)
 from quin_scanner.scanners.skills.scoring import build_assessment
 
 MAX_SKILLS = 200
@@ -21,7 +26,7 @@ _PROMOTE_SEVERITIES = {"critical", "high"}
 
 
 class SkillScanner(BaseScanner):
-    """Discovers Agent Skills / MCP tool sources and assesses their security risk."""
+    """Discovers Agent Skills / MCP tool sources / agent instruction files and assesses their security risk."""
 
     def __init__(self, vuln_check_enabled: bool = False, osv_lookup: OsvLookup | None = None) -> None:
         self.vuln_check_enabled = vuln_check_enabled
@@ -34,13 +39,15 @@ class SkillScanner(BaseScanner):
         self._osv_errors = 0
         self._capped = 0
         self._osv_cap_noted = False
+        self._instruction_files = 0
 
     def name(self) -> str:
         return "SkillScanner"
 
     def coverage(self) -> dict[str, int]:
         return {
-            "skills_found": sum(1 for a in self.assessments if a.record.ecosystem != "mcp"),
+            "skills_found": sum(1 for a in self.assessments if not is_pseudo_record(a.record)),
+            "skills_instruction_files": self._instruction_files,
             "skills_files_skipped": self._files_skipped,
             "skills_analyzer_errors": self._analyzer_errors,
             "skills_osv_lookup_errors": self._osv_errors,
@@ -48,7 +55,8 @@ class SkillScanner(BaseScanner):
         }
 
     # ── OSV ──────────────────────────────────────────────────────────────────
-    def _query_osv(self, package: str, version: str) -> list[Vulnerability]:
+    def _query_osv(self, package: str, version: str, ecosystem: str) -> list[Vulnerability]:
+        """Shared by PyPI and npm lookups: one cap, one error counter."""
         if self._osv_calls >= MAX_OSV_LOOKUPS:
             if not self._osv_cap_noted:
                 self._osv_cap_noted = True
@@ -60,12 +68,13 @@ class SkillScanner(BaseScanner):
             from quin_scanner import vuln_checker
 
             ref = vuln_checker.FrameworkRef(
-                name=package, version=version, ecosystem="PyPI", package=package
+                name=package, version=version, ecosystem=ecosystem, package=package
             )
             return vuln_checker.query_osv(ref)
         except Exception as exc:
             self._osv_errors += 1
-            self.notes.append(f"osv lookup failed for {package}=={version}: {type(exc).__name__}")
+            label = f"{package}@{version}" if ecosystem == "npm" else f"{package}=={version}"
+            self.notes.append(f"osv lookup failed for {label}: {type(exc).__name__}")
             return []
 
     # ── Scan ─────────────────────────────────────────────────────────────────
@@ -75,6 +84,7 @@ class SkillScanner(BaseScanner):
         self._files_skipped = self._analyzer_errors = self._osv_calls = self._osv_errors = 0
         self._capped = 0
         self._osv_cap_noted = False
+        self._instruction_files = 0
 
         records = discover_skills(accessor, file_index)
         if len(records) > MAX_SKILLS:
@@ -88,6 +98,15 @@ class SkillScanner(BaseScanner):
             self.notes.append("MCP discovery read cap reached: some source files were not inspected")
         if mcp is not None:
             records.append(mcp)
+        instr_stats: dict = {}
+        instructions = discover_instruction_files(accessor, file_index, stats=instr_stats)
+        if instr_stats.get("capped"):
+            self._capped += 1
+            self.notes.append(
+                f"instruction file cap reached: analysed {len(instructions.files)} of {instr_stats['total']} files"
+            )
+        if instructions is not None:
+            records.append(instructions)
 
         osv = self._osv_lookup or (self._query_osv if self.vuln_check_enabled else None)
         for record in records:
@@ -97,12 +116,16 @@ class SkillScanner(BaseScanner):
                 self._capped += 1
             for item in bundle.skipped:
                 self.notes.append(f"{record.name}: skipped {item}")
+            if record.ecosystem == "instructions":
+                self._instruction_files = len(bundle.files)
             self.assessments.append(build_assessment(record, self._analyze(bundle, osv)))
-        return self._scan_findings()
+        return self.summary_findings()
 
     def _analyze(self, bundle: SkillBundle, osv: OsvLookup | None) -> list[SkillFinding]:
         if bundle.record.ecosystem == "mcp":
             analyzers = [("analyze_mcp", analyze_mcp)]
+        elif bundle.record.ecosystem == "instructions":
+            analyzers = [("analyze_text", analyze_text)]
         else:
             analyzers = [
                 ("analyze_text", analyze_text),
@@ -123,7 +146,11 @@ class SkillScanner(BaseScanner):
                 )
         return findings
 
-    def _scan_findings(self) -> list[ScanFinding]:
+    def summary_findings(self) -> list[ScanFinding]:
+        """Per-skill summary ScanFindings (plus one per high/critical finding) from the current assessments.
+
+        Called again after a baseline is applied so suppressed findings never reach the inventory.
+        """
         out: list[ScanFinding] = []
         for a in self.assessments:
             rec = a.record
@@ -133,7 +160,7 @@ class SkillScanner(BaseScanner):
                 file_path=rec.skill_md_path or rec.root_path,
                 line_number=None,
                 match_text=f"{rec.name} [{a.verdict} {a.risk_score}]",
-                capability_tag="agent-skills",
+                capability_tag="agent-instructions" if rec.ecosystem == "instructions" else "agent-skills",
                 confidence=_SUMMARY_CONFIDENCE,
             ))
             for f in a.findings:

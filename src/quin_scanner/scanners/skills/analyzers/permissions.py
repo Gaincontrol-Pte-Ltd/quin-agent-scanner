@@ -5,13 +5,18 @@ import re
 from quin_scanner.models import SkillFinding
 from quin_scanner.scanners.skills.analyzers.common import line_of, make_finding
 from quin_scanner.scanners.skills.bundle import SkillBundle
+from quin_scanner.scanners.skills.discovery import is_pseudo_record
 
 _UNRESTRICTED_WRITE_TOOLS = {"write", "edit", "multiedit", "webfetch", "notebookedit"}
+# "requests" only as the Python library (import or attribute use), not the English word
 _NETWORK = re.compile(
-    r"\b(requests|httpx|urllib|aiohttp|http\.client|axios|XMLHttpRequest)\b|\bcurl\b|\bwget\b|\bfetch\("
+    r"\b(httpx|urllib|aiohttp|http\.client|axios|XMLHttpRequest)\b|\brequests\.[A-Za-z_]"
+    r"|\b(?:import|from)\s+requests\b|\bcurl\b|\bwget\b|\bfetch\("
 )
+# public keys (*.pub) are not secrets
 _CREDENTIALS = re.compile(
-    r"(?i)(\.ssh/|\.aws/|\.gnupg/|\.netrc\b|\bid_rsa\b|\bid_ed25519\b|\.git-credentials)"
+    r"(?i)(\.ssh/(?![\w.-]*\.pub\b)|\.aws/|\.gnupg/|\.netrc\b|\bid_rsa\b(?!\.pub)"
+    r"|\bid_ed25519\b(?!\.pub)|\.git-credentials)"
 )
 _NETWORK_WORDS = (
     "fetch", "download", "http", "api", "web", "url", "search", "upload", "request",
@@ -62,7 +67,7 @@ def _tools_line(bundle: SkillBundle) -> tuple[str, int | None]:
 
 def analyze_permissions(bundle: SkillBundle) -> list[SkillFinding]:
     rec = bundle.record
-    if rec.ecosystem == "mcp":
+    if is_pseudo_record(rec):
         return []
     findings: list[SkillFinding] = []
 

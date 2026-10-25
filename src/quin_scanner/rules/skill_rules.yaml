@@ -6,6 +6,10 @@
 # negatable:    ignore a match when the same line, before the match, contains a
 #               negation such as "never" / "do not" / "avoid"
 # skip_comment_lines: ignore matches on lines that are entirely a code comment
+# skip_hosts:   ignore a match when every URL on its line points at one of these
+#               hosts (exact host match, port and userinfo ignored)
+# skip_patterns: list of regexes; ignore a match when its whole line matches any of
+#               them (e.g. the line is a regex/denylist definition, not a file access)
 # threat_id:    taxonomy threat in risk_taxonomy.yaml
 
 rules:
@@ -49,7 +53,8 @@ rules:
     confidence: 0.5
     applies_to: [markdown, text]
     skip_in_fence: true
-    pattern: '(?i)\b(do not|don.?t|never)\b[^.\n]{0,20}\b(tell|inform|notify|alert)\b[^.\n]{0,12}\b(the )?user\b'
+    # "do not tell the user to run X" / "...they need to" asks the agent to act, not to hide
+    pattern: '(?i)\b(do not|don.?t|never)\b[^.\n:;]{0,20}\b(tell|inform|notify|alert)\b[^.\n:;]{0,12}\b(the )?user\b(?!\s+(?:to|they)\b)'
 
   - id: SK-PI-005
     title: Invisible or bidirectional Unicode characters
@@ -92,7 +97,7 @@ rules:
 
   - id: SK-AR-002
     title: Instructs the agent to act without confirmation
-    severity: medium
+    severity: low
     category: safety_bypass
     threat_id: T006
     confidence: 0.5
@@ -120,7 +125,7 @@ rules:
     applies_to: [markdown, text]
     skip_in_fence: true
     negatable: true
-    pattern: '(?i)\b(reveal|print|output|repeat|show|leak|dump)\b[^.\n]{0,25}\b(your|the)\b[^.\n]{0,10}\b(system prompt|hidden instructions|initial instructions)\b'
+    pattern: '(?i)\b(reveal|print|output|repeat|show|leak|dump)\b[^.,\n]{0,25}\b(your|the)\b[^.\n]{0,10}\b(system prompt|hidden instructions|initial instructions)\b'
 
   # ── Credential access and exfiltration ──────────────────────────────────────
   - id: SK-EX-001
@@ -131,16 +136,30 @@ rules:
     confidence: 0.7
     applies_to: [any]
     skip_comment_lines: true
-    pattern: '(?i)((?<![A-Za-z0-9-])\.(?:ssh|aws|gnupg)/|\.kube/config|\.netrc\b|\bid_rsa\b|\bid_ed25519\b|\.git-credentials|Library/Keychains|Login Data\b|cookies\.sqlite)'
+    # a line that defines a regex (String.raw template, RegExp / re.compile call, or
+    # regex syntax such as (?: lookarounds, [^ classes, a $/ literal end) is a
+    # sensitive-path denylist, not a read
+    skip_patterns:
+      - 'String\.raw\s*`'
+      - '\bnew\s+RegExp\s*\('
+      - '\bre\.(?:compile|match|search|fullmatch|findall|finditer|sub|split)\s*\('
+      - '\(\?(?:[:=!]|<[=!])'
+      - '\[\^'
+      - '\$/[dgimsuyv]*(?=[\s,;)\]]|$)'
+    # public keys (*.pub) are not secrets
+    pattern: '(?i)((?<![A-Za-z0-9-])\.ssh/(?![\w.-]*\.pub\b)|(?<![A-Za-z0-9-])\.(?:aws|gnupg)/|\.kube/config|\.netrc\b|\bid_rsa\b(?!\.pub)|\bid_ed25519\b(?!\.pub)|\.git-credentials|Library/Keychains|Login Data\b|cookies\.sqlite)'
 
   - id: SK-EX-002
     title: Uploads data with curl/wget
     severity: medium
     category: exfiltration
     threat_id: T002
-    confidence: 0.6
+    confidence: 0.4
     applies_to: [any]
-    pattern: '(?i)\b(curl|wget|Invoke-WebRequest|iwr)\b[^\n]{0,120}?(\s-d\s|\s--data(-binary|-raw|-urlencode)?\b|\s-F\s|--upload-file|\s-T\s|\s-X\s*POST)'
+    skip_hosts: [api.anthropic.com, api.openai.com, api.github.com, generativelanguage.googleapis.com, localhost, 127.0.0.1]
+    # short flags are case-sensitive (curl -f/-D are not uploads); -d/-F/-T are curl-only
+    # (wget -T is a timeout); wget and PowerShell use their own upload options
+    pattern: '(?i)\bcurl\b[^\n]{0,120}?(?:(?-i:\s-[dFT]\s)|(?-i:\s-X)\s*POST\b|\s--data(?:-binary|-raw|-urlencode|-ascii)?\b|\s--form\b|\s--upload-file\b|\s--request\s+POST\b)|\bwget\b[^\n]{0,120}?(?:--post-(?:data|file)\b|--body-(?:data|file)\b|--method[=\s]+POST\b)|\b(?:Invoke-WebRequest|Invoke-RestMethod|iwr|irm)\b[^\n]{0,120}?(?:-Method\s+Post\b|-InFile\b)'
 
   - id: SK-EX-003
     title: References a known exfiltration or webhook endpoint
@@ -170,7 +189,9 @@ rules:
     confidence: 0.8
     applies_to: [any]
     negatable: true
-    pattern: '\brm\s+-(?:rf|fr|r\s+-f|f\s+-r)\s+(?:["'']?(?:\$HOME|\$\{HOME\}|~)(?:/[^\s"'']*)?["'']?|/\*?|\*)(?=\s|$|["'';&|])'
+    # home targets: the home directory itself or one entry directly under it
+    # (~, ~/*, ~/Documents, ~/.ssh); deeper paths such as ~/.tool/cache/x are not flagged
+    pattern: '\brm\s+-(?:rf|fr|r\s+-f|f\s+-r)\s+(?:["'']?(?:\$HOME|\$\{HOME\}|~)(?:/[^\s"''/]*)?/?["'']?|/\*?|\*)(?=\s|$|["'';&|])'
 
   - id: SK-EXEC-003
     title: Installs persistence (cron, launchd, shell profile)

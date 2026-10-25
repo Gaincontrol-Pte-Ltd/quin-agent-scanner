@@ -45,6 +45,12 @@ from quin_scanner.scanners.prompt_discovery import PromptDiscoveryScanner
 from quin_scanner.scanners.agent_instance_scanner import AgentInstanceScanner
 from quin_scanner.scanners.tool_definition_scanner import ToolDefinitionScanner
 from quin_scanner.scanners.skills import SkillScanner
+from quin_scanner.scanners.skills.baseline import (
+    BaselineResult,
+    apply_baseline,
+    baseline_metadata,
+    load_baseline,
+)
 from quin_scanner.scanners.skills.llm_review import review_skills
 from quin_scanner.scanners.skills.promotion import promote_skill_findings
 from quin_scanner.agent_tool_relationships import discover_agent_tool_relationships
@@ -56,21 +62,45 @@ _TOP_N_DEFAULT = 5      # top findings per scanner
 _TOP_N_PROMPT = 10      # higher cap for PromptDiscoveryScanner
 
 
-class _ReadTrackingAccessor:
-    """Track scanner file reads without changing scanner behavior."""
+# Shared read cache limits (UTF-8 bytes). Files over the per-file limit are never cached; once
+# the total budget is spent, later files are simply not cached (no eviction).
+_READ_CACHE_MAX_FILE_BYTES = 1024 * 1024
+_READ_CACHE_MAX_TOTAL_BYTES = 50 * 1024 * 1024
 
-    def __init__(self, accessor: RepoAccessor) -> None:
+
+class _ReadTrackingAccessor:
+    """Track scanner file reads and cache their contents, without changing scanner behavior.
+
+    Several scanners (and the skills discovery helpers) read the same files; the cache makes
+    the backing accessor -- a GitHub API call for hosted scans -- serve each path once.
+    Failed reads are never cached: they hit the backing accessor and raise every time.
+    Concurrent first reads of one path wait for the reader already in flight (on a per-path
+    event, never while holding the lock) instead of fetching the file again.
+    """
+
+    def __init__(
+        self,
+        accessor: RepoAccessor,
+        max_file_bytes: int = _READ_CACHE_MAX_FILE_BYTES,
+        max_total_bytes: int = _READ_CACHE_MAX_TOTAL_BYTES,
+    ) -> None:
         self._accessor = accessor
         self._lock = threading.Lock()
         self._read_calls = 0
         self._read_ok: set[str] = set()
         self._read_failed: set[str] = set()
+        self._max_file_bytes = max_file_bytes
+        self._max_total_bytes = max_total_bytes
+        self._cache: dict[str, str] = {}
+        self._cached_bytes = 0
+        self._cache_hits = 0
+        self._inflight: dict[str, threading.Event] = {}
 
     def read_file(self, path: str) -> str:
         with self._lock:
             self._read_calls += 1
         try:
-            content = self._accessor.read_file(path)
+            content = self._read_through(path)
         except Exception:
             with self._lock:
                 self._read_failed.add(path)
@@ -78,6 +108,42 @@ class _ReadTrackingAccessor:
         with self._lock:
             self._read_ok.add(path)
         return content
+
+    def _read_through(self, path: str) -> str:
+        while True:
+            with self._lock:
+                cached = self._cache.get(path)
+                if cached is not None:
+                    self._cache_hits += 1
+                    return cached
+                pending = self._inflight.get(path)
+                if pending is None:
+                    pending = self._inflight[path] = threading.Event()
+                    break
+            # Another thread is reading this path: wait, then re-check the cache. If its read
+            # failed or was not cacheable, this thread becomes the reader on the next pass.
+            pending.wait()
+        try:
+            content = self._accessor.read_file(path)
+            self._store(path, content)
+            return content
+        finally:
+            with self._lock:
+                del self._inflight[path]
+            pending.set()
+
+    def _store(self, path: str, content: str) -> None:
+        if not isinstance(content, str) or len(content) > self._max_file_bytes:
+            return
+        size = len(content.encode("utf-8", "surrogatepass"))
+        with self._lock:
+            if (
+                size <= self._max_file_bytes
+                and path not in self._cache
+                and self._cached_bytes + size <= self._max_total_bytes
+            ):
+                self._cache[path] = content
+                self._cached_bytes += size
 
     def coverage(self) -> dict[str, int]:
         with self._lock:
@@ -87,8 +153,29 @@ class _ReadTrackingAccessor:
                 "files_failed_to_read": len(self._read_failed - self._read_ok),
             }
 
+    def cache_stats(self) -> dict[str, int]:
+        with self._lock:
+            return {"hits": self._cache_hits, "bytes_cached": self._cached_bytes}
+
+    def untracked(self) -> _CachedReadView:
+        """A view sharing this cache whose reads do not count toward scanner read coverage."""
+        return _CachedReadView(self)
+
     def __getattr__(self, name: str):
         return getattr(self._accessor, name)
+
+
+class _CachedReadView:
+    """Reads through a _ReadTrackingAccessor's cache without touching its coverage counters."""
+
+    def __init__(self, tracked: _ReadTrackingAccessor) -> None:
+        self._tracked = tracked
+
+    def read_file(self, path: str) -> str:
+        return self._tracked._read_through(path)
+
+    def __getattr__(self, name: str):
+        return getattr(self._tracked._accessor, name)
 
 
 def _log(msg: str) -> None:
@@ -835,12 +922,18 @@ class ScanOrchestrator:
     def run(self, accessor: RepoAccessor, config: ScannerConfig, verbose: bool = True) -> ScanReport:
         scan_start = time.monotonic()
 
+        # 0. Load the skills baseline first: a missing/malformed file fails the scan (BaselineError).
+        skills_baseline = load_baseline(config.skills_baseline_path) if config.skills_baseline_path else None
+        skills_baseline_result: BaselineResult | None = None
+
         # 1. Build file index
         if verbose:
             _log("Indexing files...")
         file_index = FileIndex(accessor)
         file_index.build()
         tracked_accessor = _ReadTrackingAccessor(accessor)
+        # Non-scanner readers share the cache but stay out of the scanner read-coverage counters.
+        cached_accessor = tracked_accessor.untracked()
         if verbose:
             file_count = len(file_index.all_files())
             _log(f"  {file_count} file{'s' if file_count != 1 else ''} indexed\n")
@@ -849,7 +942,7 @@ class ScanOrchestrator:
         # its evidence never influences AI-application detection or confidence.
         aegis_findings: list[ScanFinding] = []
         if config.detect_aegis:
-            aegis_findings = AegisScanner().scan(accessor, file_index)
+            aegis_findings = AegisScanner().scan(cached_accessor, file_index)
             if verbose:
                 _log(f"Aegis detection: {len(aegis_findings)} evidence item(s)\n")
 
@@ -872,7 +965,14 @@ class ScanOrchestrator:
         completed_results: list[tuple[str, list[ScanFinding]]] = []
 
         def _run_scanner(scanner: BaseScanner) -> tuple[str, list[ScanFinding]]:
-            return scanner.name(), scanner.scan(tracked_accessor, file_index)
+            nonlocal skills_baseline_result
+            findings = scanner.scan(tracked_accessor, file_index)
+            if scanner is skill_scanner and skills_baseline is not None:
+                # Suppress baselined findings before anything sees them (inventory,
+                # artifacts, LLM review, promotion), then rebuild the summaries.
+                skills_baseline_result = apply_baseline(skill_scanner.assessments, skills_baseline)
+                findings = skill_scanner.summary_findings()
+            return scanner.name(), findings
 
         with ThreadPoolExecutor() as executor:
             futures = {executor.submit(_run_scanner, s): s for s in scanners}
@@ -935,7 +1035,7 @@ class ScanOrchestrator:
             _log("\nIdentifying model usage...")
         from quin_scanner.model_identifier import ModelIdentifier
         identifier = ModelIdentifier()
-        model_usages = identifier.identify(accessor, file_index)
+        model_usages = identifier.identify(cached_accessor, file_index)
         if verbose:
             n = len(model_usages)
             _log(f"  {n} model{'s' if n != 1 else ''} found")
@@ -946,7 +1046,7 @@ class ScanOrchestrator:
         # LLM inference endpoint addresses (credentials redacted at extraction time)
         from quin_scanner.endpoint_identifier import EndpointIdentifier
         llm_endpoints = [
-            e for e in EndpointIdentifier().identify(accessor, file_index)
+            e for e in EndpointIdentifier().identify(cached_accessor, file_index)
             if not _is_test_path(e.file_path)
         ]
 
@@ -1188,10 +1288,11 @@ class ScanOrchestrator:
         # Rule 3a-0: surface discovered Agent Skills as ToolUsage(tool_type="skill")
         if skill_scanner is not None:
             from quin_scanner.models import ToolUsage
+            from quin_scanner.scanners.skills.discovery import is_pseudo_record
             _known_names = {t.tool_name.lower() for t in pp_tool_usages}
             for _a in skill_scanner.assessments:
                 _rec = _a.record
-                if _rec.ecosystem == "mcp" or _rec.name.lower() in _known_names:
+                if is_pseudo_record(_rec) or _rec.name.lower() in _known_names:
                     continue
                 _known_names.add(_rec.name.lower())
                 pp_tool_usages.append(ToolUsage(
@@ -1341,9 +1442,16 @@ class ScanOrchestrator:
 
         if skill_scanner is not None and skill_scanner.notes:
             metadata["skills_notes"] = skill_scanner.notes[:50]
+        if skills_baseline is not None:
+            # Skills scanner disabled: nothing matched, every entry is stale.
+            metadata["skills_baseline"] = baseline_metadata(
+                config.skills_baseline_path,
+                skills_baseline_result or apply_baseline([], skills_baseline),
+            )
         # Content hashes to match a running agent to this repository. The stats go in the metadata so a cut-off list is visible.
         file_hashes, file_hash_stats = compute_file_fingerprint(tracked_accessor, file_index)
         metadata["file_hash_stats"] = file_hash_stats
+        metadata["read_cache"] = tracked_accessor.cache_stats()
 
         governance = None
         if config.detect_aegis:

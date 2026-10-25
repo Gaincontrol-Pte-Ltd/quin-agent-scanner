@@ -40,7 +40,7 @@ Quin maps the AI and agent components present in a repository, preserves the evi
 | **AI framework and dependency discovery** | AI SDKs and agent frameworks, model providers and model IDs, vector databases, embedding packages, and voice or image AI dependencies. See [Supported Frameworks](#supported-frameworks). |
 | **Agent and prompt discovery** | Named agents and agent configurations, system prompts, prompt templates, agent skills, and related source files. |
 | **Tools and MCP discovery** | Tool definitions, external-service usage, MCP servers and transports, and tool usage evidence. Quin can link detected agents to tools explicitly listed in supported Python `tools=[...]` calls and JavaScript/TypeScript agent objects. It records both source locations when it also detects the tool definition. |
-| **Skill security analysis** | Agent Skills (`SKILL.md` packages for Claude Code, Codex and OpenCode) and MCP tool definitions. Quin scores each skill 0–100 (SAFE / CAUTION / HIGH_RISK) using static rules for prompt injection, hidden content, exfiltration, dangerous code, supply chain, excessive permissions and MCP tool poisoning. With an LLM enabled, findings are also confirmed or disputed. See [Skill rules](docs/skill-rules.md). |
+| **Skill security analysis** | Agent Skills (`SKILL.md` packages for Claude Code, Codex and OpenCode), MCP tool definitions, and agent instruction files (`CLAUDE.md`, `AGENTS.md`, `GEMINI.md`, Cursor, Windsurf, Cline, Roo and Copilot rules, checked with the text rules only). Quin scores each skill 0–100 (SAFE / CAUTION / HIGH_RISK) using static rules for prompt injection, hidden content, exfiltration, dangerous code, supply chain, excessive permissions and MCP tool poisoning. With an LLM enabled, findings are also confirmed or disputed. See [Skill rules](docs/skill-rules.md). |
 | **Model endpoint discovery** | Model usage by provider, model, source, and role; LLM endpoint addresses and endpoint types. Credentials in endpoint URLs and expressions are redacted. |
 | **Infrastructure and delivery discovery** | Infrastructure-as-code, Dockerfiles, Jupyter notebooks, and CI pipelines related to AI applications. |
 | **Complete finding inventory** | All raw scanner observations, including observations that are deduplicated in the summary artifact list or omitted from the LLM context to keep synthesis bounded. |
@@ -182,7 +182,23 @@ quin-scanner skills scan ./my-skill -o json -f skills.json
 quin-scanner skills scan ./my-skill -o sarif -f skills.sarif
 ```
 
-Exit codes: `0` when every skill is below `--fail-on` (default `high_risk`), `1` when at least one skill is at or above it, `2` on an error (bad target, unreadable or unsafe zip).
+Exit codes: `0` when every skill is below `--fail-on` (default `high_risk`), `1` when at least one skill is at or above it, `2` on an error (bad target, unreadable or unsafe zip, missing or malformed baseline).
+
+To accept the findings you have already reviewed and see only new ones later, write a baseline and pass it on later scans:
+
+```bash
+# Record every current finding (static, no LLM). Refuses to overwrite without --force.
+quin-scanner skills baseline ./skills -o skills-baseline.yaml
+
+# Later: only findings not in the baseline are reported, scored and counted for the exit code
+quin-scanner skills scan ./skills --baseline skills-baseline.yaml
+#   Baseline: 9 finding(s) suppressed, 0 stale entries
+
+# The full scan accepts the same file
+quin-scanner scan . --skills-baseline skills-baseline.yaml
+```
+
+The baseline file lists one fingerprint per finding with its rule, skill and file (no evidence, no line numbers), plus an empty `note` you can fill in. Scan the same target root you baselined, since file paths are part of the fingerprint. See [docs/skill-rules.md](docs/skill-rules.md#baselines).
 
 ## GitHub Action
 
@@ -354,7 +370,7 @@ uv run quin-scanner scan ./path/to/repo --config scanner-config.yaml
 
 ## How It Works
 
-Quin runs 14 configurable static scanner plugins in parallel. It then builds inventories and coverage metrics, identifies model usage and endpoints, optionally checks known vulnerabilities, and optionally runs a two-pass LLM pipeline. Aegis governance detection is an additional opt-in scan.
+Quin runs 14 configurable static scanner plugins in parallel. They share a bounded read cache (1 MB per file, 50 MB per scan), so each file is fetched from the repository, or the GitHub API, once. It then builds inventories and coverage metrics, identifies model usage and endpoints, optionally checks known vulnerabilities, and optionally runs a two-pass LLM pipeline. Aegis governance detection is an additional opt-in scan.
 
 ```
 Repo  -->  14 Scanners (parallel)  -->  Inventory + Coverage  -->  Vulnerability Lookup  -->  Optional LLM Analysis  -->  Report
@@ -377,6 +393,8 @@ When a framework and its base version are detected, Quin checks for known CVEs a
 |---|---|---|
 | **OSV.dev** | Always, when `vuln_check.enabled: true` | None |
 | **LLM web search** | Optional, when `search_provider` is set | Reuses the chosen provider's API key |
+
+The skills scanner also checks dependencies pinned inside skills: `requirements*.txt` lines with `==` (PyPI) and `package.json` dependencies pinned to an exact version such as `1.2.3` (npm). Matches are reported as `SK-SC-006`; at most 50 lookups run per scan, and `--no-vuln-check` turns them off.
 
 **Supported web-search providers** (each reuses its own existing API key env var):
 
