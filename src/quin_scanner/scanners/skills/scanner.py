@@ -40,7 +40,7 @@ class SkillScanner(BaseScanner):
 
     def coverage(self) -> dict[str, int]:
         return {
-            "skills_found": len(self.assessments),
+            "skills_found": sum(1 for a in self.assessments if a.record.ecosystem != "mcp"),
             "skills_files_skipped": self._files_skipped,
             "skills_analyzer_errors": self._analyzer_errors,
             "skills_osv_lookup_errors": self._osv_errors,

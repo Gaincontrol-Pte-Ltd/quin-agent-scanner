@@ -73,6 +73,7 @@ def test_mcp_source_gets_synthetic_record_and_only_mcp_analyzer(tmp_path):
     rules = {f.rule_id for f in a.findings}
     assert "SK-MCP-001" in rules
     assert "SK-CODE-002" not in rules       # code analyzers do not run on the MCP pseudo-skill
+    assert scanner.coverage()["skills_found"] == 0   # the MCP pseudo-skill is not a skill
 
 
 def test_analyzer_failure_is_isolated_and_recorded(monkeypatch):
