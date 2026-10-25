@@ -66,6 +66,7 @@ class TextRule:
     negatable: bool
     skip_comment_lines: bool = False
     skip_hosts: frozenset[str] = frozenset()
+    skip_patterns: tuple[re.Pattern[str], ...] = ()
 
 
 @lru_cache(maxsize=1)
@@ -85,6 +86,7 @@ def load_rules() -> tuple[TextRule, ...]:
             negatable=bool(r.get("negatable", False)),
             skip_comment_lines=bool(r.get("skip_comment_lines", False)),
             skip_hosts=frozenset(h.lower() for h in r.get("skip_hosts", [])),
+            skip_patterns=tuple(re.compile(p) for p in r.get("skip_patterns", [])),
         )
         for r in data["rules"]
     )
@@ -205,6 +207,14 @@ def _is_comment_line(text: str, pos: int) -> bool:
     return line.startswith(("#", "//", "/*", "*")) and not line.startswith("#!")
 
 
+def _line_matches_any(text: str, pos: int, patterns: tuple[re.Pattern[str], ...]) -> bool:
+    """True when the line containing *pos* matches any of *patterns*."""
+    start = text.rfind("\n", 0, pos) + 1
+    end = text.find("\n", pos)
+    line = text[start: end if end != -1 else len(text)]
+    return any(p.search(line) for p in patterns)
+
+
 def rule_matches(
     rule: TextRule, text: str, kind: str, fenced: set[int]
 ) -> Iterator[re.Match[str]]:
@@ -218,6 +228,8 @@ def rule_matches(
         if rule.negatable and kind in _PROSE_KINDS and is_quoted_mention(text, m.start()):
             continue
         if rule.skip_comment_lines and _is_comment_line(text, m.start()):
+            continue
+        if rule.skip_patterns and _line_matches_any(text, m.start(), rule.skip_patterns):
             continue
         if rule.skip_hosts and _line_hosts_all_skipped(text, m.start(), rule.skip_hosts):
             continue
