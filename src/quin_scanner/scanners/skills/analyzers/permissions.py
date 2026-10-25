@@ -5,6 +5,7 @@ import re
 from quin_scanner.models import SkillFinding
 from quin_scanner.scanners.skills.analyzers.common import line_of, make_finding
 from quin_scanner.scanners.skills.bundle import SkillBundle
+from quin_scanner.scanners.skills.discovery import is_pseudo_record
 
 _UNRESTRICTED_WRITE_TOOLS = {"write", "edit", "multiedit", "webfetch", "notebookedit"}
 _NETWORK = re.compile(
@@ -62,7 +63,7 @@ def _tools_line(bundle: SkillBundle) -> tuple[str, int | None]:
 
 def analyze_permissions(bundle: SkillBundle) -> list[SkillFinding]:
     rec = bundle.record
-    if rec.ecosystem == "mcp":
+    if is_pseudo_record(rec):
         return []
     findings: list[SkillFinding] = []
 

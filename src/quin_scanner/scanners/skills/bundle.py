@@ -13,7 +13,7 @@ MAX_FILES_PER_SKILL = 500
 MAX_EVIDENCE_CHARS = 500
 
 _KIND_BY_SUFFIX = {
-    ".md": "markdown", ".markdown": "markdown",
+    ".md": "markdown", ".markdown": "markdown", ".mdc": "markdown",
     ".py": "code", ".js": "code", ".mjs": "code", ".cjs": "code", ".ts": "code",
     ".rb": "code", ".ps1": "code",
     ".sh": "shell", ".bash": "shell", ".zsh": "shell",
@@ -21,7 +21,11 @@ _KIND_BY_SUFFIX = {
     ".cfg": "config", ".ini": "config",
     ".txt": "text",
 }
-_KIND_BY_NAME = {"makefile": "shell", "dockerfile": "shell"}
+_KIND_BY_NAME = {
+    "makefile": "shell", "dockerfile": "shell",
+    # extensionless agent rules files (instruction-file scanning)
+    ".cursorrules": "markdown", ".windsurfrules": "markdown", ".clinerules": "markdown",
+}
 
 _SECRET_ASSIGN = re.compile(
     r"(?i)\b(api[_-]?key|secret|token|password|passwd)\b(\s*[=:]\s*)['\"]?[A-Za-z0-9_\-./+]{6,}['\"]?"

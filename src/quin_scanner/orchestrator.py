@@ -1205,10 +1205,11 @@ class ScanOrchestrator:
         # Rule 3a-0: surface discovered Agent Skills as ToolUsage(tool_type="skill")
         if skill_scanner is not None:
             from quin_scanner.models import ToolUsage
+            from quin_scanner.scanners.skills.discovery import is_pseudo_record
             _known_names = {t.tool_name.lower() for t in pp_tool_usages}
             for _a in skill_scanner.assessments:
                 _rec = _a.record
-                if _rec.ecosystem == "mcp" or _rec.name.lower() in _known_names:
+                if is_pseudo_record(_rec) or _rec.name.lower() in _known_names:
                     continue
                 _known_names.add(_rec.name.lower())
                 pp_tool_usages.append(ToolUsage(

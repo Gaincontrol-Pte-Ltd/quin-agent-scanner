@@ -8,6 +8,7 @@ import yaml
 from quin_scanner.file_index import FileIndex
 from quin_scanner.models import SkillRecord
 from quin_scanner.repo_accessor import RepoAccessor
+from quin_scanner.scanners.skills import bundle as _bundle
 
 _ECOSYSTEM_DIRS = {".claude": "claude", ".codex": "codex", ".opencode": "opencode"}
 
@@ -18,6 +19,17 @@ _MCP_MARKERS = (
 _MCP_SUFFIXES = {".py", ".js", ".mjs", ".cjs", ".ts", ".json"}
 _MCP_MAX_FILES_READ = 2000
 _MCP_MAX_FILE_CHARS = 200_000
+
+# Synthetic records that group repo files rather than describe a real skill package.
+PSEUDO_ECOSYSTEMS = frozenset({"mcp", "instructions"})
+
+_INSTRUCTION_NAMES = {"claude.md", "agents.md", "gemini.md"}
+_INSTRUCTION_RULE_FILES = {".cursorrules", ".windsurfrules", ".clinerules"}
+
+
+def is_pseudo_record(record: SkillRecord) -> bool:
+    """True for the synthetic MCP / instruction-file records, which are not real skills."""
+    return record.ecosystem in PSEUDO_ECOSYSTEMS
 
 
 def _skill_id(path: str) -> str:
@@ -156,4 +168,55 @@ def discover_mcp_sources(
         skill_md_path="",
         ecosystem="mcp",
         files=candidates,
+    )
+
+
+def _is_instruction_file(path: str) -> bool:
+    parts = PurePosixPath(path).parts
+    name = parts[-1].lower()
+    if name in _INSTRUCTION_NAMES or name in _INSTRUCTION_RULE_FILES:
+        return True
+    suffix = PurePosixPath(name).suffix
+    dirs = [p.lower() for p in parts[:-1]]
+    for i, d in enumerate(dirs):
+        nxt = dirs[i + 1] if i + 1 < len(dirs) else None
+        if d == ".cursor" and nxt == "rules" and suffix in {".md", ".mdc"}:
+            return True
+        if d == ".github":
+            if nxt is None and name == "copilot-instructions.md":
+                return True
+            if nxt == "instructions" and suffix == ".md":
+                return True
+        if d == ".clinerules" and suffix == ".md":
+            return True
+        if d == ".roo" and nxt is not None and nxt.startswith("rules") and suffix == ".md":
+            return True
+    return False
+
+
+def discover_instruction_files(
+    accessor: RepoAccessor, file_index: FileIndex, stats: dict | None = None
+) -> SkillRecord | None:
+    """Return one synthetic record whose files are agent instruction / rules files.
+
+    Covers CLAUDE.md, AGENTS.md, GEMINI.md (any depth), .cursorrules, .windsurfrules,
+    .clinerules, .cursor/rules/, .github/copilot-instructions.md, .github/instructions/,
+    .clinerules/ and .roo/rules*/ Markdown. Files inside skill folders are included too.
+    When *stats* is given, ``stats["capped"]`` reports whether the per-skill file cap applied.
+    """
+    matches = sorted({p for p in file_index.all_files() if _is_instruction_file(p)})
+    cap = _bundle.MAX_FILES_PER_SKILL
+    if stats is not None:
+        stats["capped"] = len(matches) > cap
+        stats["total"] = len(matches)
+    if not matches:
+        return None
+    return SkillRecord(
+        id=_skill_id("instructions:agent-instruction-files"),
+        name="Agent instruction files",
+        description="Agent instruction and rules files found in the repository",
+        root_path=".",
+        skill_md_path="",
+        ecosystem="instructions",
+        files=matches[:cap],
     )

@@ -75,21 +75,23 @@ def _record_flags(report, flags: list[str]) -> None:
 def skill_summary_lines(report) -> list[str]:
     """Human-readable per-skill verdict lines, highest risk first. Empty when no skills.
 
-    The MCP tool-definition pseudo-skill is not a skill: it gets its own trailing line.
+    The MCP tool-definition and agent-instruction-file pseudo-records are not skills:
+    each gets its own trailing ``<name>: <verdict> <score>`` line.
     A skills baseline, when one was applied, adds a final ``Baseline: ...`` line.
     """
     from quin_scanner.scanners.skills.baseline import baseline_summary
+    from quin_scanner.scanners.skills.discovery import is_pseudo_record
 
-    skills = [a for a in report.skills if a.record.ecosystem != "mcp"]
-    mcp = [a for a in report.skills if a.record.ecosystem == "mcp"]
+    skills = [a for a in report.skills if not is_pseudo_record(a.record)]
+    pseudo = [a for a in report.skills if is_pseudo_record(a.record)]
     lines: list[str] = []
     if skills:
         lines.append(f"Skills: {len(skills)} found")
         for a in sorted(skills, key=lambda s: -s.risk_score):
             counts = ", ".join(f"{n} {sev}" for sev, n in a.finding_counts.items()) or "no findings"
             lines.append(f"  {a.record.name:<30} {a.verdict:<10} {a.risk_score:>3}  ({counts})")
-    for a in mcp:
-        lines.append(f"MCP tool definitions: {a.verdict} {a.risk_score}")
+    for a in pseudo:
+        lines.append(f"{a.record.name}: {a.verdict} {a.risk_score}")
     if report.metadata.get("skills_baseline"):
         lines.append(baseline_summary(report.metadata["skills_baseline"]))
     return lines
@@ -766,6 +768,7 @@ def skills_baseline(
       quin-scanner skills baseline ./skills -o skills-baseline.yaml --force
     """
     from quin_scanner.scanners.skills.baseline import write_baseline
+    from quin_scanner.scanners.skills.discovery import is_pseudo_record
     from quin_scanner.scanners.skills.runner import open_skill_target, run_skill_scan
 
     try:
@@ -788,7 +791,7 @@ def skills_baseline(
         click.echo(f"Error: {e}", err=True)
         sys.exit(2)
 
-    skills_n = sum(1 for a in result.assessments if a.record.ecosystem != "mcp")
+    skills_n = sum(1 for a in result.assessments if not is_pseudo_record(a.record))
     click.echo(
         f"Baseline written to {output_file}: {count} {'entry' if count == 1 else 'entries'} "
         f"from {skills_n} skill{'s' if skills_n != 1 else ''}"

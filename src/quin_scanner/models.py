@@ -295,13 +295,13 @@ class GovernanceInfo:
 
 @dataclass
 class SkillRecord:
-    """An Agent Skill package (or the synthetic MCP tool-definition source) found in a repo."""
+    """An Agent Skill package (or a synthetic MCP tool-definition / instruction-file record) found in a repo."""
     id: str
     name: str
     description: str
     root_path: str
     skill_md_path: str
-    ecosystem: str = "generic"           # "claude" | "codex" | "opencode" | "generic" | "mcp"
+    ecosystem: str = "generic"           # "claude" | "codex" | "opencode" | "generic" | "mcp" | "instructions"
     allowed_tools: list[str] = field(default_factory=list)
     files: list[str] = field(default_factory=list)
     frontmatter_valid: bool = True
