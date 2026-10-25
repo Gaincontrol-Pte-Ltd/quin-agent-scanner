@@ -9,7 +9,8 @@ from quin_scanner.models import SkillFinding, Vulnerability
 from quin_scanner.scanners.skills.analyzers.common import line_of, make_finding
 from quin_scanner.scanners.skills.bundle import SkillBundle, SkillFile, file_kind
 
-OsvLookup = Callable[[str, str], list[Vulnerability]]
+# (package, version, ecosystem) -> vulnerabilities; ecosystem is an OSV name ("PyPI", "npm").
+OsvLookup = Callable[[str, str, str], list[Vulnerability]]
 
 _POPULAR_PYPI = frozenset({
     "requests", "numpy", "pandas", "urllib3", "boto3", "setuptools", "django", "flask",
@@ -30,6 +31,10 @@ _PIP_VALUE_FLAGS = {
     "-i", "--index-url", "--extra-index-url", "-f", "--find-links", "-t", "--target",
 }
 _OSV_VERSION = re.compile(r"^\d+(?:\.\d+)*$")
+# npm exact version (semver, optional "=" or "v" prefix); ranges, tags and URLs do not match.
+_NPM_EXACT = re.compile(
+    r"^[=v]?(?P<v>\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?)$"
+)
 _NPM_SECTIONS = ("dependencies", "devDependencies", "optionalDependencies")
 _INSTALL_SCRIPTS = ("preinstall", "install", "postinstall")
 
@@ -100,13 +105,21 @@ def _scan_requirements(
             findings.append(_sc(bundle, f, "SK-SC-001", "low",
                                 "Unpinned dependency", n, stripped, 0.6))
         elif osv_lookup and version and _OSV_VERSION.match(version):
-            for v in osv_lookup(_normalise(name), version):
-                sev = v.severity if v.severity in {"critical", "high", "medium", "low"} else "medium"
-                findings.append(_sc(
-                    bundle, f, "SK-SC-006", sev,
-                    f"Known vulnerability in {name}=={version}", n,
-                    f"{name}=={version}: {v.cve_id or 'advisory'} {(v.summary or '')[:200]}", 0.9,
-                ))
+            findings.extend(_vuln_findings(
+                bundle, f, n, f"{name}=={version}", osv_lookup(_normalise(name), version, "PyPI")
+            ))
+    return findings
+
+
+def _vuln_findings(bundle: SkillBundle, f: SkillFile, line: int | None, label: str,
+                   vulns: list[Vulnerability]) -> list[SkillFinding]:
+    findings: list[SkillFinding] = []
+    for v in vulns:
+        sev = v.severity if v.severity in {"critical", "high", "medium", "low"} else "medium"
+        findings.append(_sc(
+            bundle, f, "SK-SC-006", sev, f"Known vulnerability in {label}", line,
+            f"{label}: {v.cve_id or 'advisory'} {(v.summary or '')[:200]}", 0.9,
+        ))
     return findings
 
 
@@ -115,7 +128,9 @@ def _line_containing(text: str, needle: str) -> int | None:
     return line_of(text, idx) if idx >= 0 else None
 
 
-def _scan_package_json(bundle: SkillBundle, f: SkillFile) -> list[SkillFinding]:
+def _scan_package_json(
+    bundle: SkillBundle, f: SkillFile, osv_lookup: OsvLookup | None
+) -> list[SkillFinding]:
     try:
         data = json.loads(f.text)
     except ValueError:
@@ -141,6 +156,12 @@ def _scan_package_json(bundle: SkillBundle, f: SkillFile) -> list[SkillFinding]:
             elif spec_s in {"*", "latest", ""}:
                 findings.append(_sc(bundle, f, "SK-SC-001", "low",
                                     "Unpinned dependency", line, ev, 0.6))
+            elif osv_lookup and (exact := _NPM_EXACT.match(spec_s.strip())):
+                # npm names are case-sensitive: pass them through unnormalised
+                version = exact.group("v")
+                findings.extend(_vuln_findings(
+                    bundle, f, line, f"{name}@{version}", osv_lookup(name, version, "npm")
+                ))
     scripts = data.get("scripts")
     if isinstance(scripts, dict):
         for key in _INSTALL_SCRIPTS:
@@ -194,7 +215,7 @@ def analyze_supply_chain(
         if re.fullmatch(r"requirements[\w.-]*\.txt", name):
             findings.extend(_scan_requirements(bundle, f, osv_lookup))
         elif name == "package.json":
-            findings.extend(_scan_package_json(bundle, f))
+            findings.extend(_scan_package_json(bundle, f, osv_lookup))
         if kind in {"markdown", "shell"}:
             findings.extend(_scan_install_commands(bundle, f))
     return findings

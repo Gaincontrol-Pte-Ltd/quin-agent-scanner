@@ -55,7 +55,8 @@ class SkillScanner(BaseScanner):
         }
 
     # ── OSV ──────────────────────────────────────────────────────────────────
-    def _query_osv(self, package: str, version: str) -> list[Vulnerability]:
+    def _query_osv(self, package: str, version: str, ecosystem: str) -> list[Vulnerability]:
+        """Shared by PyPI and npm lookups: one cap, one error counter."""
         if self._osv_calls >= MAX_OSV_LOOKUPS:
             if not self._osv_cap_noted:
                 self._osv_cap_noted = True
@@ -67,12 +68,13 @@ class SkillScanner(BaseScanner):
             from quin_scanner import vuln_checker
 
             ref = vuln_checker.FrameworkRef(
-                name=package, version=version, ecosystem="PyPI", package=package
+                name=package, version=version, ecosystem=ecosystem, package=package
             )
             return vuln_checker.query_osv(ref)
         except Exception as exc:
             self._osv_errors += 1
-            self.notes.append(f"osv lookup failed for {package}=={version}: {type(exc).__name__}")
+            label = f"{package}@{version}" if ecosystem == "npm" else f"{package}=={version}"
+            self.notes.append(f"osv lookup failed for {label}: {type(exc).__name__}")
             return []
 
     # ── Scan ─────────────────────────────────────────────────────────────────

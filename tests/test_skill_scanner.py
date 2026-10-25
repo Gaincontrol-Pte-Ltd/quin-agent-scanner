@@ -106,13 +106,13 @@ def test_osv_lookup_runs_only_when_enabled(tmp_path):
     (d / "requirements.txt").write_text("requests==2.0.0\n")
     calls = []
 
-    def lookup(name, version):
-        calls.append((name, version))
+    def lookup(name, version, ecosystem):
+        calls.append((name, version, ecosystem))
         return [Vulnerability(cve_id="CVE-1", severity="high", cvss_score=8.0, published=None,
                               summary="s", source="osv", source_url=None)]
 
     scanner, _ = _run(tmp_path, osv_lookup=lookup)
-    assert calls == [("requests", "2.0.0")]
+    assert calls == [("requests", "2.0.0", "PyPI")]
     assert any(f.rule_id == "SK-SC-006" for f in scanner.assessments[0].findings)
 
 
@@ -193,5 +193,71 @@ def test_osv_lookup_cap_counts_in_coverage(monkeypatch, tmp_path):
     (d / "requirements.txt").write_text("requests==2.0.0\nflask==1.0.0\n")
     monkeypatch.setattr("quin_scanner.vuln_checker.query_osv", lambda ref: [])
     scanner, _ = _run(tmp_path, vuln_check_enabled=True)
+    assert scanner.coverage()["skills_capped"] == 1
+    assert any("osv" in n.lower() and "cap" in n.lower() for n in scanner.notes)
+
+
+# ── OSV lookups for npm dependencies ────────────────────────────────────────
+
+
+def _npm_skill(tmp_path, deps='{"dependencies": {"@scope/pkg": "1.2.3"}}', requirements=None):
+    d = tmp_path / "skills" / "dep"
+    d.mkdir(parents=True)
+    (d / "SKILL.md").write_text("---\nname: dep\n---\n")
+    (d / "package.json").write_text(deps)
+    if requirements is not None:
+        (d / "requirements.txt").write_text(requirements)
+
+
+def test_osv_npm_lookup_uses_npm_ecosystem(tmp_path, monkeypatch):
+    _npm_skill(tmp_path)
+    refs = []
+
+    def fake_query(ref):
+        refs.append(ref)
+        return [Vulnerability(cve_id="CVE-9", severity="high", cvss_score=8.0, published=None,
+                              summary="s", source="osv", source_url=None)]
+
+    monkeypatch.setattr("quin_scanner.vuln_checker.query_osv", fake_query)
+    scanner, _ = _run(tmp_path, vuln_check_enabled=True)
+    assert [(r.ecosystem, r.package, r.name, r.version) for r in refs] == [
+        ("npm", "@scope/pkg", "@scope/pkg", "1.2.3")]
+    [vuln] = [f for f in scanner.assessments[0].findings if f.rule_id == "SK-SC-006"]
+    assert vuln.file_path.endswith("package.json")
+    assert "@scope/pkg@1.2.3: CVE-9" in vuln.evidence
+
+
+def test_osv_npm_disabled_by_default(tmp_path, monkeypatch):
+    _npm_skill(tmp_path)
+
+    def must_not_be_called(*a, **k):
+        raise AssertionError("network lookup attempted")
+
+    monkeypatch.setattr("quin_scanner.vuln_checker.query_osv", must_not_be_called)
+    scanner, _ = _run(tmp_path)
+    assert not any(f.rule_id == "SK-SC-006" for a in scanner.assessments for f in a.findings)
+
+
+def test_osv_npm_failure_is_counted_not_raised(tmp_path, monkeypatch):
+    _npm_skill(tmp_path)
+
+    def fail(*a, **k):
+        raise OSError("offline")
+
+    monkeypatch.setattr("quin_scanner.vuln_checker.query_osv", fail)
+    scanner, _ = _run(tmp_path, vuln_check_enabled=True)
+    assert scanner.coverage()["skills_osv_lookup_errors"] == 1
+    assert any("@scope/pkg@1.2.3" in n for n in scanner.notes)
+    assert scanner.assessments
+
+
+def test_osv_cap_is_shared_between_pypi_and_npm(monkeypatch, tmp_path):
+    monkeypatch.setattr("quin_scanner.scanners.skills.scanner.MAX_OSV_LOOKUPS", 2)
+    _npm_skill(tmp_path, deps='{"dependencies": {"a": "1.0.0", "b": "2.0.0"}}',
+               requirements="requests==2.0.0\n")
+    refs = []
+    monkeypatch.setattr("quin_scanner.vuln_checker.query_osv", lambda ref: refs.append(ref) or [])
+    scanner, _ = _run(tmp_path, vuln_check_enabled=True)
+    assert len(refs) == 2
     assert scanner.coverage()["skills_capped"] == 1
     assert any("osv" in n.lower() and "cap" in n.lower() for n in scanner.notes)
