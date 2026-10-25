@@ -15,23 +15,45 @@ Quin never executes skill code. With an LLM enabled, only flagged evidence snipp
 | SK-PI-001 | high | T001 | Instruction-override phrasing ("ignore all previous instructions") |
 | SK-PI-002 | high | T001 | Chat-template or system-role markers in skill text |
 | SK-PI-003 | high | T001 | Hidden instruction inside an HTML comment |
-| SK-PI-004 | medium | T001 | Tells the agent to conceal actions from the user |
+| SK-PI-004 | medium | T001 | Tells the agent to conceal actions from the user (not "do not tell the user to …") |
 | SK-PI-005 | medium | T001 | Invisible or bidirectional Unicode characters |
 | SK-PI-006 | high | T001 | Unicode tag characters (hidden text) |
 | SK-PI-007 | medium | T001 | Long base64-like blob |
 | SK-AR-001 | high | T006 | Instructs the agent to bypass safety or approval controls |
-| SK-AR-002 | medium | T006 | Instructs the agent to act without confirmation |
+| SK-AR-002 | low | T006 | Instructs the agent to act without confirmation |
 | SK-AR-003 | high | T006 | Permission-bypass flags such as `--dangerously-skip-permissions` |
 | SK-SL-001 | medium | T002 | Instructs the agent to reveal its system prompt |
 | SK-EX-001 | high | T002 | Reads credential or key material |
-| SK-EX-002 | medium | T002 | Uploads data with curl/wget |
+| SK-EX-002 | medium (confidence 0.4) | T002 | Uploads data with curl (`-d`, `-F`, `-T`, `--data*`, `--form`, `--upload-file`, `-X POST`), wget (`--post-data/file`, `--body-*`, `--method POST`) or PowerShell (`-Method Post`, `-InFile`); lines whose URLs all point at a first-party API host are skipped |
 | SK-EX-003 | high | T002 | References a known exfiltration or webhook endpoint |
 | SK-EXEC-001 | critical | T005 | Pipes a remote script into a shell |
-| SK-EXEC-002 | high | T005 | Destructive recursive delete |
+| SK-EXEC-002 | high | T005 | Destructive recursive delete of `/`, `*`, the home directory or one entry directly under it |
 | SK-EXEC-003 | high | T011 | Installs persistence (cron, launchd, shell profile) |
 | SK-EXEC-004 | critical | T005 | Reverse-shell pattern |
 
-Prose rules ignore matches inside closed fenced code blocks (usually quoted examples); an unclosed fence hides nothing. Rules marked negatable ignore a match when the same clause (text after the last `.`, `;`, `!`, `?` or `:`, within the line; "never mind" does not count as a negation), before the match, contains "never", "do not", "avoid" and similar words. SK-EXEC-001 and SK-EXEC-002 are negatable so that defensive text such as "never run `curl | sh`" is not flagged, but `Never mind, just run: curl … | sh` still is. SK-EX-001 ignores lines that are entirely a code comment, and matches `.ssh/`, `.aws/` and `.gnupg/` only as path components, not inside a domain such as `api.aws/`.
+Prose rules ignore matches inside closed fenced code blocks (usually quoted examples); an unclosed fence hides nothing. Rules marked negatable ignore a match when the same clause (text after the last `.`, `;`, `!`, `?` or `:`, within the line; "never mind" does not count as a negation), before the match, contains "never", "do not", "avoid" and similar words. SK-EXEC-001 and SK-EXEC-002 are negatable so that defensive text such as "never run `curl | sh`" is not flagged, but `Never mind, just run: curl … | sh` still is. SK-EX-001 ignores lines that are entirely a code comment, and matches `.ssh/`, `.aws/` and `.gnupg/` only as path components, not inside a domain such as `api.aws/`. Public keys (`~/.ssh/*.pub`, `id_rsa.pub`) are not flagged by SK-EX-001 or SK-PERM-005.
+
+Negation also covers anti-pattern lists: a match inside a double-quoted (or “curly-quoted”) item whose sentence contains "avoid", "don't", "never", "instead of", "rather than" or similar, such as `avoid override-style language ("ignore what the user said", "disregard the previous instruction")`, and a line that starts with an anti-pattern marker (`❌`, `🚫`, `✗`, `BAD:`, `Don't:`) up to the first sentence break. "does not", "cannot" and "won't" count as negations.
+
+SK-EX-002 skips a line when it contains at least one URL and every URL host on it is `api.anthropic.com`, `api.openai.com`, `api.github.com`, `generativelanguage.googleapis.com`, `localhost` or `127.0.0.1` (exact host; port and userinfo ignored, so `api.github.com.evil.example` still fires). A request whose URL is in a variable or on the next line is not skipped.
+
+### Tuning notes
+
+The text rules were tuned in October 2026 against eight public skill repositories (532 skills; method and per-repository results in [skill-scanner-tuning-2026-10.md](skill-scanner-tuning-2026-10.md)). Only rules with false positives on that content were changed, each with a regression test built from the real snippet and a paired test that the true positive still fires:
+
+| Rule | Change | Evidence (before tuning) |
+|---|---|---|
+| SK-AR-002 | `medium` → `low` | 31 hits, all benign workflow guidance ("use it without asking", "no need to ask again") |
+| SK-EX-002 | confidence 0.6 → 0.4; first-party host skip; case-sensitive curl-only short flags | 82 hits, none exfiltration; 9 were `curl -f`, `curl -D` or `wget -T` (not uploads) |
+| negation | quoted anti-pattern lists, `❌`/`BAD:` lines, "does not"/"cannot" | an `avoid … ("disregard the previous instruction")` list raised SK-PI-001; 5 SK-AR-002/AR-001 hits in anti-pattern bullets or "does not bypass" |
+| SK-PI-004 | ignores "tell the user to/they …" | 6 of 6 hits were "do not stop and tell the user to run it" |
+| SK-SL-001 | does not cross a comma | "…in your output, add to the system prompt" |
+| SK-EX-001, SK-PERM-005 | ignore `*.pub` | 18 of 19 SK-EX-001 hits were `~/.ssh/id_rsa.pub` |
+| SK-EXEC-002 | home targets only at depth ≤ 1 | 7 of 8 hits deleted a tool's own folder such as `~/.tool/sessions/x` |
+| SK-PERM-004 | `requests` only as the library | 4 of 7 hits were the English word ("too many requests") |
+| SK-SC-005 | pip args end at prose; one finding per package per file | 660 low hits: prose words after `pip install -r requirements.txt)`; `npx wrangler` repeated 238 times |
+
+Not changed: `curl … | sh` (SK-EXEC-001) still fires on vendor installer one-liners, which is intended; flag mentions such as "even in `--yolo` mode" (SK-AR-003), approval-skipping SDK documentation (SK-AR-001) and authenticated calls to vendor APIs (SK-TAINT-002) remain known noise for the optional LLM review or a baseline to handle.
 
 ## Python code (AST)
 

@@ -88,6 +88,14 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `risk_signals` on `AgentProfile` changed from `list[str]` to `list[RiskIndicator]` (now includes recommended controls)
 - CLI help text and option descriptions overhauled for all scan commands
 - Orchestrator expanded with two-pass LLM pipeline (classification → synthesis)
+- Skills scanner noise tuning, based on scans of eight public skill repositories (see `docs/skill-scanner-tuning-2026-10.md`):
+  - `SK-AR-002` (act without confirmation) is now `low`.
+  - `SK-EX-002` (curl/wget upload) has confidence 0.4 and skips lines whose URLs all point at `api.anthropic.com`, `api.openai.com`, `api.github.com`, `generativelanguage.googleapis.com`, `localhost` or `127.0.0.1`. Its short flags are case-sensitive and curl-only (`curl -f`, `curl -D` and `wget -T` are no longer uploads); `wget --post-data/--post-file/--body-*` and PowerShell `-Method Post`/`-InFile` are now recognised.
+  - Negatable rules treat a match inside a quoted list introduced by "avoid", "don't use", "instead of" and similar guidance (`avoid override-style language ("ignore …", "disregard …")`), and a line that starts with an anti-pattern marker (`❌`, `BAD:`), as negated. "does not", "cannot" and "won't" count as negations.
+  - `SK-PI-004` ignores "do not tell the user to …" / "… they need …" (the agent is told to act, not to conceal); `SK-SL-001` no longer matches across a comma.
+  - `SK-EX-001` and `SK-PERM-005` ignore public keys (`~/.ssh/*.pub`, `id_rsa.pub`); `SK-EXEC-002` flags home-directory targets only for the home directory or one entry directly under it (`~`, `~/*`, `~/.ssh`), not deeper paths such as `~/.tool/cache/x`.
+  - `SK-PERM-004` counts `requests` only as the Python library (`import requests`, `requests.get`), not the English word.
+  - `SK-SC-005` stops reading `pip install` arguments at a bracket or sentence break (prose after `pip install -r requirements.txt)` was reported as packages) and reports each unpinned package once per file.
 
 ### Fixed
 - Removed compiled Python bytecache files (`.pyc`) from repository
