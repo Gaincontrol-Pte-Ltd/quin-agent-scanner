@@ -106,3 +106,27 @@ def test_word_boundary_matching_still_accepts_real_declarations():
     assert "SK-PERM-004" not in _perm4("Browses and scrapes sites")
     assert "SK-PERM-005" not in _perm5("Reads your SSH keys and AWS credentials")
     assert "SK-PERM-005" not in _perm5("Handles authentication tokens")
+
+
+# ── Regressions from the 2026-10 public skill-repo tuning run ───────────────
+
+
+def _undeclared(code, path="run.py"):
+    files = {"SKILL.md": "---\nname: demo\n---\nx", path: code}
+    return _ids(_scan(files, description="Formats markdown tables"))
+
+
+def test_perm004_english_word_requests_is_not_a_network_call():
+    assert "SK-PERM-004" not in _undeclared('"- Concrete examples with realistic user requests"\n')
+    assert "SK-PERM-004" not in _undeclared('return "too many requests" in msg\n')
+    assert "SK-PERM-004" not in _undeclared("touchActivity(); // only authorized requests count\n",
+                                            path="server.cjs")
+    for code in ("import requests\n", "from requests import get\n",
+                 "r = requests.get(url)\n", "s = requests.Session()\n", "import httpx\n"):
+        assert "SK-PERM-004" in _undeclared(code), code
+
+
+def test_perm005_public_key_is_not_a_credential_file():
+    assert "SK-PERM-005" not in _undeclared("key = open(os.path.expanduser('~/.ssh/id_rsa.pub')).read()\n")
+    assert "SK-PERM-005" in _undeclared("key = open(os.path.expanduser('~/.ssh/id_rsa')).read()\n")
+    assert "SK-PERM-005" in _undeclared("cat ~/.aws/credentials\n", path="run.sh")
