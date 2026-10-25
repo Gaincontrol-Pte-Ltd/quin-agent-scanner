@@ -157,7 +157,6 @@ rules:
     threat_id: T005
     confidence: 0.9
     applies_to: [any]
-    negatable: true
     pattern: '(?i)\b(curl|wget)\b[^\n|]{0,200}\|\s*(sudo\s+)?(ba|z|da|k)?sh\b|\b(ba)?sh\s+<\(\s*(curl|wget)'
 
   - id: SK-EXEC-002
@@ -167,7 +166,6 @@ rules:
     threat_id: T005
     confidence: 0.8
     applies_to: [any]
-    negatable: true
     pattern: '\brm\s+-(?:rf|fr|r\s+-f|f\s+-r)\s+(?:/|~|\$HOME|\*)(?:\s|$)'
 
   - id: SK-EXEC-003

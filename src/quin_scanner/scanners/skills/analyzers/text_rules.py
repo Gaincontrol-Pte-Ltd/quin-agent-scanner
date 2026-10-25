@@ -55,23 +55,37 @@ def load_rules() -> tuple[TextRule, ...]:
 
 
 def fenced_lines(text: str) -> set[int]:
-    """1-based line numbers inside (and including) ``` / ~~~ fences."""
-    inside = False
+    """1-based line numbers inside (and including) *closed* ``` / ~~~ fences.
+
+    An opener without a closing marker hides nothing except the opener line itself.
+    """
     out: set[int] = set()
+    opener: int | None = None
+    marker = ""
     for n, line in enumerate(text.splitlines(), start=1):
-        if line.lstrip().startswith(("```", "~~~")):
-            out.add(n)
-            inside = not inside
-            continue
-        if inside:
-            out.add(n)
+        stripped = line.lstrip()
+        if opener is None:
+            if stripped.startswith(("```", "~~~")):
+                opener, marker = n, stripped[:3]
+        elif stripped.startswith(marker):
+            out.update(range(opener, n + 1))
+            opener = None
+    if opener is not None:
+        out.add(opener)
     return out
 
 
+_CLAUSE_END = re.compile(r"[.;!?]")
+
+
 def is_negated(text: str, start: int) -> bool:
-    """True when the same line, before *start*, contains a negation word."""
+    """True when the same clause (after the last . ; ! ? or line start) has a negation word."""
     line_start = text.rfind("\n", 0, start) + 1
-    return bool(_NEGATION.search(text[line_start:start][-60:]))
+    before = text[line_start:start]
+    ends = list(_CLAUSE_END.finditer(before))
+    if ends:
+        before = before[ends[-1].end():]
+    return bool(_NEGATION.search(before[-60:]))
 
 
 def rule_matches(

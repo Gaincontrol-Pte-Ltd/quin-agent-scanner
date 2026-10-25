@@ -31,7 +31,7 @@ Quin never executes skill code. With an LLM enabled, only flagged evidence snipp
 | SK-EXEC-003 | high | T011 | Installs persistence (cron, launchd, shell profile) |
 | SK-EXEC-004 | critical | T005 | Reverse-shell pattern |
 
-Prose rules ignore matches inside fenced code blocks (usually quoted examples). Rules marked negatable ignore a match when the same line, before the match, contains "never", "do not", "avoid" and similar words.
+Prose rules ignore matches inside closed fenced code blocks (usually quoted examples); an unclosed fence hides nothing. Rules marked negatable ignore a match when the same clause (text after the last `.`, `;`, `!` or `?`, within the line), before the match, contains "never", "do not", "avoid" and similar words. Execution rules (SK-EXEC-*) are never negatable.
 
 ## Python code (AST)
 
