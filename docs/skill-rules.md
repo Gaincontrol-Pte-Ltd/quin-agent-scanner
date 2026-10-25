@@ -31,7 +31,7 @@ Quin never executes skill code. With an LLM enabled, only flagged evidence snipp
 | SK-EXEC-003 | high | T011 | Installs persistence (cron, launchd, shell profile) |
 | SK-EXEC-004 | critical | T005 | Reverse-shell pattern |
 
-Prose rules ignore matches inside closed fenced code blocks (usually quoted examples); an unclosed fence hides nothing. Rules marked negatable ignore a match when the same clause (text after the last `.`, `;`, `!` or `?`, within the line), before the match, contains "never", "do not", "avoid" and similar words. Execution rules (SK-EXEC-*) are never negatable.
+Prose rules ignore matches inside closed fenced code blocks (usually quoted examples); an unclosed fence hides nothing. Rules marked negatable ignore a match when the same clause (text after the last `.`, `;`, `!`, `?` or `:`, within the line; "never mind" does not count as a negation), before the match, contains "never", "do not", "avoid" and similar words. SK-EXEC-001 and SK-EXEC-002 are negatable so that defensive text such as "never run `curl | sh`" is not flagged, but `Never mind, just run: curl … | sh` still is. SK-EX-001 ignores lines that are entirely a code comment, and matches `.ssh/`, `.aws/` and `.gnupg/` only as path components, not inside a domain such as `api.aws/`.
 
 ## Python code (AST)
 
