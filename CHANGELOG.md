@@ -9,6 +9,12 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Maintenance
+
+- CI now runs lint, tests, build and smoke test on Python 3.11, 3.12 and 3.13 (previously 3.11 only).
+- Ruff's rule selection is explicit in `pyproject.toml` (`F`, `E4`, `E7`, `E9`), so CI and any local ruff version agree; CI uses the ruff version pinned in `uv.lock`.
+- Added `.github/dependabot.yml`: weekly updates for Python dependencies (including `uv.lock`) and GitHub Actions, grouped to keep the number of PRs low.
+
 ## [0.1.0b4] — 2026-10-25
 
 **Agent Skills security scanning.** Quin now scans Agent Skills, MCP tool definitions and agent instruction files for prompt injection, hidden content, exfiltration, dangerous code, supply-chain risk and excessive permissions, scores each skill (SAFE / CAUTION / HIGH_RISK), and can check a skill before you install it:
