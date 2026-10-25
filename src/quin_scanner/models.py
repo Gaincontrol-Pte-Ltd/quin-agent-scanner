@@ -294,6 +294,87 @@ class GovernanceInfo:
 
 
 @dataclass
+class SkillRecord:
+    """An Agent Skill package (or the synthetic MCP tool-definition source) found in a repo."""
+    id: str
+    name: str
+    description: str
+    root_path: str
+    skill_md_path: str
+    ecosystem: str = "generic"           # "claude" | "codex" | "opencode" | "generic" | "mcp"
+    allowed_tools: list[str] = field(default_factory=list)
+    files: list[str] = field(default_factory=list)
+    frontmatter_valid: bool = True
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "id": self.id,
+            "name": self.name,
+            "description": self.description,
+            "root_path": self.root_path,
+            "skill_md_path": self.skill_md_path,
+            "ecosystem": self.ecosystem,
+            "allowed_tools": self.allowed_tools,
+            "files": self.files,
+            "frontmatter_valid": self.frontmatter_valid,
+        }
+
+
+@dataclass
+class SkillFinding:
+    """A single rule hit inside a skill, with redacted evidence."""
+    rule_id: str                         # e.g. "SK-PI-001"
+    skill_id: str
+    severity: str                        # "critical" | "high" | "medium" | "low" | "info"
+    category: str
+    title: str
+    file_path: str
+    line_number: int | None
+    evidence: str
+    threat_id: str                       # taxonomy threat, e.g. "T001"
+    confidence: float = 0.8
+    llm_verdict: str = "none"            # "confirmed" | "disputed" | "none"
+    explanation: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "rule_id": self.rule_id,
+            "skill_id": self.skill_id,
+            "severity": self.severity,
+            "category": self.category,
+            "title": self.title,
+            "file_path": self.file_path,
+            "line_number": self.line_number,
+            "evidence": self.evidence,
+            "threat_id": self.threat_id,
+            "confidence": self.confidence,
+            "llm_verdict": self.llm_verdict,
+            "explanation": self.explanation,
+        }
+
+
+@dataclass
+class SkillAssessment:
+    """Per-skill result: the record, its findings, and a deterministic risk score."""
+    record: SkillRecord
+    findings: list[SkillFinding] = field(default_factory=list)
+    risk_score: int = 0
+    verdict: str = "SAFE"                # "SAFE" | "CAUTION" | "HIGH_RISK"
+    finding_counts: dict[str, int] = field(default_factory=dict)
+    top_rule_ids: list[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "record": self.record.to_dict(),
+            "findings": [f.to_dict() for f in self.findings],
+            "risk_score": self.risk_score,
+            "verdict": self.verdict,
+            "finding_counts": self.finding_counts,
+            "top_rule_ids": self.top_rule_ids,
+        }
+
+
+@dataclass
 class ScanReport:
     repo_path: str
     scan_timestamp: str
@@ -321,6 +402,7 @@ class ScanReport:
     file_hashes: list[dict[str, str]] = field(default_factory=list)
     # Populated only when Aegis detection is requested (--detect-aegis).
     governance: GovernanceInfo | None = None
+    skills: list[SkillAssessment] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         d = self._base_dict()
@@ -350,5 +432,6 @@ class ScanReport:
             "coverage": self.coverage,
             "llm_endpoints": [e.to_dict() for e in self.llm_endpoints],
             "metadata": self.metadata,
+            "skills": [s.to_dict() for s in self.skills],
             "file_hashes": self.file_hashes,
         }

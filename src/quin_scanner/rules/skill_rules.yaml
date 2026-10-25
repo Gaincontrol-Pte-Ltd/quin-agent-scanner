@@ -1,0 +1,191 @@
+# Text rules for the skills scanner (regex, matched per file).
+#
+# applies_to: markdown | code | shell | config | text | any
+# skip_in_fence: ignore matches inside ``` / ~~~ blocks of Markdown files
+#                (prose rules: fenced blocks are usually quoted examples)
+# negatable:    ignore a match when the same line, before the match, contains a
+#               negation such as "never" / "do not" / "avoid"
+# skip_comment_lines: ignore matches on lines that are entirely a code comment
+# threat_id:    taxonomy threat in risk_taxonomy.yaml
+
+rules:
+  # ── Prompt injection ────────────────────────────────────────────────────────
+  - id: SK-PI-001
+    title: Instruction-override phrasing
+    severity: high
+    category: prompt_injection
+    threat_id: T001
+    confidence: 0.75
+    applies_to: [markdown, text]
+    skip_in_fence: true
+    negatable: true
+    pattern: '(?i)\b(ignore|disregard|forget|override)\b[^.\n]{0,30}\b(previous|prior|above|earlier|all)\b[^.\n]{0,30}\b(instructions?|prompts?|rules?|guidelines?)\b'
+
+  - id: SK-PI-002
+    title: Chat-template or system-role markers in skill text
+    severity: high
+    category: prompt_injection
+    threat_id: T001
+    confidence: 0.7
+    applies_to: [markdown, text]
+    skip_in_fence: true
+    pattern: '(?i)<\s*/?\s*(system|im_start|im_end)\s*>|\[\s*/?INST\s*\]|<\|im_(start|end)\|>'
+
+  - id: SK-PI-003
+    title: Hidden instruction inside an HTML comment
+    severity: high
+    category: prompt_injection
+    threat_id: T001
+    confidence: 0.8
+    applies_to: [markdown]
+    skip_in_fence: true
+    pattern: '(?is)<!--.{0,1500}?\b(ignore (all|any|previous)|you must|do not (tell|reveal|mention)|secretly|system prompt|new instructions?)\b.{0,1500}?-->'
+
+  - id: SK-PI-004
+    title: Tells the agent to conceal actions from the user
+    severity: medium
+    category: prompt_injection
+    threat_id: T001
+    confidence: 0.5
+    applies_to: [markdown, text]
+    skip_in_fence: true
+    pattern: '(?i)\b(do not|don.?t|never)\b[^.\n]{0,20}\b(tell|inform|notify|alert)\b[^.\n]{0,12}\b(the )?user\b'
+
+  - id: SK-PI-005
+    title: Invisible or bidirectional Unicode characters
+    severity: medium
+    category: hidden_content
+    threat_id: T001
+    confidence: 0.7
+    applies_to: [any]
+    pattern: '[\u200b\u2060\u202a-\u202e\u2066-\u2069]'
+
+  - id: SK-PI-006
+    title: Unicode tag characters (hidden text)
+    severity: high
+    category: hidden_content
+    threat_id: T001
+    confidence: 0.9
+    applies_to: [any]
+    pattern: '[\U000e0000-\U000e007f]'
+
+  - id: SK-PI-007
+    title: Long base64-like blob
+    severity: medium
+    category: hidden_content
+    threat_id: T001
+    confidence: 0.5
+    applies_to: [markdown, code, shell, text]
+    pattern: '[A-Za-z0-9+/]{200,}={0,2}'
+
+  # ── Safety bypass / anti-refusal ────────────────────────────────────────────
+  - id: SK-AR-001
+    title: Instructs the agent to bypass safety or approval controls
+    severity: high
+    category: safety_bypass
+    threat_id: T006
+    confidence: 0.7
+    applies_to: [markdown, text]
+    skip_in_fence: true
+    negatable: true
+    pattern: '(?i)\b(bypass|disable|skip|circumvent|turn off)\b[^.\n]{0,30}\b(safety|guardrails?|content (policy|filter)|permission (prompts?|checks?)|confirmation|approval)\b'
+
+  - id: SK-AR-002
+    title: Instructs the agent to act without confirmation
+    severity: medium
+    category: safety_bypass
+    threat_id: T006
+    confidence: 0.5
+    applies_to: [markdown, text]
+    skip_in_fence: true
+    negatable: true
+    pattern: '(?i)\b(without|no need (for|to))\s+(asking|ask|confirm(ing|ation)?|approval|permission|prompting)\b'
+
+  - id: SK-AR-003
+    title: Permission-bypass flag
+    severity: high
+    category: safety_bypass
+    threat_id: T006
+    confidence: 0.8
+    applies_to: [any]
+    pattern: '--dangerously-skip-permissions|\bbypassPermissions\b|--yolo\b|dangerouslyDisableSandbox'
+
+  # ── System prompt leakage ───────────────────────────────────────────────────
+  - id: SK-SL-001
+    title: Instructs the agent to reveal its system prompt
+    severity: medium
+    category: prompt_leakage
+    threat_id: T002
+    confidence: 0.6
+    applies_to: [markdown, text]
+    skip_in_fence: true
+    negatable: true
+    pattern: '(?i)\b(reveal|print|output|repeat|show|leak|dump)\b[^.\n]{0,25}\b(your|the)\b[^.\n]{0,10}\b(system prompt|hidden instructions|initial instructions)\b'
+
+  # ── Credential access and exfiltration ──────────────────────────────────────
+  - id: SK-EX-001
+    title: Reads credential or key material
+    severity: high
+    category: credential_access
+    threat_id: T002
+    confidence: 0.7
+    applies_to: [any]
+    skip_comment_lines: true
+    pattern: '(?i)((?<![A-Za-z0-9-])\.(?:ssh|aws|gnupg)/|\.kube/config|\.netrc\b|\bid_rsa\b|\bid_ed25519\b|\.git-credentials|Library/Keychains|Login Data\b|cookies\.sqlite)'
+
+  - id: SK-EX-002
+    title: Uploads data with curl/wget
+    severity: medium
+    category: exfiltration
+    threat_id: T002
+    confidence: 0.6
+    applies_to: [any]
+    pattern: '(?i)\b(curl|wget|Invoke-WebRequest|iwr)\b[^\n]{0,120}?(\s-d\s|\s--data(-binary|-raw|-urlencode)?\b|\s-F\s|--upload-file|\s-T\s|\s-X\s*POST)'
+
+  - id: SK-EX-003
+    title: References a known exfiltration or webhook endpoint
+    severity: high
+    category: exfiltration
+    threat_id: T002
+    confidence: 0.85
+    applies_to: [any]
+    pattern: '(?i)(webhook\.site|requestbin|pipedream\.net|ngrok\.(io|app|dev)|burpcollaborator|oast\.(fun|live|site|pro|online)|interact\.sh|discord(app)?\.com/api/webhooks|hooks\.slack\.com/services|pastebin\.com/api|transfer\.sh)'
+
+  # ── Dangerous execution ─────────────────────────────────────────────────────
+  - id: SK-EXEC-001
+    title: Pipes a remote script into a shell
+    severity: critical
+    category: dangerous_code
+    threat_id: T005
+    confidence: 0.9
+    applies_to: [any]
+    negatable: true
+    pattern: '(?i)\b(curl|wget)\b[^\n|]{0,200}\|\s*(sudo\s+)?(?:(ba|z|da|k)?sh|python[0-9.]*(?!\s+-m\s+json\.tool)|node|perl|ruby)\b|\b(ba|z|da|k)?sh\s+(?:-c\s+["'']?(?:\$\(|`)\s*|<\(\s*)(curl|wget)\b'
+
+  - id: SK-EXEC-002
+    title: Destructive recursive delete
+    severity: high
+    category: dangerous_code
+    threat_id: T005
+    confidence: 0.8
+    applies_to: [any]
+    negatable: true
+    pattern: '\brm\s+-(?:rf|fr|r\s+-f|f\s+-r)\s+(?:["'']?(?:\$HOME|\$\{HOME\}|~)(?:/[^\s"'']*)?["'']?|/\*?|\*)(?=\s|$|["'';&|])'
+
+  - id: SK-EXEC-003
+    title: Installs persistence (cron, launchd, shell profile)
+    severity: high
+    category: persistence
+    threat_id: T011
+    confidence: 0.7
+    applies_to: [any]
+    pattern: '(?i)(?:\b(?:crontab\s+-|launchctl\s+load|systemctl\s+enable|schtasks\s+/create)|>>\s*~?/?\.?(?:bashrc|zshrc|profile|bash_profile)\b|/etc/cron)'
+
+  - id: SK-EXEC-004
+    title: Reverse-shell pattern
+    severity: critical
+    category: dangerous_code
+    threat_id: T005
+    confidence: 0.9
+    applies_to: [any]
+    pattern: '/dev/tcp/|\bbash\s+-i\s+>&|\bnc\b[^\n]{0,40}\s-e\s|\bsocat\b[^\n]{0,80}exec:'

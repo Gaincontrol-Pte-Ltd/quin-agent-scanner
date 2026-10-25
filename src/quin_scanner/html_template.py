@@ -79,6 +79,15 @@ body{font-family:var(--font-sans);background:var(--color-bg);color:var(--color-t
 .pill--amber{background:#fffbeb;color:#92400e;border-color:#fde68a}
 .pill--orange{background:#fff7ed;color:#9a3412;border-color:#fed7aa}
 .pill--gray{background:#f9fafb;color:#4b5563;border-color:#e5e7eb}
+.skill-card{border:1px solid #e5e7eb;border-radius:10px;margin:0 0 10px;background:#fff}
+.skill-card>summary{cursor:pointer;list-style:none;padding:12px 14px;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.skill-card>summary::-webkit-details-marker{display:none}
+.skill-card__name{font-weight:600}
+.skill-card__meta{color:#6b7280;font-size:.8rem}
+.skill-card__body{padding:0 14px 12px;border-top:1px solid #f3f4f6}
+.skill-card__finding{padding:8px 0;border-bottom:1px solid #f3f4f6;font-size:.85rem}
+.skill-card__finding:last-child{border-bottom:none}
+.skill-card__evidence{font-family:ui-monospace,monospace;font-size:.78rem;color:#374151;background:#f9fafb;padding:4px 6px;border-radius:4px;display:block;margin-top:4px;white-space:pre-wrap;word-break:break-word}
 .risk-signal{display:block;padding:6px 10px;border-radius:var(--radius-sm);font-size:.78rem;font-weight:500;line-height:1.5;background:#fef2f2;color:#991b1b;border:1px solid #fecaca;word-wrap:break-word;overflow-wrap:break-word}
 .risk-signal--critical{background:#7f1d1d;color:#fff5f5;border-color:#7f1d1d}
 .risk-signal--high{background:#fef2f2;color:#991b1b;border-color:#fecaca}
@@ -1155,6 +1164,11 @@ window.__REPORT_DATA__ = {{REPORT_DATA_JSON}};
     html+='<div id="tools-table-wrap"></div>';
 
     /* Skills */
+    var skillAssessments=D.skills||[];
+    if(skillAssessments.length){
+      html+='<div class="section-title section-gap">Skill Risk Assessment</div>';
+      html+='<div id="skill-cards-wrap"></div>';
+    }
     html+='<div class="section-title section-gap">Skills</div>';
     html+='<div id="skills-table-wrap"></div>';
 
@@ -1163,6 +1177,33 @@ window.__REPORT_DATA__ = {{REPORT_DATA_JSON}};
     html+='<div id="mcp-table-wrap"></div>';
 
     panel.innerHTML=html;
+
+    function verdictClass(v){return v==="HIGH_RISK"?"pill--red":(v==="CAUTION"?"pill--amber":"pill--emerald")}
+    function sevClass(s){return s==="critical"||s==="high"?"pill--red":(s==="medium"?"pill--amber":"pill--gray")}
+    if(skillAssessments.length){
+      var cards=skillAssessments.slice().sort(function(a,b){return b.risk_score-a.risk_score}).map(function(a){
+        var r=a.record||{},counts=a.finding_counts||{};
+        var countText=Object.keys(counts).map(function(k){return counts[k]+" "+k}).join(", ")||"no findings";
+        var head='<summary><span class="skill-card__name">'+esc(r.name)+'</span>'
+          +'<span class="pill pill--indigo">'+esc(r.ecosystem||"generic")+'</span>'
+          +'<span class="pill '+verdictClass(a.verdict)+'">'+esc((a.verdict||"").replace("_"," "))+' &middot; '+esc(String(a.risk_score))+'</span>'
+          +'<span class="skill-card__meta">'+esc(countText)+'</span></summary>';
+        var body='<div class="skill-card__body">';
+        if(r.description){body+='<div class="skill-card__meta" style="padding:8px 0">'+esc(r.description)+'</div>'}
+        if(!(a.findings||[]).length){body+='<div class="empty">No findings.</div>'}
+        (a.findings||[]).forEach(function(f){
+          body+='<div class="skill-card__finding"><span class="pill '+sevClass(f.severity)+'">'+esc(f.severity)+'</span> '
+            +'<strong>'+esc(f.title)+'</strong> <span class="skill-card__meta">'+esc(f.rule_id)+' &middot; '+esc(f.threat_id)+'</span>'
+            +(f.llm_verdict&&f.llm_verdict!=="none"?' <span class="pill '+(f.llm_verdict==="confirmed"?"pill--red":"pill--gray")+'">LLM: '+esc(f.llm_verdict)+'</span>':'')
+            +'<div class="skill-card__meta cell-mono">'+esc(f.file_path)+(f.line_number!=null?':'+f.line_number:'')+'</div>'
+            +'<span class="skill-card__evidence">'+esc(f.evidence)+'</span>'
+            +(f.explanation?'<div class="skill-card__meta" style="margin-top:4px">'+esc(f.explanation)+'</div>':'')
+            +'</div>';
+        });
+        return '<details class="skill-card">'+head+body+'</div></details>';
+      }).join("");
+      $("skill-cards-wrap").innerHTML=cards;
+    }
 
     /* Shared column renderers */
     var colToolName={key:"tool_name",label:"Name",render:function(r){return '<span class="cell-mono">'+esc(r.tool_name)+'</span>'}};

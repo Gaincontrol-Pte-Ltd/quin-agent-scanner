@@ -40,6 +40,7 @@ Quin maps the AI and agent components present in a repository, preserves the evi
 | **AI framework and dependency discovery** | AI SDKs and agent frameworks, model providers and model IDs, vector databases, embedding packages, and voice or image AI dependencies. See [Supported Frameworks](#supported-frameworks). |
 | **Agent and prompt discovery** | Named agents and agent configurations, system prompts, prompt templates, agent skills, and related source files. |
 | **Tools and MCP discovery** | Tool definitions, external-service usage, MCP servers and transports, and tool usage evidence. Quin can link detected agents to tools explicitly listed in supported Python `tools=[...]` calls and JavaScript/TypeScript agent objects. It records both source locations when it also detects the tool definition. |
+| **Skill security analysis** | Agent Skills (`SKILL.md` packages for Claude Code, Codex and OpenCode) and MCP tool definitions. Quin scores each skill 0–100 (SAFE / CAUTION / HIGH_RISK) using static rules for prompt injection, hidden content, exfiltration, dangerous code, supply chain, excessive permissions and MCP tool poisoning. With an LLM enabled, findings are also confirmed or disputed. See [Skill rules](docs/skill-rules.md). |
 | **Model endpoint discovery** | Model usage by provider, model, source, and role; LLM endpoint addresses and endpoint types. Credentials in endpoint URLs and expressions are redacted. |
 | **Infrastructure and delivery discovery** | Infrastructure-as-code, Dockerfiles, Jupyter notebooks, and CI pipelines related to AI applications. |
 | **Complete finding inventory** | All raw scanner observations, including observations that are deduplicated in the summary artifact list or omitted from the LLM context to keep synthesis bounded. |
@@ -131,6 +132,7 @@ scanners:
     - mcp
     - agent_instance
     - tool_definition
+    - skills
 ```
 
 ### 4. Run your first scan
@@ -333,10 +335,10 @@ uv run quin-scanner scan ./path/to/repo --config scanner-config.yaml
 
 ## How It Works
 
-Quin runs 13 configurable static scanner plugins in parallel. It then builds inventories and coverage metrics, identifies model usage and endpoints, optionally checks known vulnerabilities, and optionally runs a two-pass LLM pipeline. Aegis governance detection is an additional opt-in scan.
+Quin runs 14 configurable static scanner plugins in parallel. It then builds inventories and coverage metrics, identifies model usage and endpoints, optionally checks known vulnerabilities, and optionally runs a two-pass LLM pipeline. Aegis governance detection is an additional opt-in scan.
 
 ```
-Repo  -->  13 Scanners (parallel)  -->  Inventory + Coverage  -->  Vulnerability Lookup  -->  Optional LLM Analysis  -->  Report
+Repo  -->  14 Scanners (parallel)  -->  Inventory + Coverage  -->  Vulnerability Lookup  -->  Optional LLM Analysis  -->  Report
 ```
 
 1. **Static discovery** detects dependencies, code patterns, configuration, prompts, frameworks, named agents and tools, MCP servers, Dockerfiles, notebooks, CI pipelines, and infrastructure-as-code. An additional Python/JavaScript/TypeScript pass links explicit agent tool references and preserves the source locations.
@@ -344,7 +346,7 @@ Repo  -->  13 Scanners (parallel)  -->  Inventory + Coverage  -->  Vulnerability
 3. **Pass 1 (Classification, when LLM analysis is enabled)** -- an LLM classifies the system type (`standard_ai`, `agentic_ai`, `mcp_enabled`, `multi_agent`) and identifies relevant threats from a taxonomy sourced from OWASP LLM Top 10, OWASP Agentic Top 10, OWASP MCP Top 10, MAESTRO, and Databricks DASF
 4. **Pass 2 (Synthesis, when LLM analysis is enabled)** -- a second LLM call profiles agents, adds taxonomy-grounded risk indicators, maps tool usages to service categories, and generates a narrative summary. Static findings, the complete inventory, and coverage metrics remain available without these LLM passes.
 
-Use `--no-llm` to skip both LLM passes and run scanners only. Use `--no-vuln-check` to skip the vulnerability lookup.
+Use `--no-llm` to skip both LLM passes and run scanners only. Use `--no-vuln-check` to skip the vulnerability lookup. With an LLM enabled, flagged skill evidence snippets (not whole files) are sent to the configured provider for confirm/dispute review; skill code is never executed.
 
 ---
 

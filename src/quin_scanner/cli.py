@@ -68,6 +68,24 @@ def _record_flags(report, flags: list[str]) -> None:
     report.metadata["scan_options"] = {"flags": flags}
 
 
+def skill_summary_lines(report) -> list[str]:
+    """Human-readable per-skill verdict lines, highest risk first. Empty when no skills.
+
+    The MCP tool-definition pseudo-skill is not a skill: it gets its own trailing line.
+    """
+    skills = [a for a in report.skills if a.record.ecosystem != "mcp"]
+    mcp = [a for a in report.skills if a.record.ecosystem == "mcp"]
+    lines: list[str] = []
+    if skills:
+        lines.append(f"Skills: {len(skills)} found")
+        for a in sorted(skills, key=lambda s: -s.risk_score):
+            counts = ", ".join(f"{n} {sev}" for sev, n in a.finding_counts.items()) or "no findings"
+            lines.append(f"  {a.record.name:<30} {a.verdict:<10} {a.risk_score:>3}  ({counts})")
+    for a in mcp:
+        lines.append(f"MCP tool definitions: {a.verdict} {a.risk_score}")
+    return lines
+
+
 _OUTPUT_CHOICES = click.Choice(["json", "yaml", "html", "sarif"])
 
 
@@ -239,6 +257,9 @@ def scan(
             click.echo(f"Report written to {out_path}", err=True)
         else:
             click.echo(rendered)
+
+        for line in skill_summary_lines(report):
+            click.echo(line, err=True)
     except Exception as e:
         click.echo(f"Scan failed: {e}", err=True)
         sys.exit(1)

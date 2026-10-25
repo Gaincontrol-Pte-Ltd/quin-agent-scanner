@@ -34,6 +34,7 @@ _ALL_SCANNERS = [
     "mcp",
     "agent_instance",
     "tool_definition",
+    "skills",
 ]
 
 

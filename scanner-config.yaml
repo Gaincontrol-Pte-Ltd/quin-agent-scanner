@@ -77,3 +77,4 @@ scanners:
     - mcp              # MCP server configurations
     - agent_instance   # named agent instantiations and role class definitions
     - tool_definition  # tool definitions, registrations, and class inheritance patterns
+    - skills           # Agent Skills (SKILL.md) and MCP tool definitions: security analysis and risk scores
