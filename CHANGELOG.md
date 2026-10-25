@@ -14,6 +14,8 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - CI now runs lint, tests, build and smoke test on Python 3.11, 3.12 and 3.13 (previously 3.11 only).
 - Ruff's rule selection is explicit in `pyproject.toml` (`F`, `E4`, `E7`, `E9`), so CI and any local ruff version agree; CI uses the ruff version pinned in `uv.lock`.
 - Added `.github/dependabot.yml`: weekly updates for Python dependencies (including `uv.lock`) and GitHub Actions, grouped to keep the number of PRs low.
+- Added `tests/test_llm_providers.py`: key-free contract tests that run the Anthropic, Google, OpenAI and OpenAI-compatible providers through their real SDKs against mocked HTTP endpoints (request body, auth header, empty responses, `analyze_prompt`, API errors, and skills LLM review), so dependency bumps of the LLM SDKs are actually exercised by CI.
+- The Anthropic provider now passes `temperature` via `extra_body`, because `anthropic` 2.x removed it from `messages.create()`; the request sent is unchanged and works on both SDK lines.
 
 ## [0.1.0b4] — 2026-10-25
 

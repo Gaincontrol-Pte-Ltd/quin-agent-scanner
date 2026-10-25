@@ -49,6 +49,7 @@ Check the [drop plan](docs/plans/2026-03-31-quin-agent-scanner-drop-plan.md) fir
 2. **Keep scope tight** — one feature or fix per PR
 3. **Update CHANGELOG.md** under `[Unreleased]`
 4. Open the PR with a clear description of what and why
+5. **LLM providers and SDK bumps** — changes to `src/quin_scanner/llm/` and bumps of `anthropic`, `google-genai` or `openai` must keep `tests/test_llm_providers.py` green. These tests run the real SDKs against mocked endpoints without API keys; they are the only CI check that a provider still works after an SDK upgrade
 
 ---
 
