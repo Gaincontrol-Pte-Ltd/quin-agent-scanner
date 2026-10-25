@@ -31,6 +31,12 @@ def test_disputed_findings_are_not_promoted():
     assert promote_skill_findings([_assessment(_f(verdict="disputed"))]) == []
 
 
+def test_disputed_critical_ast_and_taint_are_still_promoted():
+    assert len(promote_skill_findings([_assessment(_f(sev="critical", verdict="disputed"))])) == 1
+    for rule in ("SK-CODE-003", "SK-TAINT-001"):
+        assert len(promote_skill_findings([_assessment(_f(rule=rule, verdict="disputed"))])) == 1
+
+
 def test_signal_shape():
     [s] = promote_skill_findings([_assessment(_f())])
     assert s.threat_id == "T001"

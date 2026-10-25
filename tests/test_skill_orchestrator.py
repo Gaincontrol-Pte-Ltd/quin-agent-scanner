@@ -75,7 +75,7 @@ def test_non_skill_repo_has_empty_skills_and_no_skill_coverage(tmp_path):
     assert report.skills == []
 
 
-def test_llm_review_runs_when_enabled_and_disputed_findings_are_not_promoted(monkeypatch):
+def test_llm_review_runs_when_enabled_disputes_never_demote_protected_findings(monkeypatch):
     stub = StubProvider()
     monkeypatch.setattr(ScannerConfig, "provider_factory", lambda self: stub)
     config = ScannerConfig(enabled_scanners=["skills"], no_llm=False, vuln_check_enabled=False)
@@ -85,7 +85,13 @@ def test_llm_review_runs_when_enabled_and_disputed_findings_are_not_promoted(mon
     assert evil.findings and all(
         f.llm_verdict == "disputed" for f in evil.findings if f.severity in {"critical", "high", "medium"}
     )
-    assert not any("[skill: evil-formatter]" in s.signal for s in report.risk_signals)
+    signals = [s.signal for s in report.risk_signals if "[skill: evil-formatter]" in s.signal]
+    protected = [
+        f for f in evil.findings
+        if f.severity in {"critical", "high"}
+        and (f.severity == "critical" or f.rule_id.startswith(("SK-CODE-", "SK-TAINT-")))
+    ]
+    assert len(signals) == len(protected)   # only protected findings survive a dispute
 
 
 def test_no_llm_makes_no_provider_call(monkeypatch):

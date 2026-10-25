@@ -10,9 +10,14 @@ _CAUTION_AT = 20
 _HIGH_RISK_ABOVE = 50
 
 
+def is_protected(f: SkillFinding) -> bool:
+    """Critical, AST (SK-CODE-*) and taint (SK-TAINT-*) findings can't be downgraded by the LLM."""
+    return f.severity == "critical" or f.rule_id.startswith(("SK-CODE-", "SK-TAINT-"))
+
+
 def _weight(f: SkillFinding) -> float:
     w = SEVERITY_WEIGHT.get(f.severity, 0) * f.confidence
-    if f.llm_verdict == "disputed":
+    if f.llm_verdict == "disputed" and not is_protected(f):
         w *= 0.5
     return w
 
@@ -36,9 +41,7 @@ def score_findings(findings: list[SkillFinding]) -> tuple[int, str]:
         verdict = "CAUTION"
     else:
         verdict = "SAFE"
-    if verdict == "SAFE" and any(
-        f.severity == "critical" and f.llm_verdict != "disputed" for f in findings
-    ):
+    if verdict == "SAFE" and any(f.severity == "critical" for f in findings):
         verdict = "CAUTION"
     return total, verdict
 

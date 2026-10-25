@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from quin_scanner.models import EvidenceRef, RiskIndicator, SkillAssessment
 from quin_scanner.risk_taxonomy import get_control_label
+from quin_scanner.scanners.skills.scoring import is_protected
 
 _CONTROL_BY_CATEGORY = {
     "prompt_injection": "C001",
@@ -21,11 +22,11 @@ _PROMOTE = {"critical", "high"}
 
 
 def promote_skill_findings(assessments: list[SkillAssessment]) -> list[RiskIndicator]:
-    """Turn high/critical, non-disputed skill findings into repo-level risk signals."""
+    """Turn high/critical, non-disputed skill findings (LLM disputes never remove critical, AST or taint findings) into repo-level risk signals."""
     signals: list[RiskIndicator] = []
     for a in assessments:
         for f in a.findings:
-            if f.severity not in _PROMOTE or f.llm_verdict == "disputed":
+            if f.severity not in _PROMOTE or (f.llm_verdict == "disputed" and not is_protected(f)):
                 continue
             control = _CONTROL_BY_CATEGORY.get(f.category, _DEFAULT_CONTROL)
             signals.append(RiskIndicator(

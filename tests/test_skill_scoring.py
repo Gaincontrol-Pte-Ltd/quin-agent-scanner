@@ -55,8 +55,15 @@ def test_disputed_counts_half_and_confirmed_full():
     assert score_findings([_f(sev="high", verdict="confirmed")])[0] == 20
 
 
-def test_disputed_critical_does_not_force_caution():
-    assert score_findings([_f(sev="critical", conf=0.1, verdict="disputed")])[1] == "SAFE"
+def test_disputed_critical_is_not_demoted():
+    assert score_findings([_f(sev="critical", conf=0.1, verdict="disputed")])[1] == "CAUTION"
+    assert score_findings([_f(sev="critical", conf=1.0, verdict="disputed")])[0] == 40
+
+
+def test_disputed_ast_and_taint_findings_keep_full_weight():
+    for rule in ("SK-CODE-001", "SK-TAINT-002"):
+        assert score_findings([_f(rule=rule, sev="high", verdict="disputed")])[0] == 20
+    assert score_findings([_f(rule="SK-PI-001", sev="high", verdict="disputed")])[0] == 10
 
 
 def test_score_is_monotonic_when_adding_findings():

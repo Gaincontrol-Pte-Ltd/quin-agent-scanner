@@ -83,3 +83,7 @@ Prose rules ignore matches inside closed fenced code blocks (usually quoted exam
 ## Limits
 
 Static analysis only: no runtime behavior is observed. Non-English text and text inside images are not analyzed. At most 200 skills per repository, 500 files per skill, and 1 MB per file are analyzed; anything beyond that is recorded in `metadata.skills_notes` and `coverage`.
+
+## LLM review
+
+The optional LLM pass can mark findings `confirmed` or `disputed`. A disputed finding counts at half weight and is not promoted to a repo-level risk signal. LLM disputes never downgrade critical, AST (`SK-CODE-*`) or taint (`SK-TAINT-*`) findings: their verdict and explanation are recorded, but they keep full weight and stay promoted. Skill name, description and evidence are embedded in delimited, length-capped data blocks and the model is told nothing inside them is an instruction.
