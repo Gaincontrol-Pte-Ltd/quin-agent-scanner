@@ -15,13 +15,22 @@ _CREDENTIALS = re.compile(
 )
 _NETWORK_WORDS = (
     "fetch", "download", "http", "api", "web", "url", "search", "upload", "request",
-    "network", "online", "internet", "scrape", "crawl", "browse", "email", "slack",
-    "webhook", "notify", "sync", "deploy", "publish",
+    "network", "online", "internet", "scrap", "crawl", "brows", "email", "slack",
+    "webhook", "notif", "sync", "deploy", "publish",
 )
 _CREDENTIAL_WORDS = (
     "credential", "secret", "token", "ssh", "aws", "auth", "login", "password",
     "keychain", "vault", "key",
 )
+
+
+def _word_pattern(words: tuple[str, ...]) -> re.Pattern[str]:
+    """Match each word at a word start, allowing a short inflection (keys, fetching, browser)."""
+    return re.compile(r"\b(?:" + "|".join(map(re.escape, words)) + r")\w{0,3}\b")
+
+
+_NETWORK_RE = _word_pattern(_NETWORK_WORDS)
+_CREDENTIAL_RE = _word_pattern(_CREDENTIAL_WORDS)
 
 
 _DANGEROUS_BASH_GRANTS = {f"{c}:*" for c in ("curl", "wget", "rm", "sudo", "sh", "bash", "eval")}
@@ -87,8 +96,8 @@ def analyze_permissions(bundle: SkillBundle) -> list[SkillFinding]:
             ))
 
     declared = f"{rec.name} {rec.description}".lower()
-    network_declared = any(w in declared for w in _NETWORK_WORDS)
-    credential_declared = any(w in declared for w in _CREDENTIAL_WORDS)
+    network_declared = bool(_NETWORK_RE.search(declared))
+    credential_declared = bool(_CREDENTIAL_RE.search(declared))
     network_hit = credential_hit = None
     for f in bundle.of_kind("code", "shell"):
         if network_hit is None and (m := _NETWORK.search(f.text)):
