@@ -15,6 +15,7 @@ order:
   - RAG & embeddings
   - Memory
   - MCP
+  - Skill
   - Infra & config
   - Aegis governance
   - Other
@@ -26,6 +27,8 @@ by_category:
   prompt: Prompt template
   mcp_server: MCP
   mcp_risk: MCP
+  skill: Skill
+  skill_risk: Skill
   framework_marker: Agent framework
   ci_pipeline: Infra & config
   dockerfile: Infra & config

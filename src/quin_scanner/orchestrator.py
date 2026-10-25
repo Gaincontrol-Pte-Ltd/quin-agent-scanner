@@ -42,6 +42,9 @@ from quin_scanner.scanners.mcp_scanner import MCPScanner
 from quin_scanner.scanners.prompt_discovery import PromptDiscoveryScanner
 from quin_scanner.scanners.agent_instance_scanner import AgentInstanceScanner
 from quin_scanner.scanners.tool_definition_scanner import ToolDefinitionScanner
+from quin_scanner.scanners.skills import SkillScanner
+from quin_scanner.scanners.skills.llm_review import review_skills
+from quin_scanner.scanners.skills.promotion import promote_skill_findings
 from quin_scanner.agent_tool_relationships import discover_agent_tool_relationships
 
 _print_lock = threading.Lock()
@@ -182,6 +185,7 @@ _SCANNER_REGISTRY: dict[str, type[BaseScanner]] = {
     "mcp": MCPScanner,
     "agent_instance": AgentInstanceScanner,
     "tool_definition": ToolDefinitionScanner,
+    "skills": SkillScanner,
 }
 
 _CONFIDENCE_THRESHOLD = 0.5
@@ -854,6 +858,10 @@ class ScanOrchestrator:
             if scanner_cls is not None:
                 scanners.append(scanner_cls())
 
+        skill_scanner = next((s for s in scanners if isinstance(s, SkillScanner)), None)
+        if skill_scanner is not None:
+            skill_scanner.vuln_check_enabled = config.vuln_check_enabled
+
         if verbose:
             _log(f"Running {len(scanners)} scanners in parallel...")
 
@@ -896,6 +904,8 @@ class ScanOrchestrator:
             "scanners_completed": len(completed_results),
             "scanners_with_findings": sum(bool(findings) for _, findings in completed_results),
         }
+        if skill_scanner is not None:
+            coverage.update(skill_scanner.coverage())
 
         # 2b. Deduplicate findings by (file_path, line_number, capability_tag)
         all_findings = self._deduplicate(all_findings)
@@ -944,9 +954,11 @@ class ScanOrchestrator:
         synthesis: SynthesisResult | None = None
         classification: ClassificationResult | None = None
         llm_errors: list[str] = []
+        skills_provider = None
         if not config.no_llm:
             summaries = _pre_summarise(all_findings)
             provider = config.provider_factory()
+            skills_provider = provider
             if verbose:
                 _log("\nRunning risk classification (pass 1)...")
 
@@ -1061,6 +1073,10 @@ class ScanOrchestrator:
                 if verbose:
                     _log(f"\n  [!] LLM synthesis failed: {e}")
                     _log("      Run with --no-llm to skip synthesis, or check your --llm-provider / API key.")
+
+        # 6b. Optional LLM review of skill findings (fails soft; static results stand).
+        if skill_scanner is not None and skills_provider is not None and skill_scanner.assessments:
+            llm_errors.extend(review_skills(skill_scanner.assessments, skills_provider))
 
         scan_duration = round(time.monotonic() - scan_start, 3)
 
@@ -1288,6 +1304,10 @@ class ScanOrchestrator:
                     evidence_refs=_refs,
                 ))
 
+        # Promote high/critical (non-disputed) skill findings into repo-level risk signals.
+        if skill_scanner is not None:
+            pp_risk_signals.extend(promote_skill_findings(skill_scanner.assessments))
+
         # Final pass: stable sort by severity so critical/high CVEs surface first.
         pp_risk_signals = _sorted_repo_signals(pp_risk_signals)
 
@@ -1297,6 +1317,9 @@ class ScanOrchestrator:
         cap = config.max_repo_risk_signals
         if cap is not None and cap > 0 and len(pp_risk_signals) > cap:
             pp_risk_signals = pp_risk_signals[:cap]
+
+        if skill_scanner is not None and skill_scanner.notes:
+            metadata["skills_notes"] = skill_scanner.notes[:50]
 
         governance = None
         if config.detect_aegis:
@@ -1325,6 +1348,7 @@ class ScanOrchestrator:
             llm_endpoints=llm_endpoints,
             metadata=metadata,
             governance=governance,
+            skills=list(skill_scanner.assessments) if skill_scanner is not None else [],
         )
 
     @staticmethod
