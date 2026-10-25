@@ -165,6 +165,25 @@ Pass `--detect-aegis` to also check whether the code uses the Aegis SDK. The rep
 quin-scanner scan ./my-agent --detect-aegis --no-llm
 ```
 
+### Scan a skill before installing it
+
+`quin-scanner skills scan` runs only the Agent Skills scanner on a skill folder, a `.zip` file or a repo URL, without a whole-repo scan. It is static by default (add `--llm-provider`/`--config` to get the LLM review) and never executes anything in the target. Zip files are extracted into a temporary directory with limits (5000 members, 200 MB uncompressed) and rejected if they contain absolute paths, `..` or symlinks.
+
+```bash
+# A local skill folder or a downloaded zip
+quin-scanner skills scan ./my-skill
+quin-scanner skills scan ~/Downloads/pdf-skill.zip
+
+# A folder inside a GitHub repo, failing on CAUTION as well as HIGH_RISK
+quin-scanner skills scan https://github.com/owner/repo/tree/main/skills/pdf --fail-on caution
+
+# JSON or SARIF output
+quin-scanner skills scan ./my-skill -o json -f skills.json
+quin-scanner skills scan ./my-skill -o sarif -f skills.sarif
+```
+
+Exit codes: `0` when every skill is below `--fail-on` (default `high_risk`), `1` when at least one skill is at or above it, `2` on an error (bad target, unreadable or unsafe zip).
+
 ## GitHub Action
 
 Add Quin to your CI to scan every push and surface findings as PR annotations via GitHub code scanning:
