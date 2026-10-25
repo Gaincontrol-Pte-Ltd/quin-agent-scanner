@@ -81,7 +81,7 @@ Not changed: `curl … | sh` (SK-EXEC-001) still fires on vendor installer one-l
 | SK-SC-003 | medium | T003 | Dependency installed from a URL or VCS |
 | SK-SC-004 | medium | T003 | npm install-time script (`preinstall`/`install`/`postinstall`) |
 | SK-SC-005 | low | T003 | Unpinned `pip install` or `npx` in instructions or scripts |
-| SK-SC-006 | by advisory | T003 | Known vulnerability in a pinned PyPI requirement (OSV; skipped with `--no-vuln-check`) |
+| SK-SC-006 | by advisory | T003 | Known vulnerability in a pinned PyPI requirement (`name==1.2.3`) or an exact-pinned npm dependency in `package.json` (`dependencies`, `devDependencies`, `optionalDependencies`; `1.2.3`, `=1.2.3` or `v1.2.3`, not ranges, tags or URLs). OSV lookup with ecosystem `PyPI` or `npm`; npm names, including `@scope/name`, are looked up as written. At most 50 lookups per scan across both ecosystems; skipped with `--no-vuln-check` |
 
 ## Permissions and metadata
 

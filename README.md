@@ -370,7 +370,7 @@ uv run quin-scanner scan ./path/to/repo --config scanner-config.yaml
 
 ## How It Works
 
-Quin runs 14 configurable static scanner plugins in parallel. It then builds inventories and coverage metrics, identifies model usage and endpoints, optionally checks known vulnerabilities, and optionally runs a two-pass LLM pipeline. Aegis governance detection is an additional opt-in scan.
+Quin runs 14 configurable static scanner plugins in parallel. They share a bounded read cache (1 MB per file, 50 MB per scan), so each file is fetched from the repository, or the GitHub API, once. It then builds inventories and coverage metrics, identifies model usage and endpoints, optionally checks known vulnerabilities, and optionally runs a two-pass LLM pipeline. Aegis governance detection is an additional opt-in scan.
 
 ```
 Repo  -->  14 Scanners (parallel)  -->  Inventory + Coverage  -->  Vulnerability Lookup  -->  Optional LLM Analysis  -->  Report
@@ -393,6 +393,8 @@ When a framework and its base version are detected, Quin checks for known CVEs a
 |---|---|---|
 | **OSV.dev** | Always, when `vuln_check.enabled: true` | None |
 | **LLM web search** | Optional, when `search_provider` is set | Reuses the chosen provider's API key |
+
+The skills scanner also checks dependencies pinned inside skills: `requirements*.txt` lines with `==` (PyPI) and `package.json` dependencies pinned to an exact version such as `1.2.3` (npm). Matches are reported as `SK-SC-006`; at most 50 lookups run per scan, and `--no-vuln-check` turns them off.
 
 **Supported web-search providers** (each reuses its own existing API key env var):
 

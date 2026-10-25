@@ -96,6 +96,8 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   - `SK-EX-001` and `SK-PERM-005` ignore public keys (`~/.ssh/*.pub`, `id_rsa.pub`); `SK-EXEC-002` flags home-directory targets only for the home directory or one entry directly under it (`~`, `~/*`, `~/.ssh`), not deeper paths such as `~/.tool/cache/x`.
   - `SK-PERM-004` counts `requests` only as the Python library (`import requests`, `requests.get`), not the English word.
   - `SK-SC-005` stops reading `pip install` arguments at a bracket or sentence break (prose after `pip install -r requirements.txt)` was reported as packages) and reports each unpinned package once per file.
+- `SK-SC-006` (known vulnerability) also covers npm: `package.json` `dependencies`, `devDependencies` and `optionalDependencies` pinned to an exact version (`1.2.3`, `=1.2.3`, `v1.2.3`) are looked up in OSV with ecosystem `npm` (scoped names as written). PyPI and npm share the 50-lookup cap, the `skills_osv_lookup_errors` soft-fail counter and `--no-vuln-check`.
+- Scanners now share a bounded read cache (1 MB per file, 50 MB per scan, failed reads never cached), so a file read by several scanners, the skills MCP/instruction-file discovery, the model/endpoint identifiers and the file fingerprint is fetched from the repository once. GitHub-hosted scans make correspondingly fewer API calls (anthropics/skills: 1008 to 262 file reads). Coverage counters are unchanged (`file_read_attempts` still counts every scanner read); cache hits and cached bytes are reported in `metadata.read_cache`.
 
 ### Fixed
 - Removed compiled Python bytecache files (`.pyc`) from repository
