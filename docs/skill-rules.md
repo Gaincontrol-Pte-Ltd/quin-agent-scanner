@@ -1,6 +1,6 @@
 # Skill Scanner Rules
 
-The `skills` scanner finds Agent Skills (`SKILL.md` packages for Claude Code, Codex and OpenCode) and MCP tool definitions, then assesses each one. Every rule maps to a threat in the [risk framework](risk-framework.md). Findings carry a severity, a confidence, and redacted evidence with `file:line`.
+The `skills` scanner finds Agent Skills (`SKILL.md` packages for Claude Code, Codex and OpenCode), MCP tool definitions and agent instruction files, then assesses each one. Every rule maps to a threat in the [risk framework](risk-framework.md). Findings carry a severity, a confidence, and redacted evidence with `file:line`.
 
 Skills are scored 0–100. Severity weights are critical 40, high 20, medium 8 and low 2, multiplied by confidence. A repeat of the same rule counts half as much each time. Verdicts: under 20 is `SAFE`, 20–50 is `CAUTION`, over 50 is `HIGH_RISK`. A critical finding forces at least `CAUTION`. With an LLM enabled, findings the model disputes count at half weight and are not promoted to risk signals.
 
@@ -79,6 +79,12 @@ Prose rules ignore matches inside closed fenced code blocks (usually quoted exam
 | SK-MCP-001 | high | T001 | Injection or hidden instruction in an MCP tool description |
 | SK-MCP-002 | high | T002 | MCP tool description references credentials or sensitive files |
 | SK-MCP-004 | high | T006 | MCP filesystem server granted an overly broad path (`/`, `~`) |
+
+## Instruction files
+
+Agent instruction and rules files are grouped into one record per repository, "Agent instruction files" (ecosystem `instructions`). It covers `CLAUDE.md`, `AGENTS.md` and `GEMINI.md` at any depth (name matched case-insensitively), `.cursorrules`, `.windsurfrules`, `.clinerules`, Markdown under `.cursor/rules/` (`.md` and `.mdc`), `.github/copilot-instructions.md`, `.github/instructions/*.md`, a `.clinerules/` directory of Markdown files, and `.roo/rules*/` Markdown. Files inside a skill folder are included as well.
+
+Only the [text rules](#text-rules-rulesskill_rulesyaml) run on these files (prompt injection, hidden content, safety bypass, prompt leakage, credential access, exfiltration and dangerous execution); the code, taint, supply-chain, permission and MCP analyzers do not. Fenced examples and negated phrasing ("never ignore previous instructions") are ignored by the prose rules, so a file that only discusses prompt injection stays `SAFE`. The record is scored and baselined like a skill and shown as its own line and card, but it is not counted in `coverage.skills_found`; `coverage.skills_instruction_files` holds the number of instruction files analysed. At most 500 instruction files are analysed.
 
 ## Limits
 
