@@ -1,6 +1,7 @@
 """Tests for RepoAccessorFactory target routing and LocalRepoAccessor."""
 from __future__ import annotations
 
+import os
 
 import pytest
 
@@ -46,6 +47,18 @@ class TestRepoAccessorFactory:
         )
         assert isinstance(accessor, GitCloneAccessor)
         assert accessor.branch == "feature-branch"
+
+    def test_github_url_with_tree_branch_and_folder(self):
+        accessor = RepoAccessorFactory.create("https://github.com/owner/repo/tree/main/example/crewai/")
+        assert isinstance(accessor, GitCloneAccessor)
+        assert accessor.branch == "main"
+        assert accessor.subpath == "example/crewai"
+        assert accessor.repo_url == "https://github.com/owner/repo"
+        assert accessor.repo_identifier() == "https://github.com/owner/repo"
+
+    def test_github_url_without_folder_has_empty_subpath(self):
+        assert RepoAccessorFactory.create("https://github.com/owner/repo/tree/dev").subpath == ""
+        assert RepoAccessorFactory.create("https://github.com/owner/repo").subpath == ""
 
     def test_invalid_target_raises(self):
         with pytest.raises(ValueError, match="Cannot determine accessor type"):
@@ -144,3 +157,41 @@ class TestGitHubMCPAccessorInit:
     def test_repo_identifier(self):
         accessor = GitHubMCPAccessor("myorg", "myrepo")
         assert accessor.repo_identifier() == "myorg/myrepo"
+
+
+class TestGitCloneAccessorFolder:
+    @staticmethod
+    def _repo(tmp_path):
+        import subprocess
+        repo = tmp_path / "origin"
+        (repo / "example").mkdir(parents=True)
+        (repo / "example" / "agent.py").write_text("x = 1\n")
+        (repo / "other.py").write_text("y = 2\n")
+        env = {"GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t", "PATH": os.environ["PATH"], "HOME": str(tmp_path)}
+        for cmd in (["init", "-q", "-b", "main"], ["add", "."], ["commit", "-q", "-m", "m"]):
+            subprocess.run(["git", *cmd], cwd=repo, env=env, check=True)
+        return repo
+
+    def test_only_the_folder_is_scanned(self, tmp_path):
+        acc = GitCloneAccessor(str(self._repo(tmp_path)), subpath="example", verbose=False)
+        try:
+            assert acc.list_files() == ["agent.py"]
+            assert acc.root.name == "example"
+        finally:
+            acc.cleanup()
+
+    def test_whole_repo_without_folder(self, tmp_path):
+        acc = GitCloneAccessor(str(self._repo(tmp_path)), verbose=False)
+        try:
+            assert sorted(f for f in acc.list_files() if not f.startswith(".git")) == ["example/agent.py", "other.py"]
+        finally:
+            acc.cleanup()
+
+    @pytest.mark.parametrize("sub", ["missing", "..", "../escape", "other.py"])
+    def test_bad_folder_is_an_error(self, tmp_path, sub):
+        acc = GitCloneAccessor(str(self._repo(tmp_path)), subpath=sub, verbose=False)
+        try:
+            with pytest.raises(ValueError, match="not found"):
+                acc.list_files()
+        finally:
+            acc.cleanup()

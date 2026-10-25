@@ -36,13 +36,34 @@ def redact(text: str) -> str:
 
 
 # ── Classification ──────────────────────────────────────────────────────────
+# Hosts of AI inference providers (an address here is a known provider, anything else public is `remote`). Matched exactly or as a
+# subdomain. Grouped by where they come from; add a host only when its provider's official API address is certain.
 _PROVIDER_HOSTS = (
+    # the original set
     "api.openai.com", "openai.azure.com", "api.anthropic.com",
     "generativelanguage.googleapis.com", "aiplatform.googleapis.com",
     "api.cohere.ai", "api.cohere.com", "api.together.xyz", "api.mistral.ai",
     "api.groq.com", "api.perplexity.ai", "api.deepseek.com", "api.x.ai",
     "openrouter.ai", "api-inference.huggingface.co", "api.fireworks.ai",
+    # seen as `remote` in a check of ten public AI-agent repositories (gap 18.4/18.16): all genuine providers
+    "api.moonshot.ai", "api.moonshot.cn",                      # Moonshot (Kimi)
+    "api.novita.ai",                                           # Novita AI
+    "api-inference.modelscope.cn",                             # ModelScope
+    "dashscope.aliyuncs.com", "dashscope-intl.aliyuncs.com",   # Alibaba DashScope (Qwen)
+    "api.tokenfactory.nebius.com", "api.studio.nebius.ai",     # Nebius
+    "api.minimax.io", "api.minimaxi.com",                      # MiniMax
+    "api.z.ai", "open.bigmodel.cn",                            # Zhipu (Z.ai, GLM)
+    "api.githubcopilot.com", "models.github.ai", "models.inference.ai.azure.com",   # GitHub Copilot, GitHub Models
+    "api.aimlapi.com", "api.atlascloud.ai", "api.avian.io", "api.forge.tensorblock.co",
+    # other widely used providers
+    "api.cerebras.ai", "api.sambanova.ai", "api.hyperbolic.xyz", "api.deepinfra.com", "api.replicate.com",
+    "integrate.api.nvidia.com", "api.ai21.com", "api.voyageai.com", "api.jina.ai",
+    "api.siliconflow.cn", "api.siliconflow.com", "api.stepfun.com", "api.01.ai", "api.lingyiwanwu.com",
+    "qianfan.baidubce.com", "api.hunyuan.cloud.tencent.com", "api.llama.com",
+    "cognitiveservices.azure.com", "services.ai.azure.com", "gateway.ai.cloudflare.com",
 )
+# Vertex AI regional endpoints are `<region>-aiplatform.googleapis.com`: the separator is a dash, so the subdomain rule misses them.
+_VERTEX_RE = re.compile(r"^[a-z0-9-]+-aiplatform\.googleapis\.com$")
 _BEDROCK_RE = re.compile(r"(^|\.)bedrock(-runtime)?\.[a-z0-9-]+\.amazonaws\.com$")
 _PRIVATE_SUFFIXES = (".local", ".internal", ".lan", ".svc", ".cluster.local", ".corp", ".intranet")
 
@@ -52,7 +73,7 @@ def classify_host(host: str | None) -> str:
     if not host or any(c in host for c in "{}$<>"):
         return "unknown"
     host = host.lower().strip("[]")
-    if any(host == h or host.endswith("." + h) for h in _PROVIDER_HOSTS) or _BEDROCK_RE.search(host):
+    if any(host == h or host.endswith("." + h) for h in _PROVIDER_HOSTS) or _BEDROCK_RE.search(host) or _VERTEX_RE.match(host):
         return "hosted_provider"
     if host in ("localhost", "0.0.0.0", "host.docker.internal") or host.endswith(".localhost"):
         return "local"

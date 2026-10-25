@@ -398,6 +398,8 @@ class ScanReport:
     coverage: dict[str, Any] = field(default_factory=dict)
     llm_endpoints: list[EndpointUsage] = field(default_factory=list)
     metadata: dict[str, Any] = field(default_factory=dict)
+    # Content hashes of the source files (file_fingerprint.py): lets a running agent be matched to this repository.
+    file_hashes: list[dict[str, str]] = field(default_factory=list)
     # Populated only when Aegis detection is requested (--detect-aegis).
     governance: GovernanceInfo | None = None
     skills: list[SkillAssessment] = field(default_factory=list)
@@ -431,4 +433,5 @@ class ScanReport:
             "llm_endpoints": [e.to_dict() for e in self.llm_endpoints],
             "metadata": self.metadata,
             "skills": [s.to_dict() for s in self.skills],
+            "file_hashes": self.file_hashes,
         }

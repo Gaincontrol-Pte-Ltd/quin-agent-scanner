@@ -263,8 +263,9 @@ class GitCloneAccessor(RepoAccessor):
     """
 
     def __init__(self, repo_url: str, github_token: str | None = None, branch: str = "main",
-                 verbose: bool = True, askpass_username: str = "x-access-token"):
+                 verbose: bool = True, askpass_username: str = "x-access-token", subpath: str = ""):
         self.repo_url = repo_url
+        self.subpath = subpath.strip("/")
         self.github_token = github_token
         self.branch = branch
         self.verbose = verbose
@@ -361,7 +362,12 @@ class GitCloneAccessor(RepoAccessor):
             sys.stderr.write("\n")
             sys.stderr.flush()
 
-        self._local_accessor = LocalRepoAccessor(self._temp_dir)
+        scan_root = self._temp_dir
+        if self.subpath:
+            scan_root = (self._temp_dir / self.subpath).resolve()
+            if not scan_root.is_relative_to(self._temp_dir.resolve()) or not scan_root.is_dir():
+                raise ValueError(f"Folder {self.subpath!r} not found on branch {self.branch!r} of {self.repo_url}")
+        self._local_accessor = LocalRepoAccessor(scan_root)
 
     def cleanup(self) -> None:
         """Remove temp directory."""
@@ -433,11 +439,15 @@ class RepoAccessorFactory:
             # Strip browser-style /tree/<branch> suffix (e.g. copied from GitHub UI)
             # and extract branch if embedded in URL
             import re
-            tree_match = re.search(r"/tree/([^/]+)$", target)
+            # /tree/<branch>/<folder...> scans only that folder; the branch is the first segment, so a branch
+            # name containing "/" cannot be combined with a folder.
+            subpath = ""
+            tree_match = re.search(r"/tree/([^/]+)(?:/(.+?))?/?$", target)
             if tree_match:
                 branch = tree_match.group(1)
+                subpath = tree_match.group(2) or ""
                 target = target[: tree_match.start()]
-            return GitCloneAccessor(target, github_token=github_token, branch=branch)
+            return GitCloneAccessor(target, github_token=github_token, branch=branch, subpath=subpath)
 
         # Local path: starts with / or . or is an existing directory
         target_path = Path(target)

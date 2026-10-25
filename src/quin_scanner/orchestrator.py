@@ -27,7 +27,9 @@ from quin_scanner.models import (
 )
 from quin_scanner.vuln_checker import VulnChecker, parse_framework_ref
 from quin_scanner.repo_accessor import RepoAccessor
+from quin_scanner.file_fingerprint import compute_file_fingerprint
 from quin_scanner.scanners.aegis import AegisScanner, classify_governance
+from quin_scanner.scanners.mcp_scanner import discover_mcp_servers
 from quin_scanner.scanners.base import BaseScanner
 from quin_scanner.scanners.ci_scanner import CIScanner
 from quin_scanner.scanners.code_pattern import CodePatternScanner
@@ -921,7 +923,10 @@ class ScanOrchestrator:
         )
 
         # 4. Direct extraction — no LLM needed
-        mcp_servers = _extract_mcp_servers(all_findings)
+        # Read from the config files themselves (name and transport); the finding-text route is only a fallback.
+        mcp_servers = (
+            discover_mcp_servers(tracked_accessor, file_index) if "mcp" in config.enabled_scanners else []
+        ) or _extract_mcp_servers(all_findings)
         infra = _extract_infra(all_findings)
         tool_services = _extract_tool_services(all_findings)
 
@@ -1336,10 +1341,15 @@ class ScanOrchestrator:
 
         if skill_scanner is not None and skill_scanner.notes:
             metadata["skills_notes"] = skill_scanner.notes[:50]
+        # Content hashes to match a running agent to this repository. The stats go in the metadata so a cut-off list is visible.
+        file_hashes, file_hash_stats = compute_file_fingerprint(tracked_accessor, file_index)
+        metadata["file_hash_stats"] = file_hash_stats
 
         governance = None
         if config.detect_aegis:
-            governance = classify_governance(is_ai, aegis_findings)
+            # A detected framework (langchain, crewai, ...) makes it an AI application for this purpose
+            # even when the overall AI confidence fell short: with no Aegis evidence it is ungoverned.
+            governance = classify_governance(is_ai or pp_framework != "unknown", aegis_findings)
             metadata["aegis_detection"] = "enabled"
 
         return ScanReport(
@@ -1363,6 +1373,7 @@ class ScanOrchestrator:
             coverage=coverage,
             llm_endpoints=llm_endpoints,
             metadata=metadata,
+            file_hashes=file_hashes,
             governance=governance,
             skills=list(skill_scanner.assessments) if skill_scanner is not None else [],
         )

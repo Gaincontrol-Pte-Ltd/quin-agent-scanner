@@ -151,3 +151,27 @@ class TestPromoWhenFlagOff:
     def test_promo_markup_and_hint_in_template(self):
         html = self._html(is_ai_application=True, confidence=0.9)
         assert "aegis-promo" in html and "--detect-aegis" in html and "https://gaincontrol.ai/" in html
+
+
+def test_aegis_examples_in_test_files_are_not_evidence(tmp_path):
+    src = "from aegis_core import initialize as aegis_initialize\nengine = aegis_initialize(cfg['aegis'])\n"
+    for rel in ("tests/test_x.py", "pkg/test_y.py", "src/__tests__/a.ts", "fixtures/app.py", "a.spec.ts", "conftest.py", "b_test.py"):
+        assert _scan(tmp_path, {rel: src}) == [], rel
+
+
+def test_test_path_evidence_is_dropped_but_real_source_still_counts(tmp_path):
+    src = "from aegis_core import initialize as aegis_initialize\n"
+    f = _scan(tmp_path, {"tests/test_x.py": src, "app/main.py": src})
+    assert {x.file_path for x in f} == {"app/main.py"}
+
+
+def test_framework_without_aegis_is_ungoverned():
+    # a repo using langchain whose only Aegis mentions were in tests: no evidence left
+    assert classify_governance(True, []).status == "ungoverned"
+    assert classify_governance(True, []).aegis_detected is False
+
+
+def test_repo_with_only_test_fixtures_is_ungoverned_end_to_end(tmp_path):
+    src = "from aegis_core import initialize as aegis_initialize\n"
+    f = _scan(tmp_path, {"tests/test_x.py": src, "requirements.txt": "langchain\n"})
+    assert classify_governance(True, f).status == "ungoverned"
