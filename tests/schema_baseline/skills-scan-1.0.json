@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/Gaincontrol-Pte-Ltd/quin-agent-scanner/main/docs/schema/skills-scan-1.json",
+  "title": "Quin Scanner `skills scan -o json` envelope, schema 1.x",
+  "description": "The JSON written by `quin-scanner skills scan -o json`. Skill assessments use the definitions in report-1.json. Within schema major version 1 fields are never removed, renamed or retyped; consumers must ignore fields they do not know.",
+  "type": "object",
+  "required": ["schema_version", "target", "scanned_at", "skills", "notes", "coverage"],
+  "properties": {
+    "schema_version": {"type": "string", "pattern": "^1\\.[0-9]+$"},
+    "target": {"type": "string"},
+    "scanned_at": {"type": "string", "description": "ISO 8601, UTC."},
+    "skills": {"type": "array", "items": {"$ref": "report-1.json#/$defs/skillAssessment"}},
+    "notes": {"type": "array", "items": {"type": "string"}},
+    "coverage": {"type": "object", "description": "Open map: documented keys are stable, others informational."},
+    "metadata": {
+      "type": "object",
+      "description": "Present only when a baseline was applied.",
+      "properties": {
+        "skills_baseline": {
+          "type": "object",
+          "required": ["file", "suppressed_count", "stale_count"],
+          "properties": {
+            "file": {"type": "string"},
+            "suppressed_count": {"type": "integer"},
+            "stale_count": {"type": "integer"}
+          }
+        }
+      }
+    }
+  },
+  "additionalProperties": true
+}

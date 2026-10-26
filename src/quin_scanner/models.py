@@ -4,6 +4,8 @@ import hashlib
 from dataclasses import dataclass, field
 from typing import Any
 
+from quin_scanner.schema import REPORT_SCHEMA_VERSION
+
 
 @dataclass
 class ScanFinding:
@@ -412,6 +414,7 @@ class ScanReport:
 
     def _base_dict(self) -> dict[str, Any]:
         return {
+            "schema_version": REPORT_SCHEMA_VERSION,
             "repo_path": self.repo_path,
             "scan_timestamp": self.scan_timestamp,
             "is_ai_application": self.is_ai_application,

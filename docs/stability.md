@@ -52,7 +52,7 @@ IDs are identifiers, not descriptions: an ID is **never reused** for something d
 
 ## Report schema versioning
 
-Reports carry a `schema_version` of the form `MAJOR.MINOR` *(planned)*. Within a major version the schema only grows: new optional fields may appear, existing ones keep their name, type and meaning. A breaking schema change needs a new major schema version and a new major tool version. Consumers should ignore fields they do not know. See [schema/README.md](schema/README.md).
+Reports and the `skills scan` JSON envelope carry a `schema_version` of the form `MAJOR.MINOR`; `quin-scanner --version` prints the current one. JSON Schemas are published in `docs/schema/`, and CI validates real output against them and checks every schema change against a frozen 1.0 baseline. Within a major version the schema only grows: new optional fields may appear, existing ones keep their name, type and meaning. A breaking schema change needs a new major schema version and a new major tool version. Consumers should ignore fields they do not know. See [schema/README.md](schema/README.md).
 
 ## Exit codes
 
