@@ -124,6 +124,9 @@ Only the [text rules](#text-rules-rulesskill_rulesyaml) run on these files (prom
 
 None yet. A retired rule's ID stays reserved and is listed here; IDs are never reused (see the [stability policy](stability.md#rule-and-threat-ids)).
 
+| Rule | Retired in | Reason |
+|---|---|---|
+
 ## Limits
 
 Static analysis only: no runtime behavior is observed. Non-English text and text inside images are not analyzed. At most 200 skills per repository, 500 files per skill, and 1 MB per file are analyzed; anything beyond that is recorded in `metadata.skills_notes`, and `coverage.skills_capped` counts how many limits were hit (also the MCP source read cap and the OSV lookup cap).

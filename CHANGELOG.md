@@ -11,6 +11,9 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Config files may carry `config_version` (default 1); a newer version is rejected with an error that says to upgrade. Unknown config keys now produce a warning on stderr instead of being silently ignored. A missing, unreadable or invalid config file exits 2 in `scan`, `scan-batch` and `scan-org` (it used to surface as a traceback); `scan-org` now validates the config before listing repositories.
+- ID registry tests (`tests/test_id_registry.py`, frozen `tests/id_baseline_1.0.json`): a skill rule ID that existed at 1.0 may not disappear unless it is listed in the new "Retired rules" table in `docs/skill-rules.md`; a retired ID may never be emitted again; threat (`T001`-`T014`) and control (`C001`-`C014`) IDs and names are pinned.
+- Baseline compatibility tests: the fingerprint algorithm is pinned by a golden value, and a frozen baseline written by this release must keep loading and suppressing findings.
 - CLI contract tests: `tests/cli_snapshot.json` pins every command, option, default and type, and a frozen 1.0 baseline fails the build on a breaking CLI change (removed or renamed command or option, changed default, type or requiredness, a new required option); `tests/test_exit_codes.py` pins the exit codes of every command.
 - Report `schema_version` (`"1.0"`) in the JSON and YAML reports and in the `skills scan -o json` envelope, and `quin-scanner --version` now also prints the report schema version.
 - JSON Schemas for the report (`docs/schema/report-1.json`) and the `skills scan` envelope (`docs/schema/skills-scan-1.json`). Tests validate real output against them, fail when an emitted field is missing from the schema, and compare the schemas with a frozen 1.0 baseline so a breaking schema change cannot slip in.
@@ -21,6 +24,7 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- The skills baseline loader accepts any version from 1 up to the current one (only 1 exists so far) and rejects a newer version with an error that says to upgrade, and a malformed version with its own message.
 - `scan` and `scan-batch` now reject a local path that does not exist or is not a directory (exit 1, or a failed target in a batch) instead of scanning nothing and succeeding with an empty report, so a mistyped path no longer passes in CI.
 - `scan-batch` and `scan-org` now exit 1 when at least one target (or repository) failed, after scanning all of them and writing the reports that succeeded, and print `N of M targets failed: ...` on stderr. Previously they exited 0 even if every target failed, which made them unusable in CI. The exit codes of every command are now listed in each command's `--help` and in `docs/stability.md`.
 - Removed the `Typing :: Typed` classifier: the package ships no `py.typed` marker and CI runs no type checker.

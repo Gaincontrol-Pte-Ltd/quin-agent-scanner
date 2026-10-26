@@ -8,7 +8,7 @@ import click
 from dotenv import find_dotenv, load_dotenv
 
 from quin_scanner import __version__
-from quin_scanner.config import ScannerConfig
+from quin_scanner.config import ConfigError, ScannerConfig
 from quin_scanner.models import ScanReport
 from quin_scanner.orchestrator import ScanOrchestrator
 from quin_scanner.repo_accessor import LocalRepoAccessor, RepoAccessorFactory
@@ -260,7 +260,7 @@ def scan(
     Exit codes:
       0  the scan completed (findings do not change the exit code)
       1  invalid target, or the scan failed
-      2  invalid --skills-baseline, or a command-line usage error
+      2  invalid --skills-baseline, invalid config file, or a command-line usage error
 
     \b
     Examples:
@@ -271,11 +271,15 @@ def scan(
       quin-scanner scan ./my-agent --skills-baseline skills-baseline.yaml
       quin-scanner scan owner/repo --llm-provider anthropic --llm-model claude-sonnet-4-20250514
     """
-    cfg = _build_config(
-        config=config, llm_provider=llm_provider, llm_model=llm_model, llm_api_key=llm_api_key,
-        output_format=output, no_llm=no_llm, github_token=github_token,
-        openai_compatible_url=openai_compatible_url,
-    )
+    try:
+        cfg = _build_config(
+            config=config, llm_provider=llm_provider, llm_model=llm_model, llm_api_key=llm_api_key,
+            output_format=output, no_llm=no_llm, github_token=github_token,
+            openai_compatible_url=openai_compatible_url,
+        )
+    except ConfigError as e:
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(2)
 
     # CLI overrides for vulnerability checking
     if detect_aegis:
@@ -384,7 +388,7 @@ def scan_batch(
     Exit codes:
       0  every target was scanned
       1  at least one target failed (reports for the others are still written)
-      2  usage error (for example a missing targets file)
+      2  invalid config file, or usage error such as a missing targets file
 
     \b
     Examples:
@@ -398,20 +402,24 @@ def scan_batch(
         if line.strip() and not line.startswith("#")
     ]
 
-    if config:
-        base_cfg = ScannerConfig.load_from_file(config)
-        if no_llm:
-            base_cfg.no_llm = True
-    else:
-        base_cfg = ScannerConfig.load_from_args(
-            llm_provider=llm_provider,
-            llm_model=llm_model,
-            llm_api_key=llm_api_key,
-            output_format=output,
-            no_llm=no_llm,
-            github_token=github_token,
-            openai_compatible_url=openai_compatible_url,
-        )
+    try:
+        if config:
+            base_cfg = ScannerConfig.load_from_file(config)
+            if no_llm:
+                base_cfg.no_llm = True
+        else:
+            base_cfg = ScannerConfig.load_from_args(
+                llm_provider=llm_provider,
+                llm_model=llm_model,
+                llm_api_key=llm_api_key,
+                output_format=output,
+                no_llm=no_llm,
+                github_token=github_token,
+                openai_compatible_url=openai_compatible_url,
+            )
+    except ConfigError as e:
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(2)
 
     if detect_aegis:
         base_cfg.detect_aegis = True
@@ -496,7 +504,7 @@ def scan_org(
     Exit codes:
       0  every repository was scanned
       1  the repository list could not be fetched, or at least one repository failed
-      2  usage error
+      2  invalid config file, or usage error
 
     \b
     Examples:
@@ -505,6 +513,22 @@ def scan_org(
       quin-scanner scan-org my-username --github-token $GITHUB_TOKEN
     """
     from quin_scanner.github_client import GitHubClient
+
+    # Validate the config before any network call.
+    try:
+        if config:
+            base_cfg = ScannerConfig.load_from_file(config)
+            if no_llm:
+                base_cfg.no_llm = True
+        else:
+            base_cfg = ScannerConfig.load_from_args(
+                no_llm=no_llm,
+                github_token=github_token,
+                openai_compatible_url=openai_compatible_url,
+            )
+    except ConfigError as e:
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(2)
 
     client = GitHubClient(token=github_token)
 
@@ -531,17 +555,6 @@ def scan_org(
         sys.stderr.write("\n")
         sys.stderr.flush()
     click.echo(f"Found {len(repos)} repos to scan.", err=True)
-
-    if config:
-        base_cfg = ScannerConfig.load_from_file(config)
-        if no_llm:
-            base_cfg.no_llm = True
-    else:
-        base_cfg = ScannerConfig.load_from_args(
-            no_llm=no_llm,
-            github_token=github_token,
-            openai_compatible_url=openai_compatible_url,
-        )
 
     if detect_aegis:
         base_cfg.detect_aegis = True

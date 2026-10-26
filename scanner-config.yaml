@@ -1,3 +1,6 @@
+# Version of this file format. Optional; 1 is the only version so far.
+config_version: 1
+
 # scanner-config.example.yaml
 # Copy to scanner-config.yaml and adjust as needed.
 # Pass to the CLI with: quin-scanner scan <target> --config scanner-config.yaml

@@ -72,4 +72,4 @@ The remaining record types (`agents`, `model_usages`, `mcp_servers`, `infra`, `v
 
 ## Config file
 
-See [stability.md](../stability.md#config-and-baseline-files) for the keys.
+See [stability.md](../stability.md#config-and-baseline-files) for the keys, the optional `config_version` and how unknown keys are handled.
