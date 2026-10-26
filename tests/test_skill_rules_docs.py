@@ -16,14 +16,25 @@ def _emitted_ids() -> set[str]:
     return ids
 
 
+_RETIRED_SECTION = re.compile(r"\n## Retired rules\n(.*?)(?=\n## |\Z)", re.S)
+
+
+def _documented_ids() -> set[str]:
+    """IDs documented as active rules: everything outside the 'Retired rules' section."""
+    text = DOC.read_text(encoding="utf-8")
+    retired = _RETIRED_SECTION.search(text)
+    active_text = text.replace(retired.group(0), "") if retired else text
+    return set(_ID.findall(active_text))
+
+
 def test_every_emitted_rule_is_documented():
-    documented = set(_ID.findall(DOC.read_text(encoding="utf-8")))
+    documented = _documented_ids()
     missing = sorted(_emitted_ids() - documented)
     assert not missing, f"undocumented skill rules: {missing}"
 
 
 def test_documented_rules_exist():
-    documented = set(_ID.findall(DOC.read_text(encoding="utf-8")))
+    documented = _documented_ids()
     stale = sorted(documented - _emitted_ids())
     assert not stale, f"docs mention rules that no longer exist: {stale}"
 

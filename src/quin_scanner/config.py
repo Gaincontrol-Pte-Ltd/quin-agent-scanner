@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -8,6 +9,62 @@ from typing import Any
 import yaml
 
 from quin_scanner.llm.base import BaseLLMProvider
+
+SUPPORTED_CONFIG_VERSION = 1
+
+# Documented keys (docs/stability.md). Anything else is ignored with a warning on stderr.
+_KNOWN_CONFIG_KEYS: dict[str, set[str] | None] = {
+    "config_version": None,
+    "llm": {"provider", "model", "api_key_env", "api_key"},
+    "output": {"format", "max_repo_risk_signals"},
+    "vuln_check": {
+        "enabled", "search_provider", "search_model",
+        "osv_timeout_seconds", "web_timeout_seconds", "web_retries",
+    },
+    "scanners": {"enabled"},
+    "governance": {"detect_aegis"},
+}
+
+
+class ConfigError(ValueError):
+    """The config file cannot be used (missing, malformed, or written for a newer quin-scanner)."""
+
+
+def _read_config_file(path: str) -> dict:
+    p = Path(path)
+    if not p.is_file():
+        raise ConfigError(f"config file not found: {path}")
+    try:
+        data = yaml.safe_load(p.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError) as exc:
+        raise ConfigError(f"cannot read config file {path}: {exc}") from exc
+    except yaml.YAMLError as exc:
+        raise ConfigError(f"config file {path} is not valid YAML: {exc}") from exc
+    if data is None:
+        data = {}
+    if not isinstance(data, dict):
+        raise ConfigError(f"config file {path} must be a YAML mapping")
+    version = data.get("config_version", 1)
+    if isinstance(version, bool) or not isinstance(version, int) or version < 1:
+        raise ConfigError(f"config file {path}: 'config_version' must be a positive integer (got {version!r})")
+    if version > SUPPORTED_CONFIG_VERSION:
+        raise ConfigError(
+            f"config file {path}: config_version {version} is newer than this quin-scanner understands "
+            f"(up to {SUPPORTED_CONFIG_VERSION}). Upgrade quin-scanner."
+        )
+    for section, keys in _KNOWN_CONFIG_KEYS.items():
+        value = data.get(section)
+        if keys is not None and value is not None and not isinstance(value, dict):
+            raise ConfigError(f"config file {path}: '{section}' must be a mapping")
+    for key, value in data.items():
+        if key not in _KNOWN_CONFIG_KEYS:
+            print(f"Warning: {path}: unknown key '{key}' ignored", file=sys.stderr)
+        elif isinstance(value, dict):
+            for sub in value:
+                if sub not in (_KNOWN_CONFIG_KEYS[key] or set()):
+                    print(f"Warning: {path}: unknown key '{key}.{sub}' ignored", file=sys.stderr)
+    return data
+
 
 def _parse_max_signals(raw: Any) -> int | None:
     """Parse max_repo_risk_signals from YAML. Returns None to disable the cap."""
@@ -80,10 +137,10 @@ class ScannerConfig:
 
     @classmethod
     def load_from_file(cls, path: str) -> "ScannerConfig":
-        data = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
-        llm_cfg = data.get("llm", {})
-        out_cfg = data.get("output", {})
-        scan_cfg = data.get("scanners", {})
+        data = _read_config_file(path)
+        llm_cfg = data.get("llm") or {}
+        out_cfg = data.get("output") or {}
+        scan_cfg = data.get("scanners") or {}
 
         api_key = None
         if "api_key_env" in llm_cfg:

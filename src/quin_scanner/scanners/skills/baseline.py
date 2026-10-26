@@ -93,9 +93,15 @@ def load_baseline(path: str | Path) -> Baseline:
         raise BaselineError(f"baseline file {path} is not valid YAML: {exc}") from exc
     if not isinstance(data, dict):
         raise BaselineError(f"baseline file {path} must be a YAML mapping with 'version' and 'entries'")
-    if data.get("version") != BASELINE_VERSION:
+    version = data.get("version")
+    if isinstance(version, bool) or not isinstance(version, int) or version < 1:
         raise BaselineError(
-            f"baseline file {path}: unsupported version {data.get('version')!r} (expected {BASELINE_VERSION})"
+            f"baseline file {path}: 'version' must be a positive integer (got {version!r})"
+        )
+    if version > BASELINE_VERSION:
+        raise BaselineError(
+            f"baseline file {path}: version {version} was written by a newer quin-scanner; this release "
+            f"understands baselines up to version {BASELINE_VERSION}. Upgrade quin-scanner."
         )
     entries = data.get("entries")
     if not isinstance(entries, list):

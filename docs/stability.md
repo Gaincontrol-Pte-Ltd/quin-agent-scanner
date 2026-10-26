@@ -48,7 +48,7 @@ A deprecated item keeps working. It is announced in the CHANGELOG and listed her
 
 ## Rule and threat IDs
 
-IDs are identifiers, not descriptions: an ID is **never reused** for something different. A rule that is removed is **retired**: its ID stays reserved and is listed in [skill-rules.md](skill-rules.md#retired-rules). Severities and confidence of a rule may be tuned in minor releases (see detection changes).
+IDs are identifiers, not descriptions: an ID is **never reused** for something different. A test fails if a rule ID that existed at 1.0 disappears without being listed as retired, if a retired ID is emitted again, or if a threat or control ID is removed or renamed. A rule that is removed is **retired**: its ID stays reserved and is listed in [skill-rules.md](skill-rules.md#retired-rules). Severities and confidence of a rule may be tuned in minor releases (see detection changes).
 
 ## Report schema versioning
 
@@ -58,9 +58,9 @@ Reports and the `skills scan` JSON envelope carry a `schema_version` of the form
 
 | Command | 0 | 1 | 2 |
 |---|---|---|---|
-| `scan` | the scan completed (findings do not change the exit code) | invalid target, or the scan failed | invalid `--skills-baseline`, or a command-line usage error |
-| `scan-batch` | every target was scanned | at least one target failed (reports for the others are still written) | usage error, for example a missing targets file |
-| `scan-org` | every repository was scanned | the repository list could not be fetched, or at least one repository failed | usage error |
+| `scan` | the scan completed (findings do not change the exit code) | invalid target, or the scan failed | invalid `--skills-baseline`, invalid config file, or a command-line usage error |
+| `scan-batch` | every target was scanned | at least one target failed (reports for the others are still written) | invalid config file, or usage error such as a missing targets file |
+| `scan-org` | every repository was scanned | the repository list could not be fetched, or at least one repository failed | invalid config file, or usage error |
 | `skills scan` | no skill at or above `--fail-on` (default `high_risk`) | at least one skill at or above `--fail-on` | error (bad target, unreadable or unsafe zip, bad config or baseline), or usage error |
 | `skills baseline` | baseline written | | error, or usage error |
 
@@ -87,8 +87,8 @@ The command tree, every option, its default and its type are pinned by `tests/cl
 
 ## Config and baseline files
 
-- **`scanner-config.yaml`** keys: `llm` (`provider`, `model`, `api_key_env`, `api_key`), `output` (`format`, `max_repo_risk_signals`), `vuln_check` (`enabled`, `search_provider`, `search_model`, `osv_timeout_seconds`, `web_timeout_seconds`, `web_retries`), `scanners.enabled`, `governance.detect_aegis`. An optional `config_version` key *(planned)*; when absent it means `1`.
-- **Skills baseline** (`quin-scanner skills baseline`): `version: 1`, `generated`, `entries` of `fingerprint`, `rule_id`, `skill`, `file_path`, `note`. A baseline written by any 1.x release keeps working in later 1.x releases; a baseline with a newer `version` than the tool understands is rejected with a clear error.
+- **`scanner-config.yaml`** keys: `llm` (`provider`, `model`, `api_key_env`, `api_key`), `output` (`format`, `max_repo_risk_signals`), `vuln_check` (`enabled`, `search_provider`, `search_model`, `osv_timeout_seconds`, `web_timeout_seconds`, `web_retries`), `scanners.enabled`, `governance.detect_aegis`. An optional `config_version` key (default `1`): a file with a newer `config_version` than the installed release understands is rejected with an error that says to upgrade. Unknown keys are ignored with a warning on stderr, so a typo is visible. A missing, unreadable or invalid config file exits 2.
+- **Skills baseline** (`quin-scanner skills baseline`): `version: 1`, `generated`, `entries` of `fingerprint`, `rule_id`, `skill`, `file_path`, `note`. A baseline written by any 1.x release keeps working in later 1.x releases; a baseline with a newer `version` than the tool understands is rejected with an error that says to upgrade. The fingerprint algorithm is pinned by a test, and a frozen baseline file proves old baselines keep loading.
 
 ## GitHub Action
 
