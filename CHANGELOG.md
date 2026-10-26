@@ -9,10 +9,18 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- The default LLM model is now chosen per provider. Previously `ScannerConfig.llm_model` defaulted to `gpt-4o-mini` for every provider, so `--llm-provider anthropic`, `google` or `ollama` without `--llm-model` (or a config file with no `llm.model`) sent `gpt-4o-mini` to that provider's API and failed. `llm_model` is now unset by default and resolved through `ScannerConfig.resolved_model()`: the configured model, else `claude-haiku-4-5-20251001` (anthropic), `gemini-2.0-flash` (google), `llama3.2` (ollama) or `gpt-4o-mini` (openai, and OpenAI-compatible endpoints as before).
+
 ### Changed
 
 - Release tags: pre-release tags (`v0.1.0b4`, `...rc1`) now move a new `beta` tag and no longer move `v1`. Stable tags move a major tag (`v0` for 0.x, `v1` for 1.x). `v1` stays at `v0.1.0b4` until `1.0.0` is released. GitHub Action examples now use `@beta`; pin an exact tag such as `@v0.1.0b4` for reproducible builds.
 - Docs no longer imply a stable `0.1.0` exists: the changelog section for the first drop is now `0.1.0b1`, and the roadmap marks the first drop as beta.
+
+### Security
+
+- Raised the `anthropic` requirement to `>=0.87,<1` (locked at 0.125.0). 0.87.0 fixes two medium advisories in the SDK's local memory tool (insecure default file permissions and a path-validation race); Quin does not use that tool, but the floor ensures installs get the fixed SDK. The `<1` cap is deliberate: 2.x removed `temperature` from `messages.create()` and changed its HTTP layer and auth headers, so it needs its own change and a live check.
 
 ### Maintenance
 

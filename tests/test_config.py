@@ -41,7 +41,8 @@ class TestLoadFromArgs:
         monkeypatch.delenv("OPENAI_API_KEY", raising=False)
         cfg = ScannerConfig.load_from_args()
         assert cfg.llm_provider == "openai"
-        assert cfg.llm_model == "gpt-4o-mini"
+        assert cfg.llm_model is None  # unset: resolved per provider, see resolved_model()
+        assert cfg.resolved_model() == "gpt-4o-mini"
         assert cfg.no_llm is False
         assert cfg.vuln_check_enabled is True
 
@@ -174,3 +175,52 @@ class TestProviderFactory:
         provider = cfg.provider_factory()
         from quin_scanner.llm.openai_compatible import OpenAICompatibleProvider
         assert isinstance(provider, OpenAICompatibleProvider)
+
+
+class TestResolvedModel:
+    @pytest.mark.parametrize("provider,model", [
+        ("openai", "gpt-4o-mini"),
+        ("anthropic", "claude-haiku-4-5-20251001"),
+        ("google", "gemini-2.0-flash"),
+        ("ollama", "llama3.2"),
+    ])
+    def test_unset_model_resolves_to_the_provider_default(self, provider, model):
+        assert ScannerConfig(llm_provider=provider).resolved_model() == model
+
+    def test_explicit_model_is_kept(self):
+        assert ScannerConfig(llm_provider="anthropic", llm_model="claude-x").resolved_model() == "claude-x"
+
+    def test_openai_compatible_url_without_a_model_falls_back_to_the_openai_default(self):
+        cfg = ScannerConfig(llm_provider="anthropic", openai_compatible_url="http://localhost:8000/v1")
+        assert cfg.resolved_model() == "gpt-4o-mini"
+
+    def test_unknown_provider_resolves_to_none(self):
+        assert ScannerConfig(llm_provider="nope").resolved_model() is None
+
+    def test_cli_args_without_a_model_do_not_inherit_the_openai_model(self, monkeypatch):
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "k")
+        cfg = ScannerConfig.load_from_args(llm_provider="anthropic")
+        assert cfg.llm_model is None
+        assert cfg.resolved_model() == "claude-haiku-4-5-20251001"
+
+    def test_config_file_without_a_model_does_not_inherit_the_openai_model(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("GOOGLE_API_KEY", "k")
+        config_file = tmp_path / "scanner-config.yaml"
+        config_file.write_text(textwrap.dedent("""
+            llm:
+              provider: google
+        """))
+        cfg = ScannerConfig.load_from_file(str(config_file))
+        assert cfg.llm_provider == "google"
+        assert cfg.llm_model is None
+        assert cfg.resolved_model() == "gemini-2.0-flash"
+
+    def test_config_file_with_a_model_keeps_it(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("OLLAMA_UNUSED", "1")
+        config_file = tmp_path / "scanner-config.yaml"
+        config_file.write_text(textwrap.dedent("""
+            llm:
+              provider: ollama
+              model: mistral
+        """))
+        assert ScannerConfig.load_from_file(str(config_file)).resolved_model() == "mistral"

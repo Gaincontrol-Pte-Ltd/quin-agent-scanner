@@ -402,16 +402,25 @@ class TestProviderFactory:
         assert _anthropic(router, provider).generate(PROMPT) == "hi"
         assert _anthropic_key(route.calls[0].request) == "k"
 
-    @pytest.mark.xfail(strict=True, reason=(
-        "ScannerConfig.llm_model defaults to 'gpt-4o-mini', so the per-provider fallback model in "
-        "provider_factory() is never used: --llm-provider anthropic/google without --llm-model "
-        "sends model 'gpt-4o-mini' to that API."))
     @pytest.mark.parametrize("name,model", [
-        ("anthropic", "claude-haiku-4-5-20251001"), ("google", "gemini-2.0-flash"),
+        ("openai", "gpt-4o-mini"),
+        ("anthropic", "claude-haiku-4-5-20251001"),
+        ("google", "gemini-2.0-flash"),
+        ("ollama", "llama3.2"),
     ])
     def test_factory_default_model_matches_provider(self, name, model):
         provider = ScannerConfig(llm_provider=name, llm_api_key="k").provider_factory()
         assert provider._model == model
+
+    def test_factory_default_model_for_openai_compatible_endpoint(self):
+        provider = ScannerConfig(llm_provider="anthropic", llm_api_key="k",
+                                 openai_compatible_url=COMPAT_BASE).provider_factory()
+        assert provider.model == "gpt-4o-mini"
+
+    @pytest.mark.parametrize("name", ["openai", "anthropic", "google", "ollama"])
+    def test_factory_explicit_model_wins(self, name):
+        provider = ScannerConfig(llm_provider=name, llm_model="my-model", llm_api_key="k").provider_factory()
+        assert provider._model == "my-model"
 
 
 # --- Skills LLM review through a real provider ----------------------------------------------
