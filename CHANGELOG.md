@@ -9,6 +9,14 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.1.0b5] — 2026-10-26
+
+**Fixes, a security update and release-process changes.** There is still no stable release.
+
+- **Security:** `anthropic` requirement raised to `>=0.87,<1` (locked 0.125.0), closing two advisories in the SDK's local memory tool.
+- **Fix:** the default LLM model is now chosen per provider. `--llm-provider anthropic`, `google` or `ollama` without `--llm-model` previously sent `gpt-4o-mini` to that provider's API.
+- **Releases:** pre-release tags move a `beta` tag instead of `v1`; Action examples use `@beta`.
+
 ### Fixed
 
 - The default LLM model is now chosen per provider. Previously `ScannerConfig.llm_model` defaulted to `gpt-4o-mini` for every provider, so `--llm-provider anthropic`, `google` or `ollama` without `--llm-model` (or a config file with no `llm.model`) sent `gpt-4o-mini` to that provider's API and failed. `llm_model` is now unset by default and resolved through `ScannerConfig.resolved_model()`: the configured model, else `claude-haiku-4-5-20251001` (anthropic), `gemini-2.0-flash` (google), `llama3.2` (ollama) or `gpt-4o-mini` (openai, and OpenAI-compatible endpoints as before).
@@ -222,6 +230,7 @@ This changelog was not split per beta, so the sections below also list changes f
 
 ---
 
-[Unreleased]: https://github.com/Gaincontrol-Pte-Ltd/quin-agent-scanner/compare/v0.1.0b4...HEAD
+[Unreleased]: https://github.com/Gaincontrol-Pte-Ltd/quin-agent-scanner/compare/v0.1.0b5...HEAD
+[0.1.0b5]: https://github.com/Gaincontrol-Pte-Ltd/quin-agent-scanner/releases/tag/v0.1.0b5
 [0.1.0b4]: https://github.com/Gaincontrol-Pte-Ltd/quin-agent-scanner/releases/tag/v0.1.0b4
 [0.1.0b1]: https://github.com/Gaincontrol-Pte-Ltd/quin-agent-scanner/releases/tag/v0.1.0b1
