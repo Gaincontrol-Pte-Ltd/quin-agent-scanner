@@ -122,7 +122,7 @@ Inputs and outputs are part of the contract; new inputs are always optional with
 
 ## Supported platforms and Python versions
 
-CI runs Python 3.11, 3.12 and 3.13. Linux is supported today; macOS and Windows support is *(planned for 1.0)* and will be tested in CI before it is promised. Dropping a platform or Python version is announced one minor release ahead.
+CI runs the full test suite on **Linux, macOS and Windows**, each on Python 3.11, 3.12 and 3.13, and runs the GitHub Action on all three operating systems. Known limits: authenticated `git clone` of private repositories (the `GIT_ASKPASS` helper) is not exercised by CI on Windows, and on Windows paths longer than 260 characters need long-path support enabled in the operating system. Dropping a platform or Python version is announced one minor release ahead.
 
 ## Dependencies
 
