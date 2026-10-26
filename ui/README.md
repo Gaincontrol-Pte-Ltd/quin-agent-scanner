@@ -1,5 +1,7 @@
 # Quin Scanner — Web UI
 
+> **Experimental.** This web UI is not published to PyPI and is not covered by Quin's [stability policy](../docs/stability.md); it may change or break between releases. The supported interface is the `quin-scanner` CLI.
+
 A full-stack web interface for Quin Agent Scanner: dark OLED design with a Google-style search bar.
 
 ## Structure

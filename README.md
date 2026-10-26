@@ -444,10 +444,18 @@ Precedence: `--vuln-search-provider` CLI flag > `VULN_SEARCH_PROVIDER` env var >
 
 ---
 
+## Stability
+
+Quin is in beta. From `1.0.0`, the CLI and its exit codes, the JSON/YAML report schema, SARIF output and rule IDs, and the config, baseline and GitHub Action interfaces follow semantic versioning with a deprecation window; see the [stability policy](docs/stability.md). The **Python import API** (`import quin_scanner`) is not public: the CLI is the supported interface. The web UI in [`ui/`](ui/) is experimental.
+
+---
+
 ## Documentation
 
 | Document | What it covers |
 |---|---|
+| [Stability policy](docs/stability.md) | What is stable from 1.0, what counts as breaking, deprecation, exit codes, support |
+| [Report schema](docs/schema/README.md) | Field reference for the JSON/YAML report, the skills envelope and the baseline file |
 | [Skills scanning guide](docs/skills-scanning.md) | Scan skills, MCP tool definitions and instruction files; verdicts, baselines, CI examples, LLM review, limits |
 | [Skill rules](docs/skill-rules.md) | Every skill rule: severity, threat mapping, and what it flags |
 | [Skill scanner tuning notes](docs/skill-scanner-tuning-2026-10.md) | How the rules were tuned against public skill repositories |
