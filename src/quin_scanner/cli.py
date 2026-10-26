@@ -398,7 +398,7 @@ def scan_batch(
     """
     targets = [
         line.strip()
-        for line in Path(targets_file).read_text().splitlines()
+        for line in Path(targets_file).read_text(encoding="utf-8-sig").splitlines()
         if line.strip() and not line.startswith("#")
     ]
 
