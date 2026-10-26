@@ -1,0 +1,53 @@
+{
+  "inputs": {
+    "fail-on": {
+      "default": "none",
+      "required": false
+    },
+    "llm-api-key": {
+      "default": "",
+      "required": false
+    },
+    "llm-model": {
+      "default": "",
+      "required": false
+    },
+    "llm-provider": {
+      "default": "",
+      "required": false
+    },
+    "min-confidence": {
+      "default": "0.0",
+      "required": false
+    },
+    "output-report": {
+      "default": "false",
+      "required": false
+    },
+    "path": {
+      "default": ".",
+      "required": false
+    },
+    "python-version": {
+      "default": "3.11",
+      "required": false
+    },
+    "skills-baseline": {
+      "default": "",
+      "required": false
+    },
+    "upload-sarif": {
+      "default": "true",
+      "required": false
+    },
+    "version": {
+      "default": "",
+      "required": false
+    }
+  },
+  "outputs": [
+    "report-path",
+    "sarif-path",
+    "version"
+  ]
+}

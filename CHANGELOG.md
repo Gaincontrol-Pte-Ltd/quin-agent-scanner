@@ -11,6 +11,7 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- GitHub Action: new optional inputs `path`, `skills-baseline`, `fail-on` (gate the job on skill verdicts, checked after the SARIF upload), `upload-sarif`, `output-report`, `version` and `python-version`, and outputs `sarif-path`, `report-path` and `version`. `.github/workflows/test-action.yml` runs the action on fixtures in CI, and `tests/test_action_contract.py` freezes the inputs and outputs.
 - Config files may carry `config_version` (default 1); a newer version is rejected with an error that says to upgrade. Unknown config keys now produce a warning on stderr instead of being silently ignored. A missing, unreadable or invalid config file exits 2 in `scan`, `scan-batch` and `scan-org` (it used to surface as a traceback); `scan-org` now validates the config before listing repositories.
 - ID registry tests (`tests/test_id_registry.py`, frozen `tests/id_baseline_1.0.json`): a skill rule ID that existed at 1.0 may not disappear unless it is listed in the new "Retired rules" table in `docs/skill-rules.md`; a retired ID may never be emitted again; threat (`T001`-`T014`) and control (`C001`-`C014`) IDs and names are pinned.
 - Baseline compatibility tests: the fingerprint algorithm is pinned by a golden value, and a frozen baseline written by this release must keep loading and suppressing findings.
@@ -24,6 +25,7 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- GitHub Action: by default the action now installs quin-scanner from its own checkout, so the tag you pin selects the scanner version; it used to install the latest PyPI release whatever the tag. Inputs are passed to the shell through environment variables instead of string interpolation. Takes effect for a tag once a release moves it; `@v1` stays frozen at `v0.1.0b4`.
 - The skills baseline loader accepts any version from 1 up to the current one (only 1 exists so far) and rejects a newer version with an error that says to upgrade, and a malformed version with its own message.
 - `scan` and `scan-batch` now reject a local path that does not exist or is not a directory (exit 1, or a failed target in a batch) instead of scanning nothing and succeeding with an empty report, so a mistyped path no longer passes in CI.
 - `scan-batch` and `scan-org` now exit 1 when at least one target (or repository) failed, after scanning all of them and writing the reports that succeeded, and print `N of M targets failed: ...` on stderr. Previously they exited 0 even if every target failed, which made them unusable in CI. The exit codes of every command are now listed in each command's `--help` and in `docs/stability.md`.

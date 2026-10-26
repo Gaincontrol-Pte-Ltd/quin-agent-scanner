@@ -254,7 +254,7 @@ jobs:
       - uses: Gaincontrol-Pte-Ltd/quin-agent-scanner@beta
 ```
 
-**Versions and tags.** There is no stable release yet, so use `@beta` for the latest pre-release, or pin an exact tag such as `@v0.1.0b4` for reproducible builds. Stable releases will move a major tag (`@v0` for 0.x, `@v1` for 1.x). The existing `@v1` tag is frozen at `v0.1.0b4` and will only move again once `1.0.0` is released.
+**Versions and tags.** The action installs the scanner from the tag you pin, so `@v0.1.0b5` runs exactly 0.1.0b5, `@beta` follows the latest pre-release, and from `1.0.0` a major tag (`@v1`) follows stable releases. Pin an exact tag for reproducible builds. Set the `version` input to install a specific release or range from PyPI instead.
 
 By default this runs in `--no-llm` mode — static findings plus CVE vulnerability checks (via OSV.dev), no API key required. For richer agent/risk analysis, pass an LLM API key:
 
@@ -265,6 +265,16 @@ By default this runs in `--no-llm` mode — static findings plus CVE vulnerabili
           llm-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
 ```
 
+Gate a pull request on risky skills and keep a JSON report:
+
+```yaml
+      - uses: Gaincontrol-Pte-Ltd/quin-agent-scanner@beta
+        with:
+          fail-on: high_risk
+          skills-baseline: skills-baseline.yaml
+          output-report: 'true'
+```
+
 **Inputs:**
 
 | Name | Default | Description |
@@ -273,6 +283,21 @@ By default this runs in `--no-llm` mode — static findings plus CVE vulnerabili
 | `llm-api-key` | `''` | API key for the chosen provider. Setting this enables LLM analysis; leaving it empty runs `--no-llm`. |
 | `llm-model` | `''` | Override the default model for the provider. |
 | `min-confidence` | `'0.0'` | Exclude artifacts below this confidence threshold (0.0–1.0). |
+| `path` | `'.'` | Directory to scan, relative to the workspace. |
+| `skills-baseline` | `''` | Path to a skills baseline file (from `quin-scanner skills baseline`); matching skill findings are suppressed. Paths in the baseline are relative to `path`. |
+| `fail-on` | `'none'` | Fail the job when any skill, MCP tool definition or instruction file is at or above this verdict: `none`, `caution` or `high_risk`. Checked after the SARIF upload. |
+| `upload-sarif` | `'true'` | Upload the SARIF file to code scanning (needs `security-events: write`). |
+| `output-report` | `'false'` | Also write the full JSON report and expose it as `report-path`. Runs a second scan. |
+| `version` | `''` | Empty installs the scanner from the action's own checkout (the pinned tag selects the version); a bare version such as `0.1.0b5` or a pip specifier installs from PyPI. |
+| `python-version` | `'3.11'` | Python version used to run the scanner. |
+
+**Outputs:**
+
+| Name | Description |
+|---|---|
+| `sarif-path` | Path of the SARIF file. |
+| `report-path` | Path of the JSON report; empty unless `output-report` is `true`. |
+| `version` | The quin-scanner version that was run. |
 
 The workflow's `permissions: security-events: write` is required for the SARIF upload step to succeed — GitHub Actions doesn't grant it by default.
 

@@ -92,7 +92,33 @@ The command tree, every option, its default and its type are pinned by `tests/cl
 
 ## GitHub Action
 
-Inputs today: `llm-provider`, `llm-api-key`, `llm-model`, `min-confidence`. *(Planned for 1.0: inputs `skills-baseline`, `fail-on`, `path` and `version`; outputs `report-path` and `sarif-path`.)* Pin the action to an exact tag for reproducible builds; the `beta` tag follows pre-releases and, from 1.0.0, a major tag (`v1`) follows stable releases.
+Inputs and outputs are part of the contract; new inputs are always optional with a default.
+
+<!-- action-inputs:start -->
+| Input | Default | Meaning |
+|---|---|---|
+| `llm-provider` | `''` | LLM provider; only used when `llm-api-key` is set. |
+| `llm-api-key` | `''` | API key; setting it enables LLM analysis, empty runs static analysis only. |
+| `llm-model` | `''` | Model override for the provider. |
+| `min-confidence` | `'0.0'` | Exclude artifacts below this confidence. |
+| `path` | `'.'` | Directory to scan, relative to the workspace. |
+| `skills-baseline` | `''` | Skills baseline file; matching skill findings are suppressed. |
+| `fail-on` | `'none'` | Fail the job at or above this skill verdict: `none`, `caution` or `high_risk`. Checked after the SARIF upload. |
+| `upload-sarif` | `'true'` | Upload the SARIF file to code scanning. |
+| `output-report` | `'false'` | Also write the full JSON report (a second scan). |
+| `version` | `''` | Empty installs the scanner from the action's own checkout (the pinned tag selects the version); a bare version or pip specifier installs from PyPI. |
+| `python-version` | `'3.11'` | Python used to run the scanner. |
+<!-- action-inputs:end -->
+
+<!-- action-outputs:start -->
+| Output | Meaning |
+|---|---|
+| `sarif-path` | Path of the SARIF file. |
+| `report-path` | Path of the JSON report; empty unless `output-report` is `true`. |
+| `version` | The quin-scanner version that was run. |
+<!-- action-outputs:end -->
+
+**Versions and tags.** By default the action installs the scanner from the tag you pin, so `@v0.1.0b5` runs exactly 0.1.0b5. The `beta` tag follows pre-releases; from `1.0.0` a major tag (`v1`) follows stable releases. Pin an exact tag for reproducible builds. (The `v1` tag is frozen at `v0.1.0b4`, which predates this behaviour and installs the latest PyPI release.)
 
 ## Supported platforms and Python versions
 
