@@ -33,7 +33,7 @@ jobs:
         uses: pypa/gh-action-pypi-publish@release/v1
 
   move-major-tag:
-    name: Move major version tag
+    name: Move floating tag
     needs: publish
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
@@ -45,9 +45,21 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Move v1 tag to this release
+      - name: Move the floating tag for this release
+        # Stable vX.Y.Z -> vX (major tag). Pre-release vX.Y.Z(a|b|rc)N -> beta.
+        # Pre-releases never move a major tag, so @v1 users do not receive betas.
         run: |
+          if [[ "$GITHUB_REF_NAME" =~ ^v([0-9]+)\.[0-9]+\.[0-9]+$ ]]; then
+            floating="v${BASH_REMATCH[1]}"
+          elif [[ "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(a|b|rc)[0-9]+$ ]]; then
+            floating="beta"
+          else
+            echo "Tag $GITHUB_REF_NAME is not a recognised release tag; not moving a floating tag."
+            exit 0
+          fi
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag -f v1 "$GITHUB_REF_NAME"
-          git push origin v1 --force
+          git tag -f "$floating" "$GITHUB_REF_NAME^{commit}"
+          git push origin "$floating" --force
+          echo "Moved $floating to $GITHUB_REF_NAME"
+
