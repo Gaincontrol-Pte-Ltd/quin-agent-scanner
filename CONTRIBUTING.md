@@ -41,7 +41,7 @@ Open an issue describing:
 - Why it matters (use case)
 - Any ideas on how it could work
 
-Check the [drop plan](docs/plans/2026-03-31-quin-agent-scanner-drop-plan.md) first — features may already be scheduled.
+Check the [roadmap](#project-roadmap) first — features may already be scheduled.
 
 ### Pull Requests
 
@@ -50,6 +50,12 @@ Check the [drop plan](docs/plans/2026-03-31-quin-agent-scanner-drop-plan.md) fir
 3. **Update CHANGELOG.md** under `[Unreleased]`
 4. Open the PR with a clear description of what and why
 5. **LLM providers and SDK bumps** — changes to `src/quin_scanner/llm/` and bumps of `anthropic`, `google-genai` or `openai` must keep `tests/test_llm_providers.py` green. These tests run the real SDKs against mocked endpoints without API keys; they are the only CI check that a provider still works after an SDK upgrade
+
+---
+
+## Changes to Stable Interfaces
+
+The CLI and its exit codes, the JSON/YAML report schema, SARIF output and rule IDs, and the config, baseline and GitHub Action interfaces are covered by the [stability policy](docs/stability.md). Before changing one, check whether the change is breaking (see "What counts as a breaking change" there). Additive changes are fine. A breaking change needs a deprecation first and the maintainers' agreement, stated in the pull request description. A change that moves verdicts or findings (a detection change) goes under a **Detection changes** heading in the CHANGELOG.
 
 ---
 
@@ -144,7 +150,7 @@ docs: update framework list in README
 
 ## Project Roadmap
 
-Features are released in numbered drops. The full plan is in [`docs/plans/2026-03-31-quin-agent-scanner-drop-plan.md`](docs/plans/2026-03-31-quin-agent-scanner-drop-plan.md).
+Features are grouped into numbered drops.
 
 | Drop | Theme | Status |
 |---|---|---|

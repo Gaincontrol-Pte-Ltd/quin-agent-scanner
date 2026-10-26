@@ -9,6 +9,18 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- `docs/stability.md`: the stability and support policy that takes effect with 1.0.0: which surfaces are stable (CLI and exit codes, report schema, SARIF and rule IDs, config/baseline/Action), what counts as a breaking change, detection changes, the deprecation window (one minor release and 90 days), exit codes, supported platforms and the support policy.
+- `docs/schema/README.md`: the report schema reference (compatibility rules, conventions, top-level fields, key records, the `skills scan` envelope and the baseline file).
+- `tests/test_stability_docs.py`: tests that fail when the documented commands or top-level report fields drift from the code, or when a relative link in the docs breaks.
+- README "Stability" section; the Python import API and the web UI (`ui/`) are declared not public and the UI is marked experimental.
+
+### Changed
+
+- Removed the `Typing :: Typed` classifier: the package ships no `py.typed` marker and CI runs no type checker.
+- Removed two links to a project plan document that never existed from `CONTRIBUTING.md`.
+
 ## [0.1.0b5] — 2026-10-26
 
 **Fixes, a security update and release-process changes.** There is still no stable release.

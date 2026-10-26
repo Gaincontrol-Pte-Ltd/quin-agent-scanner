@@ -120,6 +120,10 @@ Agent instruction and rules files are grouped into one record per repository, "A
 
 Only the [text rules](#text-rules-rulesskill_rulesyaml) run on these files (prompt injection, hidden content, safety bypass, prompt leakage, credential access, exfiltration and dangerous execution); the code, taint, supply-chain, permission and MCP analyzers do not. Fenced examples and negated phrasing ("never ignore previous instructions") are ignored by the prose rules, so a file that only discusses prompt injection stays `SAFE`. The record is scored and baselined like a skill and shown as its own line and card, but it is not counted in `coverage.skills_found`; `coverage.skills_instruction_files` holds the number of instruction files analysed. At most 500 instruction files are analysed.
 
+## Retired rules
+
+None yet. A retired rule's ID stays reserved and is listed here; IDs are never reused (see the [stability policy](stability.md#rule-and-threat-ids)).
+
 ## Limits
 
 Static analysis only: no runtime behavior is observed. Non-English text and text inside images are not analyzed. At most 200 skills per repository, 500 files per skill, and 1 MB per file are analyzed; anything beyond that is recorded in `metadata.skills_notes`, and `coverage.skills_capped` counts how many limits were hit (also the MCP source read cap and the OSV lookup cap).
