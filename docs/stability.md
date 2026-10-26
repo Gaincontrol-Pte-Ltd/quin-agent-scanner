@@ -59,10 +59,19 @@ Reports and the `skills scan` JSON envelope carry a `schema_version` of the form
 | Command | 0 | 1 | 2 |
 |---|---|---|---|
 | `scan` | the scan completed (findings do not change the exit code) | invalid target, or the scan failed | invalid `--skills-baseline`, or a command-line usage error |
-| `scan-batch` | the batch finished; per-target errors are reported on stderr *(planned: 1 if any target failed)* | | |
-| `scan-org` | the organization scan finished | the repository list could not be fetched | |
+| `scan-batch` | every target was scanned | at least one target failed (reports for the others are still written) | usage error, for example a missing targets file |
+| `scan-org` | every repository was scanned | the repository list could not be fetched, or at least one repository failed | usage error |
 | `skills scan` | no skill at or above `--fail-on` (default `high_risk`) | at least one skill at or above `--fail-on` | error (bad target, unreadable or unsafe zip, bad config or baseline), or usage error |
 | `skills baseline` | baseline written | | error, or usage error |
+
+## Command output
+
+Machine-readable results go to a file or to stdout; progress, warnings and errors go to stderr.
+
+- `scan` writes one report file: to `-f/--output-file`, otherwise into `-d/--output-dir` (default `./report`) with a generated name.
+- `scan-batch` and `scan-org` write one report file per target into `--output-dir`. `scan-org` also prints a JSON list to stdout with one object per scanned repository: `repo`, `is_ai_application`, `confidence`.
+- `skills scan` prints to stdout (the terminal table, or JSON/SARIF with `-o`) unless `-f` is given.
+- `skills baseline` writes the baseline file given with `-o`.
 
 ## Commands
 
@@ -74,7 +83,7 @@ Reports and the `skills scan` JSON envelope carry a `schema_version` of the form
 - `quin-scanner skills baseline`: accept the current skill findings so only new ones are reported
 <!-- cli-commands:end -->
 
-Defaults that are part of the contract: `scan --output html`, `--output-dir ./report`, `--branch main`, `--min-confidence 0.0`; `skills scan --output terminal`, `--fail-on high_risk`.
+The command tree, every option, its default and its type are pinned by `tests/cli_snapshot.json`, and compatibility with the 1.0 baseline is checked by `tests/test_cli_snapshot.py`. Defaults that are part of the contract: `scan --output html`, `--output-dir ./report`, `--branch main`, `--min-confidence 0.0`; `skills scan --output terminal`, `--fail-on high_risk`.
 
 ## Config and baseline files
 

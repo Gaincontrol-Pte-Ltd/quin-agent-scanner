@@ -11,7 +11,7 @@ from quin_scanner import __version__
 from quin_scanner.config import ScannerConfig
 from quin_scanner.models import ScanReport
 from quin_scanner.orchestrator import ScanOrchestrator
-from quin_scanner.repo_accessor import RepoAccessorFactory
+from quin_scanner.repo_accessor import LocalRepoAccessor, RepoAccessorFactory
 from quin_scanner.report import ReportGenerator
 from quin_scanner.schema import REPORT_SCHEMA_VERSION
 from quin_scanner.scanners.skills.baseline import BaselineError
@@ -97,6 +97,21 @@ def skill_summary_lines(report) -> list[str]:
     if report.metadata.get("skills_baseline"):
         lines.append(baseline_summary(report.metadata["skills_baseline"]))
     return lines
+
+
+def _open_target(target: str, **kwargs):
+    """RepoAccessorFactory.create, but a local path that is missing or not a directory is an error.
+
+    The factory routes anything that starts with "/" or "." to a local accessor, so a typo in a path
+    used to scan nothing and succeed with an empty report.
+    """
+    accessor = RepoAccessorFactory.create(target, **kwargs)
+    if isinstance(accessor, LocalRepoAccessor):
+        if not accessor.repo_path.exists():
+            raise ValueError(f"Local path does not exist: {target!r}")
+        if not accessor.repo_path.is_dir():
+            raise ValueError(f"Local path is not a directory: {target!r}")
+    return accessor
 
 
 def _build_config(
@@ -242,6 +257,12 @@ def scan(
     TARGET can be a local path, a GitHub URL, or owner/repo shorthand.
 
     \b
+    Exit codes:
+      0  the scan completed (findings do not change the exit code)
+      1  invalid target, or the scan failed
+      2  invalid --skills-baseline, or a command-line usage error
+
+    \b
     Examples:
       quin-scanner scan ./my-project
       quin-scanner scan owner/repo --no-llm -o yaml
@@ -270,7 +291,7 @@ def scan(
 
     # Create accessor
     try:
-        accessor = RepoAccessorFactory.create(
+        accessor = _open_target(
             target, github_token=cfg.github_token, branch=branch, azure_token=azure_token
         )
     except ValueError as e:
@@ -360,6 +381,12 @@ def scan_batch(
     or owner/repo shorthand). Lines starting with # are ignored.
 
     \b
+    Exit codes:
+      0  every target was scanned
+      1  at least one target failed (reports for the others are still written)
+      2  usage error (for example a missing targets file)
+
+    \b
     Examples:
       quin-scanner scan-batch targets.txt
       quin-scanner scan-batch targets.txt -d reports/ -o yaml
@@ -395,11 +422,12 @@ def scan_batch(
 
     Path(output_dir).mkdir(parents=True, exist_ok=True)
 
+    failed: list[str] = []
     for target in targets:
         click.echo(f"Scanning {target} ...", err=True)
         accessor = None
         try:
-            accessor = RepoAccessorFactory.create(target, github_token=base_cfg.github_token)
+            accessor = _open_target(target, github_token=base_cfg.github_token)
             report = ScanOrchestrator().run(accessor, base_cfg, verbose=sys.stderr.isatty())
             _record_flags(report, _flags_used(
                 base_cfg, config=config, llm_provider=llm_provider, llm_model=llm_model,
@@ -407,6 +435,7 @@ def scan_batch(
             ))
         except Exception as e:
             click.echo(f"  ERROR: {e}", err=True)
+            failed.append(target)
             continue
         finally:
             if accessor:
@@ -415,6 +444,10 @@ def scan_batch(
         out_path = Path(output_dir) / _output_filename(target, output)
         ReportGenerator.write_to_file(report, str(out_path), output)
         click.echo(f"  -> {out_path}", err=True)
+
+    if failed:
+        click.echo(f"{len(failed)} of {len(targets)} targets failed: {', '.join(failed)}", err=True)
+        sys.exit(1)
 
 
 @cli.command("scan-org")
@@ -458,6 +491,12 @@ def scan_org(
     ORG_NAME is a GitHub organization or user account name (auto-detected).
     Discovers all repos via the GitHub API, then scans each one.
     Requires a GITHUB_TOKEN with org/user read access.
+
+    \b
+    Exit codes:
+      0  every repository was scanned
+      1  the repository list could not be fetched, or at least one repository failed
+      2  usage error
 
     \b
     Examples:
@@ -514,6 +553,7 @@ def scan_org(
     Path(output_dir).mkdir(parents=True, exist_ok=True)
 
     reports = []
+    failed: list[str] = []
     for repo in repos:
         click.echo(f"Scanning {repo.full_name} ...", err=True)
         accessor = None
@@ -530,6 +570,7 @@ def scan_org(
             ))
         except Exception as e:
             click.echo(f"  ERROR: {e}", err=True)
+            failed.append(repo.full_name)
             continue
         finally:
             if accessor:
@@ -542,6 +583,10 @@ def scan_org(
 
     import json
     click.echo(json.dumps(reports, indent=2))
+
+    if failed:
+        click.echo(f"{len(failed)} of {len(repos)} repositories failed: {', '.join(failed)}", err=True)
+        sys.exit(1)
 
 
 # ── quin-scanner skills ──────────────────────────────────────────────────────

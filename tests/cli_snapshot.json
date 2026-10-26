@@ -1,0 +1,970 @@
+{
+  "quin-scanner": {
+    "params": [
+      {
+        "default": false,
+        "envvar": null,
+        "is_flag": true,
+        "kind": "option",
+        "multiple": false,
+        "name": "version",
+        "opts": [
+          "--version"
+        ],
+        "required": false,
+        "type": "boolean"
+      }
+    ]
+  },
+  "scan": {
+    "params": [
+      {
+        "default": null,
+        "envvar": "AZURE_DEVOPS_TOKEN",
+        "is_flag": false,
+        "kind": "option",
+        "multiple": false,
+        "name": "azure_token",
+        "opts": [
+          "--azure-token"
+        ],
+        "required": false,
+        "type": "text"
+      },
+      {
+        "default": "main",
+        "envvar": null,
+        "is_flag": false,
+        "kind": "option",
+        "multiple": false,
+        "name": "branch",
+        "opts": [
+          "--branch"
+        ],
+        "required": false,
+        "type": "text"
+      },
+      {
+        "default": null,
+        "envvar": null,
+        "is_flag": false,
+        "kind": "option",
+        "multiple": false,
+        "name": "config",
+        "opts": [
+          "--config",
+          "-c"
+        ],
+        "required": false,
+        "type": "text"
+      },
+      {
+        "default": false,
+        "envvar": null,
+        "is_flag": true,
+        "kind": "option",
+        "multiple": false,
+        "name": "detect_aegis",
+        "opts": [
+          "--detect-aegis"
+        ],
+        "required": false,
+        "type": "boolean"
+      },
+      {
+        "default": null,
+        "envvar": "GITHUB_TOKEN",
+        "is_flag": false,
+        "kind": "option",
+        "multiple": false,
+        "name": "github_token",
+        "opts": [
+          "--github-token"
+        ],
+        "required": false,
+        "type": "text"
+      },
+      {
+        "default": null,
+        "envvar": null,
+        "is_flag": false,
+        "kind": "option",
+        "multiple": false,
+        "name": "llm_api_key",
+        "opts": [
+          "--llm-api-key"
+        ],
+        "required": false,
+        "type": "text"
+      },
+      {
+        "default": null,
+        "envvar": null,
+        "is_flag": false,
+        "kind": "option",
+        "multiple": false,
+        "name": "llm_model",
+        "opts": [
+          "--llm-model"
+        ],
+        "required": false,
+        "type": "text"
+      },
+      {
+        "default": null,
+        "envvar": null,
+        "is_flag": false,
+        "kind": "option",
+        "multiple": false,
+        "name": "llm_provider",
+        "opts": [
+          "--llm-provider"
+        ],
+        "required": false,
+        "type": "text"
+      },
+      {
+        "default": 0.0,
+        "envvar": null,
+        "is_flag": false,
+        "kind": "option",
+        "multiple": false,
+        "name": "min_confidence",
+        "opts": [
+          "--min-confidence"
+        ],
+        "required": false,
+        "type": "float"
+      },
+      {
+        "default": false,
+        "envvar": null,
+        "is_flag": true,
+        "kind": "option",
+        "multiple": false,
+        "name": "no_llm",
+        "opts": [
+          "--no-llm"
+        ],
+        "required": false,
+        "type": "boolean"
+      },
+      {
+        "default": false,
+        "envvar": null,
+        "is_flag": true,
+        "kind": "option",
+        "multiple": false,
+        "name": "no_vuln_check",
+        "opts": [
+          "--no-vuln-check"
+        ],
+        "required": false,
+        "type": "boolean"
+      },
+      {
+        "default": null,
+        "envvar": null,
+        "is_flag": false,
+        "kind": "option",
+        "multiple": false,
+        "name": "openai_compatible_url",
+        "opts": [
+          "--openai-compatible-url"
+        ],
+        "required": false,
+        "type": "text"
+      },
+      {
+        "default": "html",
+        "envvar": null,
+        "is_flag": false,
+        "kind": "option",
+        "multiple": false,
+        "name": "output",
+        "opts": [
+          "--output",
+          "-o"
+        ],
+        "required": false,
+        "type": {
+          "choice": [
+            "json",
+            "yaml",
+            "html",
+            "sarif"
+          ]
+        }
+      },
+      {
+        "default": "./report",
+        "envvar": null,
+        "is_flag": false,
+        "kind": "option",
+        "multiple": false,
+        "name": "output_dir",
+        "opts": [
+          "--output-dir",
+          "-d"
+        ],
+        "required": false,
+        "type": "text"
+      },
+      {
+        "default": null,
+        "envvar": null,
+        "is_flag": false,
+        "kind": "option",
+        "multiple": false,
+        "name": "output_file",
+        "opts": [
+          "--output-file",
+          "-f"
+        ],
+        "required": false,
+        "type": "text"
+      },
+      {
+        "default": null,
+        "envvar": null,
+        "is_flag": false,
+        "kind": "option",
+        "multiple": false,
+        "name": "skills_baseline",
+        "opts": [
+          "--skills-baseline"
+        ],
+        "required": false,
+        "type": "text"
+      },
+      {
+        "default": null,
+        "envvar": null,
+        "is_flag": false,
+        "kind": "argument",
+        "multiple": false,
+        "name": "target",
+        "opts": [
+          "target"
+        ],
+        "required": true,
+        "type": "text"
+      },
+      {
+        "default": null,
+        "envvar": "VULN_SEARCH_PROVIDER",
+        "is_flag": false,
+        "kind": "option",
+        "multiple": false,
+        "name": "vuln_search_provider",
+        "opts": [
+          "--vuln-search-provider"
+        ],
+        "required": false,
+        "type": {
+          "choice": [
+            "perplexity",
+            "gemini",
+            "openai",
+            "anthropic",
+            "none"
+          ]
+        }
+      }
+    ]
+  },
+  "scan-batch": {
+    "params": [
+      {
+        "default": null,
+        "envvar": null,
+        "is_flag": false,
+        "kind": "option",
+        "multiple": false,
+        "name": "config",
+        "opts": [
+          "--config",
+          "-c"
+        ],
+        "required": false,
+        "type": "text"
+      },
+      {
+        "default": false,
+        "envvar": null,
+        "is_flag": true,
+        "kind": "option",
+        "multiple": false,
+        "name": "detect_aegis",
+        "opts": [
+          "--detect-aegis"
+        ],
+        "required": false,
+        "type": "boolean"
+      },
+      {
+        "default": null,
+        "envvar": "GITHUB_TOKEN",
+        "is_flag": false,
+        "kind": "option",
+        "multiple": false,
+        "name": "github_token",
+        "opts": [
+          "--github-token"
+        ],
+        "required": false,
+        "type": "text"
+      },
+      {
+        "default": null,
+        "envvar": null,
+        "is_flag": false,
+        "kind": "option",
+        "multiple": false,
+        "name": "llm_api_key",
+        "opts": [
+          "--llm-api-key"
+        ],
+        "required": false,
+        "type": "text"
+      },
+      {
+        "default": null,
+        "envvar": null,
+        "is_flag": false,
+        "kind": "option",
+        "multiple": false,
+        "name": "llm_model",
+        "opts": [
+          "--llm-model"
+        ],
+        "required": false,
+        "type": "text"
+      },
+      {
+        "default": null,
+        "envvar": null,
+        "is_flag": false,
+        "kind": "option",
+        "multiple": false,
+        "name": "llm_provider",
+        "opts": [
+          "--llm-provider"
+        ],
+        "required": false,
+        "type": "text"
+      },
+      {
+        "default": false,
+        "envvar": null,
+        "is_flag": true,
+        "kind": "option",
+        "multiple": false,
+        "name": "no_llm",
+        "opts": [
+          "--no-llm"
+        ],
+        "required": false,
+        "type": "boolean"
+      },
+      {
+        "default": false,
+        "envvar": null,
+        "is_flag": true,
+        "kind": "option",
+        "multiple": false,
+        "name": "no_vuln_check",
+        "opts": [
+          "--no-vuln-check"
+        ],
+        "required": false,
+        "type": "boolean"
+      },
+      {
+        "default": null,
+        "envvar": null,
+        "is_flag": false,
+        "kind": "option",
+        "multiple": false,
+        "name": "openai_compatible_url",
+        "opts": [
+          "--openai-compatible-url"
+        ],
+        "required": false,
+        "type": "text"
+      },
+      {
+        "default": "html",
+        "envvar": null,
+        "is_flag": false,
+        "kind": "option",
+        "multiple": false,
+        "name": "output",
+        "opts": [
+          "--output",
+          "-o"
+        ],
+        "required": false,
+        "type": {
+          "choice": [
+            "json",
+            "yaml",
+            "html",
+            "sarif"
+          ]
+        }
+      },
+      {
+        "default": "./report",
+        "envvar": null,
+        "is_flag": false,
+        "kind": "option",
+        "multiple": false,
+        "name": "output_dir",
+        "opts": [
+          "--output-dir",
+          "-d"
+        ],
+        "required": false,
+        "type": "text"
+      },
+      {
+        "default": null,
+        "envvar": null,
+        "is_flag": false,
+        "kind": "argument",
+        "multiple": false,
+        "name": "targets_file",
+        "opts": [
+          "targets_file"
+        ],
+        "required": true,
+        "type": "path"
+      },
+      {
+        "default": null,
+        "envvar": "VULN_SEARCH_PROVIDER",
+        "is_flag": false,
+        "kind": "option",
+        "multiple": false,
+        "name": "vuln_search_provider",
+        "opts": [
+          "--vuln-search-provider"
+        ],
+        "required": false,
+        "type": {
+          "choice": [
+            "perplexity",
+            "gemini",
+            "openai",
+            "anthropic",
+            "none"
+          ]
+        }
+      }
+    ]
+  },
+  "scan-org": {
+    "params": [
+      {
+        "default": null,
+        "envvar": null,
+        "is_flag": false,
+        "kind": "option",
+        "multiple": false,
+        "name": "config",
+        "opts": [
+          "--config",
+          "-c"
+        ],
+        "required": false,
+        "type": "path"
+      },
+      {
+        "default": false,
+        "envvar": null,
+        "is_flag": true,
+        "kind": "option",
+        "multiple": false,
+        "name": "detect_aegis",
+        "opts": [
+          "--detect-aegis"
+        ],
+        "required": false,
+        "type": "boolean"
+      },
+      {
+        "default": null,
+        "envvar": "GITHUB_TOKEN",
+        "is_flag": false,
+        "kind": "option",
+        "multiple": false,
+        "name": "github_token",
+        "opts": [
+          "--github-token"
+        ],
+        "required": false,
+        "type": "text"
+      },
+      {
+        "default": false,
+        "envvar": null,
+        "is_flag": true,
+        "kind": "option",
+        "multiple": false,
+        "name": "no_llm",
+        "opts": [
+          "--no-llm"
+        ],
+        "required": false,
+        "type": "boolean"
+      },
+      {
+        "default": false,
+        "envvar": null,
+        "is_flag": true,
+        "kind": "option",
+        "multiple": false,
+        "name": "no_vuln_check",
+        "opts": [
+          "--no-vuln-check"
+        ],
+        "required": false,
+        "type": "boolean"
+      },
+      {
+        "default": null,
+        "envvar": null,
+        "is_flag": false,
+        "kind": "option",
+        "multiple": false,
+        "name": "openai_compatible_url",
+        "opts": [
+          "--openai-compatible-url"
+        ],
+        "required": false,
+        "type": "text"
+      },
+      {
+        "default": null,
+        "envvar": null,
+        "is_flag": false,
+        "kind": "argument",
+        "multiple": false,
+        "name": "org_name",
+        "opts": [
+          "org_name"
+        ],
+        "required": true,
+        "type": "text"
+      },
+      {
+        "default": "html",
+        "envvar": null,
+        "is_flag": false,
+        "kind": "option",
+        "multiple": false,
+        "name": "output",
+        "opts": [
+          "--output",
+          "-o"
+        ],
+        "required": false,
+        "type": {
+          "choice": [
+            "json",
+            "yaml",
+            "html",
+            "sarif"
+          ]
+        }
+      },
+      {
+        "default": "./report",
+        "envvar": null,
+        "is_flag": false,
+        "kind": "option",
+        "multiple": false,
+        "name": "output_dir",
+        "opts": [
+          "--output-dir"
+        ],
+        "required": false,
+        "type": "path"
+      },
+      {
+        "default": false,
+        "envvar": null,
+        "is_flag": true,
+        "kind": "option",
+        "multiple": false,
+        "name": "skip_archived",
+        "opts": [
+          "--skip-archived"
+        ],
+        "required": false,
+        "type": "boolean"
+      },
+      {
+        "default": false,
+        "envvar": null,
+        "is_flag": true,
+        "kind": "option",
+        "multiple": false,
+        "name": "skip_forks",
+        "opts": [
+          "--skip-forks"
+        ],
+        "required": false,
+        "type": "boolean"
+      },
+      {
+        "default": null,
+        "envvar": "VULN_SEARCH_PROVIDER",
+        "is_flag": false,
+        "kind": "option",
+        "multiple": false,
+        "name": "vuln_search_provider",
+        "opts": [
+          "--vuln-search-provider"
+        ],
+        "required": false,
+        "type": {
+          "choice": [
+            "perplexity",
+            "gemini",
+            "openai",
+            "anthropic",
+            "none"
+          ]
+        }
+      }
+    ]
+  },
+  "skills": {
+    "params": []
+  },
+  "skills baseline": {
+    "params": [
+      {
+        "default": null,
+        "envvar": "AZURE_DEVOPS_TOKEN",
+        "is_flag": false,
+        "kind": "option",
+        "multiple": false,
+        "name": "azure_token",
+        "opts": [
+          "--azure-token"
+        ],
+        "required": false,
+        "type": "text"
+      },
+      {
+        "default": "main",
+        "envvar": null,
+        "is_flag": false,
+        "kind": "option",
+        "multiple": false,
+        "name": "branch",
+        "opts": [
+          "--branch"
+        ],
+        "required": false,
+        "type": "text"
+      },
+      {
+        "default": null,
+        "envvar": null,
+        "is_flag": false,
+        "kind": "option",
+        "multiple": false,
+        "name": "config",
+        "opts": [
+          "--config",
+          "-c"
+        ],
+        "required": false,
+        "type": "text"
+      },
+      {
+        "default": false,
+        "envvar": null,
+        "is_flag": true,
+        "kind": "option",
+        "multiple": false,
+        "name": "force",
+        "opts": [
+          "--force"
+        ],
+        "required": false,
+        "type": "boolean"
+      },
+      {
+        "default": null,
+        "envvar": "GITHUB_TOKEN",
+        "is_flag": false,
+        "kind": "option",
+        "multiple": false,
+        "name": "github_token",
+        "opts": [
+          "--github-token"
+        ],
+        "required": false,
+        "type": "text"
+      },
+      {
+        "default": false,
+        "envvar": null,
+        "is_flag": true,
+        "kind": "option",
+        "multiple": false,
+        "name": "no_vuln_check",
+        "opts": [
+          "--no-vuln-check"
+        ],
+        "required": false,
+        "type": "boolean"
+      },
+      {
+        "default": null,
+        "envvar": null,
+        "is_flag": false,
+        "kind": "option",
+        "multiple": false,
+        "name": "output_file",
+        "opts": [
+          "--output",
+          "-o"
+        ],
+        "required": true,
+        "type": "text"
+      },
+      {
+        "default": null,
+        "envvar": null,
+        "is_flag": false,
+        "kind": "argument",
+        "multiple": false,
+        "name": "target",
+        "opts": [
+          "target"
+        ],
+        "required": true,
+        "type": "text"
+      }
+    ]
+  },
+  "skills scan": {
+    "params": [
+      {
+        "default": null,
+        "envvar": "AZURE_DEVOPS_TOKEN",
+        "is_flag": false,
+        "kind": "option",
+        "multiple": false,
+        "name": "azure_token",
+        "opts": [
+          "--azure-token"
+        ],
+        "required": false,
+        "type": "text"
+      },
+      {
+        "default": null,
+        "envvar": null,
+        "is_flag": false,
+        "kind": "option",
+        "multiple": false,
+        "name": "baseline_file",
+        "opts": [
+          "--baseline"
+        ],
+        "required": false,
+        "type": "text"
+      },
+      {
+        "default": "main",
+        "envvar": null,
+        "is_flag": false,
+        "kind": "option",
+        "multiple": false,
+        "name": "branch",
+        "opts": [
+          "--branch"
+        ],
+        "required": false,
+        "type": "text"
+      },
+      {
+        "default": null,
+        "envvar": null,
+        "is_flag": false,
+        "kind": "option",
+        "multiple": false,
+        "name": "config",
+        "opts": [
+          "--config",
+          "-c"
+        ],
+        "required": false,
+        "type": "text"
+      },
+      {
+        "default": "high_risk",
+        "envvar": null,
+        "is_flag": false,
+        "kind": "option",
+        "multiple": false,
+        "name": "fail_on",
+        "opts": [
+          "--fail-on"
+        ],
+        "required": false,
+        "type": {
+          "choice": [
+            "caution",
+            "high_risk"
+          ]
+        }
+      },
+      {
+        "default": null,
+        "envvar": "GITHUB_TOKEN",
+        "is_flag": false,
+        "kind": "option",
+        "multiple": false,
+        "name": "github_token",
+        "opts": [
+          "--github-token"
+        ],
+        "required": false,
+        "type": "text"
+      },
+      {
+        "default": null,
+        "envvar": null,
+        "is_flag": false,
+        "kind": "option",
+        "multiple": false,
+        "name": "llm_api_key",
+        "opts": [
+          "--llm-api-key"
+        ],
+        "required": false,
+        "type": "text"
+      },
+      {
+        "default": null,
+        "envvar": null,
+        "is_flag": false,
+        "kind": "option",
+        "multiple": false,
+        "name": "llm_model",
+        "opts": [
+          "--llm-model"
+        ],
+        "required": false,
+        "type": "text"
+      },
+      {
+        "default": null,
+        "envvar": null,
+        "is_flag": false,
+        "kind": "option",
+        "multiple": false,
+        "name": "llm_provider",
+        "opts": [
+          "--llm-provider"
+        ],
+        "required": false,
+        "type": "text"
+      },
+      {
+        "default": false,
+        "envvar": null,
+        "is_flag": true,
+        "kind": "option",
+        "multiple": false,
+        "name": "no_llm",
+        "opts": [
+          "--no-llm"
+        ],
+        "required": false,
+        "type": "boolean"
+      },
+      {
+        "default": false,
+        "envvar": null,
+        "is_flag": true,
+        "kind": "option",
+        "multiple": false,
+        "name": "no_vuln_check",
+        "opts": [
+          "--no-vuln-check"
+        ],
+        "required": false,
+        "type": "boolean"
+      },
+      {
+        "default": null,
+        "envvar": null,
+        "is_flag": false,
+        "kind": "option",
+        "multiple": false,
+        "name": "openai_compatible_url",
+        "opts": [
+          "--openai-compatible-url"
+        ],
+        "required": false,
+        "type": "text"
+      },
+      {
+        "default": "terminal",
+        "envvar": null,
+        "is_flag": false,
+        "kind": "option",
+        "multiple": false,
+        "name": "output",
+        "opts": [
+          "--output",
+          "-o"
+        ],
+        "required": false,
+        "type": {
+          "choice": [
+            "terminal",
+            "json",
+            "sarif"
+          ]
+        }
+      },
+      {
+        "default": null,
+        "envvar": null,
+        "is_flag": false,
+        "kind": "option",
+        "multiple": false,
+        "name": "output_file",
+        "opts": [
+          "--output-file",
+          "-f"
+        ],
+        "required": false,
+        "type": "text"
+      },
+      {
+        "default": null,
+        "envvar": null,
+        "is_flag": false,
+        "kind": "argument",
+        "multiple": false,
+        "name": "target",
+        "opts": [
+          "target"
+        ],
+        "required": true,
+        "type": "text"
+      }
+    ]
+  }
+}
