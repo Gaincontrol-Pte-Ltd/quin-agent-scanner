@@ -1,5 +1,5 @@
 name: 'Quin Agent Scanner'
-description: 'Scan this repository for AI agents, risks, and vulnerabilities; upload results as SARIF to GitHub code scanning.'
+description: 'Scan this repository for AI agents, Agent Skills, risks, and vulnerabilities; upload results as SARIF to GitHub code scanning.'
 author: 'Gaincontrol'
 branding:
   icon: 'shield'
@@ -11,7 +11,7 @@ inputs:
     required: false
     default: ''
   llm-api-key:
-    description: 'API key for the chosen LLM provider. When set, enables LLM-based agent/risk analysis; when empty, the scan runs in --no-llm mode (static findings + CVE vulnerabilities only).'
+    description: 'API key for the chosen LLM provider. When set, enables LLM-based agent/risk analysis; when empty, the scan runs in --no-llm mode (static analysis only, no key needed).'
     required: false
     default: ''
   llm-model:
@@ -22,6 +22,45 @@ inputs:
     description: 'Exclude artifacts below this confidence threshold (0.0-1.0).'
     required: false
     default: '0.0'
+  path:
+    description: 'Directory to scan, relative to the workspace.'
+    required: false
+    default: '.'
+  skills-baseline:
+    description: 'Path to a skills baseline file (from `quin-scanner skills baseline`). Matching skill findings are suppressed. Paths in the baseline are relative to `path`.'
+    required: false
+    default: ''
+  fail-on:
+    description: 'Fail the job when any Agent Skill, MCP tool definition or instruction file is at or above this verdict: none, caution or high_risk. Checked after the SARIF upload, so findings are still reported.'
+    required: false
+    default: 'none'
+  upload-sarif:
+    description: 'Upload the SARIF file to GitHub code scanning (needs `security-events: write`). Set to false to skip the upload.'
+    required: false
+    default: 'true'
+  output-report:
+    description: 'Also write the full JSON report and expose it as the report-path output. Runs a second scan, so with an LLM key this doubles the LLM cost; use without a key.'
+    required: false
+    default: 'false'
+  version:
+    description: 'Which quin-scanner to install. Empty (default) installs the scanner from this action''s own checkout, so the tag you pin (for example @v0.1.0b5) selects the scanner version. A bare version such as 0.1.0b5, or a pip specifier such as ">=1,<2", installs that from PyPI instead.'
+    required: false
+    default: ''
+  python-version:
+    description: 'Python version used to run the scanner.'
+    required: false
+    default: '3.11'
+
+outputs:
+  sarif-path:
+    description: 'Path of the SARIF file written by the scan.'
+    value: ${{ steps.scan.outputs.sarif-path }}
+  report-path:
+    description: 'Path of the JSON report; empty unless output-report is true.'
+    value: ${{ steps.scan.outputs.report-path }}
+  version:
+    description: 'The quin-scanner version that was installed and run.'
+    value: ${{ steps.install.outputs.version }}
 
 runs:
   using: 'composite'
@@ -29,27 +68,87 @@ runs:
     - name: Set up Python
       uses: actions/setup-python@v7
       with:
-        python-version: '3.11'
+        python-version: ${{ inputs.python-version }}
 
     - name: Install quin-scanner
+      id: install
       shell: bash
-      run: pip install quin-scanner
+      env:
+        INPUT_VERSION: ${{ inputs.version }}
+        ACTION_PATH: ${{ github.action_path }}
+      run: |
+        set -euo pipefail
+        case "$INPUT_VERSION" in
+          "")
+            python -m pip install --quiet "$ACTION_PATH"
+            ;;
+          [0-9]*)
+            python -m pip install --quiet --pre "quin-scanner==$INPUT_VERSION"
+            ;;
+          "<"*|">"*|"="*|"~"*|"!"*)
+            python -m pip install --quiet --pre "quin-scanner$INPUT_VERSION"
+            ;;
+          *)
+            echo "::error::Invalid 'version' input: $INPUT_VERSION (use a version such as 0.1.0b5, or a specifier such as '>=1,<2')"
+            exit 1
+            ;;
+        esac
+        installed="$(quin-scanner --version | sed -E 's/^quin-scanner, version ([^ ]+).*/\1/')"
+        echo "Installed quin-scanner $installed"
+        echo "version=$installed" >> "$GITHUB_OUTPUT"
 
     - name: Run scan
+      id: scan
       shell: bash
+      env:
+        TARGET: ${{ inputs.path }}
+        LLM_PROVIDER: ${{ inputs.llm-provider }}
+        LLM_API_KEY: ${{ inputs.llm-api-key }}
+        LLM_MODEL: ${{ inputs.llm-model }}
+        MIN_CONFIDENCE: ${{ inputs.min-confidence }}
+        SKILLS_BASELINE: ${{ inputs.skills-baseline }}
+        OUTPUT_REPORT: ${{ inputs.output-report }}
+        OUT_DIR: ${{ runner.temp }}
       run: |
-        if [ -n "${{ inputs.llm-api-key }}" ]; then
-          quin-scanner scan . -o sarif -f "${{ runner.temp }}/quin-scan.sarif" \
-            --llm-provider "${{ inputs.llm-provider }}" \
-            --llm-api-key "${{ inputs.llm-api-key }}" \
-            ${{ inputs.llm-model != '' && format('--llm-model {0}', inputs.llm-model) || '' }} \
-            --min-confidence "${{ inputs.min-confidence }}"
+        set -euo pipefail
+        args=(--min-confidence "$MIN_CONFIDENCE")
+        if [ -n "$LLM_API_KEY" ]; then
+          args+=(--llm-provider "$LLM_PROVIDER" --llm-api-key "$LLM_API_KEY")
+          if [ -n "$LLM_MODEL" ]; then
+            args+=(--llm-model "$LLM_MODEL")
+          fi
         else
-          quin-scanner scan . -o sarif -f "${{ runner.temp }}/quin-scan.sarif" \
-            --no-llm --min-confidence "${{ inputs.min-confidence }}"
+          args+=(--no-llm)
+        fi
+        if [ -n "$SKILLS_BASELINE" ]; then
+          args+=(--skills-baseline "$SKILLS_BASELINE")
+        fi
+        sarif="$OUT_DIR/quin-scan.sarif"
+        quin-scanner scan "$TARGET" -o sarif -f "$sarif" "${args[@]}"
+        echo "sarif-path=$sarif" >> "$GITHUB_OUTPUT"
+        if [ "$OUTPUT_REPORT" = "true" ]; then
+          report="$OUT_DIR/quin-report.json"
+          quin-scanner scan "$TARGET" -o json -f "$report" "${args[@]}"
+          echo "report-path=$report" >> "$GITHUB_OUTPUT"
         fi
 
     - name: Upload SARIF
+      if: inputs.upload-sarif == 'true'
       uses: github/codeql-action/upload-sarif@v4
       with:
-        sarif_file: ${{ runner.temp }}/quin-scan.sarif
+        sarif_file: ${{ steps.scan.outputs.sarif-path }}
+
+    - name: Fail on risky skills
+      if: inputs.fail-on != 'none'
+      shell: bash
+      env:
+        TARGET: ${{ inputs.path }}
+        FAIL_ON: ${{ inputs.fail-on }}
+        SKILLS_BASELINE: ${{ inputs.skills-baseline }}
+      run: |
+        set -euo pipefail
+        args=(--fail-on "$FAIL_ON")
+        if [ -n "$SKILLS_BASELINE" ]; then
+          args+=(--baseline "$SKILLS_BASELINE")
+        fi
+        quin-scanner skills scan "$TARGET" "${args[@]}"

@@ -1,0 +1,110 @@
+name: Test action
+
+on:
+  pull_request:
+    paths:
+      - 'action.yml'
+      - '.github/workflows/test-action.yml'
+      - 'src/**'
+      - 'pyproject.toml'
+      - 'tests/fixtures/**'
+  push:
+    branches: [main]
+    paths:
+      - 'action.yml'
+      - '.github/workflows/test-action.yml'
+      - 'src/**'
+      - 'pyproject.toml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  action:
+    name: Run the action
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Default run on the skills fixtures
+        id: basic
+        uses: ./
+        with:
+          path: tests/fixtures/skills_repo
+          upload-sarif: 'false'
+
+      - name: Check the default run
+        shell: bash
+        env:
+          SARIF: ${{ steps.basic.outputs.sarif-path }}
+          REPORT: ${{ steps.basic.outputs.report-path }}
+          VERSION: ${{ steps.basic.outputs.version }}
+        run: |
+          set -euo pipefail
+          test -s "$SARIF"
+          python3 - <<'PY'
+          import json, os
+          data = json.load(open(os.environ["SARIF"]))
+          assert data["version"] == "2.1.0", data.get("version")
+          assert data["runs"][0]["results"], "expected the malicious fixture skill to produce results"
+          PY
+          test -z "$REPORT"
+          expected="$(python3 -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])")"
+          test "$VERSION" = "$expected"
+
+      - name: Run with the JSON report output
+        id: report
+        uses: ./
+        with:
+          path: tests/fixtures/skills_repo
+          upload-sarif: 'false'
+          output-report: 'true'
+
+      - name: Check the JSON report
+        shell: bash
+        env:
+          REPORT: ${{ steps.report.outputs.report-path }}
+        run: |
+          set -euo pipefail
+          test -s "$REPORT"
+          python3 -c "import json, os; d = json.load(open(os.environ['REPORT'])); assert d['schema_version'] == '1.0', d.get('schema_version')"
+
+      - name: fail-on high_risk must fail on the malicious fixture
+        id: gate
+        continue-on-error: true
+        uses: ./
+        with:
+          path: tests/fixtures/skills_repo
+          upload-sarif: 'false'
+          fail-on: high_risk
+
+      - name: Check the gate failed
+        shell: bash
+        env:
+          OUTCOME: ${{ steps.gate.outcome }}
+        run: test "$OUTCOME" = "failure"
+
+      - name: A baseline lets the gate pass
+        uses: ./
+        with:
+          path: tests/fixtures/skills_repo
+          upload-sarif: 'false'
+          skills-baseline: tests/fixtures/baselines/baseline-v1.yaml
+          fail-on: caution
+
+      # An older, immutable release: it always differs from the version installed from source above, so pip
+      # really installs it from PyPI instead of treating the requirement as already satisfied.
+      - name: Install a released version from PyPI
+        id: pypi
+        uses: ./
+        with:
+          path: tests/fixtures/skills_repo
+          upload-sarif: 'false'
+          version: '0.1.0b4'
+
+      - name: Check the PyPI version
+        shell: bash
+        env:
+          VERSION: ${{ steps.pypi.outputs.version }}
+        run: test "$VERSION" = "0.1.0b4"
