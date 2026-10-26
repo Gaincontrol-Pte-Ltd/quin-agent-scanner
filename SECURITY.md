@@ -24,6 +24,10 @@ This policy covers the `quin-scanner` Python package and its source code. It doe
 - Third-party dependencies (report those to the respective upstream projects)
 - Issues in repositories that `quin-scanner` scans (those are the user's responsibility)
 
+## Verifying releases
+
+Releases are published to PyPI from this repository's GitHub Actions workflow using PyPI trusted publishing, and each file carries a PEP 740 attestation that names the repository and workflow that built it. Check a file with PyPI's integrity API, for example `https://pypi.org/integrity/quin-scanner/<version>/<filename>/provenance` (use the `Accept: application/vnd.pypi.integrity.v1+json` header), or with a tool that verifies PEP 740 attestations.
+
 ## Handling of untrusted input
 
 Quin reads repositories, skills and archives that you do not control, so the following are in scope for a report:

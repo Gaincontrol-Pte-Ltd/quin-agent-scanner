@@ -66,7 +66,7 @@ Releases are tag-driven. Pushing a `v*.*.*` tag runs `.github/workflows/publish.
 1. Land the work on `main` with CI green and `CHANGELOG.md` updated under `[Unreleased]`.
 2. In a release PR: move the `[Unreleased]` entries into a new `## [x.y.z] — YYYY-MM-DD` section, update the compare links at the bottom, and bump the version in `pyproject.toml`, `src/quin_scanner/__init__.py` and the `quin-scanner` entry in `uv.lock`.
 3. After the PR is merged, tag the merge commit and push the tag: `git tag vX.Y.Z && git push origin vX.Y.Z` (PEP 440 style, e.g. `v0.1.0b5` or `v0.1.0`).
-4. Watch the "Publish to PyPI" run, then check `pip install quin-scanner==X.Y.Z` in a clean environment and publish GitHub release notes from the changelog section.
+4. Watch the "Publish to PyPI" run, then check `pip install quin-scanner==X.Y.Z` in a clean environment, check that both files have a provenance attestation (`https://pypi.org/integrity/quin-scanner/X.Y.Z/<file>/provenance` returns 200) and publish GitHub release notes from the changelog section.
 
 ---
 

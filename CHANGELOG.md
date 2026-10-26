@@ -9,6 +9,15 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- Dependency ranges now match what is tested: `click>=8.2` (was 8.1), `openai>=1.55.3,<3` (was `>=1.0`; older versions break with current `httpx`), `google-genai>=1.15,<3` (was `>=1.0`), `httpx>=0.28.1` (was `>=0.27`; `google-genai` already required it). The vendor SDKs now have a ceiling at the next major version, like `anthropic` already had. Installs that pin older versions of these packages must upgrade them.
+
+### Added
+
+- CI job "Tests on the oldest allowed dependencies": runs the whole suite with every direct runtime dependency resolved to its lowest allowed version, so the floors are real. `tests/test_dependency_policy.py` checks that every runtime dependency has a floor, the LLM SDKs have a ceiling, the locked versions satisfy the ranges, and the SDK ranges in `docs/stability.md` match `pyproject.toml`.
+- `SECURITY.md` explains how to verify a release's PyPI attestation; the publish workflow requests attestations explicitly (previously the action's default).
+
 ### Added
 
 - GitHub Action: new optional inputs `path`, `skills-baseline`, `fail-on` (gate the job on skill verdicts, checked after the SARIF upload), `upload-sarif`, `output-report`, `version` and `python-version`, and outputs `sarif-path`, `report-path` and `version`. `.github/workflows/test-action.yml` runs the action on fixtures in CI, and `tests/test_action_contract.py` freezes the inputs and outputs.
