@@ -138,3 +138,30 @@ def test_rules_give_the_same_findings_for_lf_and_crlf_text(name, text, expected)
 def test_frontmatter_parses_with_crlf_and_a_bom():
     data, valid = parse_frontmatter("﻿---\r\nname: demo\r\ndescription: d\r\n---\r\nbody\r\n")
     assert valid and data["name"] == "demo"
+
+
+# --- report file names are derived from the target on every OS ---------------------------------
+
+@pytest.mark.parametrize("target,expected", [
+    ("https://github.com/org/repo", "repo"),
+    ("https://github.com/org/repo.git", "repo"),
+    ("git@github.com:org/repo.git", "repo"),
+    ("org/repo", "repo"),
+    ("/home/me/project", "project"),
+    ("/home/me/project/", "project"),
+    ("./relative/dir", "dir"),
+    (r"C:\Users\me\my-repo", "my-repo"),
+    (r"C:\Users\me\my-repo" + "\\", "my-repo"),
+    ("C:/Users/me/my-repo", "my-repo"),
+    (r"\\server\share\team repo", "team_repo"),
+    (r"..\sibling", "sibling"),
+    ("weird name?*", "weird_name"),
+    ("/", "report"),
+])
+def test_output_filename_uses_the_last_path_component(target, expected):
+    from quin_scanner.cli import _output_filename
+
+    name = _output_filename(target, "json")
+    assert name.startswith(expected + "_"), name
+    assert name.endswith(".json")
+    assert not any(ch in name for ch in '\\/:*?"<>|'), name

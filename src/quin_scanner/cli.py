@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -21,9 +22,11 @@ load_dotenv(find_dotenv(usecwd=True))
 
 def _output_filename(target: str, fmt: str) -> str:
     """Build an output filename: <repo-name>_<YYYYMMDD_HHMMSS>.<fmt>"""
-    # Extract the repo (or directory) name from the target
-    clean = target.rstrip("/").removesuffix(".git")
-    name = clean.rsplit("/", 1)[-1] or clean.replace("/", "_").replace(":", "_")
+    # The last path component of the target, whichever separator it uses ("/" in URLs and POSIX paths,
+    # "\\" in Windows paths), reduced to characters that are valid in a file name on every OS.
+    clean = re.sub(r"[\\/]+$", "", target).removesuffix(".git")
+    name = re.split(r"[\\/]", clean)[-1]
+    name = re.sub(r"[^A-Za-z0-9._-]+", "_", name).strip("._") or "report"
     ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
     return f"{name}_{ts}.{fmt}"
 
