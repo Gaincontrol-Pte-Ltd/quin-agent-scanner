@@ -11,6 +11,7 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- CLI contract tests: `tests/cli_snapshot.json` pins every command, option, default and type, and a frozen 1.0 baseline fails the build on a breaking CLI change (removed or renamed command or option, changed default, type or requiredness, a new required option); `tests/test_exit_codes.py` pins the exit codes of every command.
 - Report `schema_version` (`"1.0"`) in the JSON and YAML reports and in the `skills scan -o json` envelope, and `quin-scanner --version` now also prints the report schema version.
 - JSON Schemas for the report (`docs/schema/report-1.json`) and the `skills scan` envelope (`docs/schema/skills-scan-1.json`). Tests validate real output against them, fail when an emitted field is missing from the schema, and compare the schemas with a frozen 1.0 baseline so a breaking schema change cannot slip in.
 - `docs/stability.md`: the stability and support policy that takes effect with 1.0.0: which surfaces are stable (CLI and exit codes, report schema, SARIF and rule IDs, config/baseline/Action), what counts as a breaking change, detection changes, the deprecation window (one minor release and 90 days), exit codes, supported platforms and the support policy.
@@ -20,6 +21,7 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- `scan-batch` and `scan-org` now exit 1 when at least one target (or repository) failed, after scanning all of them and writing the reports that succeeded, and print `N of M targets failed: ...` on stderr. Previously they exited 0 even if every target failed, which made them unusable in CI. The exit codes of every command are now listed in each command's `--help` and in `docs/stability.md`.
 - Removed the `Typing :: Typed` classifier: the package ships no `py.typed` marker and CI runs no type checker.
 - Removed two links to a project plan document that never existed from `CONTRIBUTING.md`.
 

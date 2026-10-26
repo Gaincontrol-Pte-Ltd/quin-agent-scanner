@@ -242,6 +242,12 @@ def scan(
     TARGET can be a local path, a GitHub URL, or owner/repo shorthand.
 
     \b
+    Exit codes:
+      0  the scan completed (findings do not change the exit code)
+      1  invalid target, or the scan failed
+      2  invalid --skills-baseline, or a command-line usage error
+
+    \b
     Examples:
       quin-scanner scan ./my-project
       quin-scanner scan owner/repo --no-llm -o yaml
@@ -360,6 +366,12 @@ def scan_batch(
     or owner/repo shorthand). Lines starting with # are ignored.
 
     \b
+    Exit codes:
+      0  every target was scanned
+      1  at least one target failed (reports for the others are still written)
+      2  usage error (for example a missing targets file)
+
+    \b
     Examples:
       quin-scanner scan-batch targets.txt
       quin-scanner scan-batch targets.txt -d reports/ -o yaml
@@ -395,6 +407,7 @@ def scan_batch(
 
     Path(output_dir).mkdir(parents=True, exist_ok=True)
 
+    failed: list[str] = []
     for target in targets:
         click.echo(f"Scanning {target} ...", err=True)
         accessor = None
@@ -407,6 +420,7 @@ def scan_batch(
             ))
         except Exception as e:
             click.echo(f"  ERROR: {e}", err=True)
+            failed.append(target)
             continue
         finally:
             if accessor:
@@ -415,6 +429,10 @@ def scan_batch(
         out_path = Path(output_dir) / _output_filename(target, output)
         ReportGenerator.write_to_file(report, str(out_path), output)
         click.echo(f"  -> {out_path}", err=True)
+
+    if failed:
+        click.echo(f"{len(failed)} of {len(targets)} targets failed: {', '.join(failed)}", err=True)
+        sys.exit(1)
 
 
 @cli.command("scan-org")
@@ -458,6 +476,12 @@ def scan_org(
     ORG_NAME is a GitHub organization or user account name (auto-detected).
     Discovers all repos via the GitHub API, then scans each one.
     Requires a GITHUB_TOKEN with org/user read access.
+
+    \b
+    Exit codes:
+      0  every repository was scanned
+      1  the repository list could not be fetched, or at least one repository failed
+      2  usage error
 
     \b
     Examples:
@@ -514,6 +538,7 @@ def scan_org(
     Path(output_dir).mkdir(parents=True, exist_ok=True)
 
     reports = []
+    failed: list[str] = []
     for repo in repos:
         click.echo(f"Scanning {repo.full_name} ...", err=True)
         accessor = None
@@ -530,6 +555,7 @@ def scan_org(
             ))
         except Exception as e:
             click.echo(f"  ERROR: {e}", err=True)
+            failed.append(repo.full_name)
             continue
         finally:
             if accessor:
@@ -542,6 +568,10 @@ def scan_org(
 
     import json
     click.echo(json.dumps(reports, indent=2))
+
+    if failed:
+        click.echo(f"{len(failed)} of {len(repos)} repositories failed: {', '.join(failed)}", err=True)
+        sys.exit(1)
 
 
 # ── quin-scanner skills ──────────────────────────────────────────────────────
