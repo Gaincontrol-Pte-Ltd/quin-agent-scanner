@@ -146,7 +146,7 @@ class TestOutputs:
         res = _invoke(str(FIXTURE), "--no-vuln-check", "-o", "json", "-f", str(out))
         assert res.exit_code == 1, res.output
         data = json.loads(out.read_text())
-        assert set(data) == {"target", "scanned_at", "skills", "notes", "coverage"}
+        assert set(data) == {"schema_version", "target", "scanned_at", "skills", "notes", "coverage"}
         assert data["target"] == str(FIXTURE)
         assert data["coverage"]["skills_found"] == 3
         evil = next(s for s in data["skills"] if s["record"]["name"] == "evil-formatter")

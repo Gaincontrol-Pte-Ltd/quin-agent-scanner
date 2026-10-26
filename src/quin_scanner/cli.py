@@ -7,11 +7,13 @@ from pathlib import Path
 import click
 from dotenv import find_dotenv, load_dotenv
 
+from quin_scanner import __version__
 from quin_scanner.config import ScannerConfig
 from quin_scanner.models import ScanReport
 from quin_scanner.orchestrator import ScanOrchestrator
 from quin_scanner.repo_accessor import RepoAccessorFactory
 from quin_scanner.report import ReportGenerator
+from quin_scanner.schema import REPORT_SCHEMA_VERSION
 from quin_scanner.scanners.skills.baseline import BaselineError
 
 load_dotenv(find_dotenv(usecwd=True))
@@ -144,7 +146,7 @@ _OUTPUT_CHOICES = click.Choice(["json", "yaml", "html", "sarif"])
 
 
 @click.group(context_settings={"help_option_names": ["-h", "--help"]})
-@click.version_option(prog_name="quin-scanner")
+@click.version_option(version=__version__, prog_name="quin-scanner", message=f"%(prog)s, version %(version)s (report schema {REPORT_SCHEMA_VERSION})")
 def cli() -> None:
     """Quin Scanner — detect GenAI and Agentic AI applications in repositories.
 
@@ -600,6 +602,7 @@ def _skills_json(target: str, report, notes: list[str]) -> str:
     import json
 
     envelope = {
+        "schema_version": REPORT_SCHEMA_VERSION,
         "target": target,
         "scanned_at": report.scan_timestamp,
         "skills": [s.to_dict() for s in report.skills],

@@ -1,6 +1,6 @@
 # Report schema
 
-This describes the JSON and YAML reports (`quin-scanner scan -o json|yaml`, same structure), the JSON envelope of `skills scan -o json`, and the files around them. Stability rules are in [stability.md](../stability.md). A machine-readable JSON Schema and a `schema_version` field are *(planned for 1.0)*; until then this page is the reference.
+This describes the JSON and YAML reports (`quin-scanner scan -o json|yaml`, same structure), the JSON envelope of `skills scan -o json`, and the files around them. Stability rules are in [stability.md](../stability.md). The authoritative field-by-field reference is the JSON Schemas [`report-1.json`](report-1.json) and [`skills-scan-1.json`](skills-scan-1.json); this page explains the rules and conventions. Every report and envelope carries `schema_version` (`MAJOR.MINOR`, currently `1.0`).
 
 ## Compatibility rules
 
@@ -24,6 +24,7 @@ Within a major schema version:
 <!-- report-fields:start -->
 | Field | Presence | Type | Meaning |
 |---|---|---|---|
+| `schema_version` | always | string | Report schema version as `MAJOR.MINOR` (currently `1.0`). |
 | `repo_path` | always | string | The scanned target as given (path or `owner/repo`). |
 | `scan_timestamp` | always | string | When the scan ran (UTC). |
 | `is_ai_application` | always | boolean | Whether the repository looks like an AI application. |
@@ -59,11 +60,11 @@ Within a major schema version:
 
 **Skill assessment** (`skills[]`): `record` (`id`, `name`, `description`, `root_path`, `skill_md_path`, `ecosystem`, `allowed_tools`, `files`, `frontmatter_valid`), `findings` (list of `rule_id`, `skill_id`, `severity`, `category`, `title`, `file_path`, `line_number`, `evidence`, `threat_id`, `confidence`, `llm_verdict`, `explanation`), `risk_score` (0–100), `verdict`, `finding_counts` (severity to count), `top_rule_ids`.
 
-The remaining record types (`agents`, `model_usages`, `mcp_servers`, `infra`, `vulnerabilities`, `llm_endpoints`, `agent_tool_relationships`) are documented field by field in the generated JSON Schema *(planned for 1.0)*.
+The remaining record types (`agents`, `model_usages`, `mcp_servers`, `infra`, `vulnerabilities`, `llm_endpoints`, `agent_tool_relationships`, `file_hashes`, `governance`) are documented field by field in [`report-1.json`](report-1.json).
 
 ## `skills scan -o json` envelope
 
-`target`, `scanned_at`, `skills` (list of skill assessments as above), `notes` (list of string), `coverage` (open map), and `metadata` (only when a baseline was used: `skills_baseline` with `file`, `suppressed_count`, `stale_count`).
+`schema_version`, `target`, `scanned_at`, `skills` (list of skill assessments as above), `notes` (list of string), `coverage` (open map), and `metadata` (only when a baseline was used: `skills_baseline` with `file`, `suppressed_count`, `stale_count`).
 
 ## Skills baseline file
 

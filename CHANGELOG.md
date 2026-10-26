@@ -11,6 +11,8 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Report `schema_version` (`"1.0"`) in the JSON and YAML reports and in the `skills scan -o json` envelope, and `quin-scanner --version` now also prints the report schema version.
+- JSON Schemas for the report (`docs/schema/report-1.json`) and the `skills scan` envelope (`docs/schema/skills-scan-1.json`). Tests validate real output against them, fail when an emitted field is missing from the schema, and compare the schemas with a frozen 1.0 baseline so a breaking schema change cannot slip in.
 - `docs/stability.md`: the stability and support policy that takes effect with 1.0.0: which surfaces are stable (CLI and exit codes, report schema, SARIF and rule IDs, config/baseline/Action), what counts as a breaking change, detection changes, the deprecation window (one minor release and 90 days), exit codes, supported platforms and the support policy.
 - `docs/schema/README.md`: the report schema reference (compatibility rules, conventions, top-level fields, key records, the `skills scan` envelope and the baseline file).
 - `tests/test_stability_docs.py`: tests that fail when the documented commands or top-level report fields drift from the code, or when a relative link in the docs breaks.
