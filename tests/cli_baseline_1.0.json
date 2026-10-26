@@ -238,7 +238,7 @@
         "type": "text"
       },
       {
-        "default": "Sentinel.UNSET",
+        "default": null,
         "envvar": null,
         "is_flag": false,
         "kind": "argument",
@@ -429,7 +429,7 @@
         "type": "text"
       },
       {
-        "default": "Sentinel.UNSET",
+        "default": null,
         "envvar": null,
         "is_flag": false,
         "kind": "argument",
@@ -546,7 +546,7 @@
         "type": "text"
       },
       {
-        "default": "Sentinel.UNSET",
+        "default": null,
         "envvar": null,
         "is_flag": false,
         "kind": "argument",
@@ -726,7 +726,7 @@
         "type": "boolean"
       },
       {
-        "default": "Sentinel.UNSET",
+        "default": null,
         "envvar": null,
         "is_flag": false,
         "kind": "option",
@@ -740,7 +740,7 @@
         "type": "text"
       },
       {
-        "default": "Sentinel.UNSET",
+        "default": null,
         "envvar": null,
         "is_flag": false,
         "kind": "argument",
@@ -953,7 +953,7 @@
         "type": "text"
       },
       {
-        "default": "Sentinel.UNSET",
+        "default": null,
         "envvar": null,
         "is_flag": false,
         "kind": "argument",

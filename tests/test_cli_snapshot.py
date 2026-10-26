@@ -30,6 +30,20 @@ def _plain(value):
     return value if isinstance(value, (str, int, float, bool, type(None))) else str(value)
 
 
+def _default(param: click.Parameter):
+    """The declared default, independent of click's internals.
+
+    Newer click versions report "no default" as an internal sentinel object (older ones use None or
+    False for flags), which would make the snapshot depend on the click version.
+    """
+    value = param.default
+    if not isinstance(value, (str, int, float, bool, type(None))):
+        value = None
+    if value is None and getattr(param, "is_flag", False):
+        value = False
+    return value
+
+
 def _param(param: click.Parameter) -> dict:
     return {
         "name": param.name,
@@ -37,7 +51,7 @@ def _param(param: click.Parameter) -> dict:
         "opts": list(param.opts) + list(getattr(param, "secondary_opts", [])),
         "type": _type_name(param.type),
         "required": param.required,
-        "default": _plain(param.default),
+        "default": _default(param),
         "is_flag": bool(getattr(param, "is_flag", False)),
         "multiple": param.multiple,
         "envvar": _plain(param.envvar),
