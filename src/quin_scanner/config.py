@@ -38,10 +38,19 @@ _ALL_SCANNERS = [
 ]
 
 
+# Default model per LLM provider: the single source of truth, used when no model is configured.
+DEFAULT_MODELS: dict[str, str] = {
+    "openai": "gpt-4o-mini",
+    "anthropic": "claude-haiku-4-5-20251001",
+    "google": "gemini-2.0-flash",
+    "ollama": "llama3.2",
+}
+
+
 @dataclass
 class ScannerConfig:
     llm_provider: str = "openai"
-    llm_model: str = "gpt-4o-mini"
+    llm_model: str | None = None  # None = use the provider's default, see resolved_model()
     llm_api_key: str | None = None
     output_format: str = "json"
     enabled_scanners: list[str] = field(default_factory=lambda: list(_ALL_SCANNERS))
@@ -97,7 +106,7 @@ class ScannerConfig:
 
         return cls(
             llm_provider=provider,
-            llm_model=llm_cfg.get("model", "gpt-4o-mini"),
+            llm_model=llm_cfg.get("model") or None,
             llm_api_key=api_key,
             output_format=out_cfg.get("format", "html"),
             enabled_scanners=scan_cfg.get("enabled", list(_ALL_SCANNERS)),
@@ -134,27 +143,40 @@ class ScannerConfig:
                 cfg.vuln_search_provider = env_vsp
         return cfg
 
+    def resolved_model(self) -> str | None:
+        """The model to use: the configured one, else the provider's default.
+
+        An OpenAI-compatible endpoint (``openai_compatible_url``) falls back to the OpenAI
+        default, as it always has. Returns None only for an unknown provider.
+        """
+        if self.llm_model:
+            return self.llm_model
+        if self.openai_compatible_url:
+            return DEFAULT_MODELS["openai"]
+        return DEFAULT_MODELS.get(self.llm_provider)
+
     def provider_factory(self) -> BaseLLMProvider:
         """Return the configured LLM provider instance."""
+        model = self.resolved_model()
         if self.openai_compatible_url:
             from quin_scanner.llm.openai_compatible import OpenAICompatibleProvider
             return OpenAICompatibleProvider(
                 base_url=self.openai_compatible_url,
                 api_key=self.llm_api_key or "none",
-                model=self.llm_model,
+                model=model,
             )
         if self.llm_provider == "openai":
             from quin_scanner.llm.openai_provider import OpenAIProvider
-            return OpenAIProvider(api_key=self.llm_api_key, model=self.llm_model)
+            return OpenAIProvider(api_key=self.llm_api_key, model=model)
         if self.llm_provider == "anthropic":
             from quin_scanner.llm.anthropic_provider import AnthropicProvider
-            return AnthropicProvider(api_key=self.llm_api_key, model=self.llm_model or "claude-haiku-4-5-20251001")
+            return AnthropicProvider(api_key=self.llm_api_key, model=model)
         if self.llm_provider == "google":
             from quin_scanner.llm.google_provider import GoogleProvider
-            return GoogleProvider(api_key=self.llm_api_key, model=self.llm_model or "gemini-2.0-flash")
+            return GoogleProvider(api_key=self.llm_api_key, model=model)
         if self.llm_provider == "ollama":
             from quin_scanner.llm.ollama_provider import OllamaProvider
-            return OllamaProvider(model=self.llm_model or "llama3.2")
+            return OllamaProvider(model=model)
         raise ValueError(f"Unknown LLM provider: {self.llm_provider!r}")
 
 
