@@ -126,6 +126,24 @@ CI runs Python 3.11, 3.12 and 3.13. Linux is supported today; macOS and Windows 
 
 ## Dependencies
 
+The LLM providers use the vendor SDKs `openai`, `anthropic` and `google-genai`. Each has a tested range in `pyproject.toml`: the **floor** is the oldest version the provider contract tests pass on (with a current `httpx`), and the **ceiling** is the next major version after the one Quin is tested with. A new major SDK version is adopted only after the contract tests (`tests/test_llm_providers.py`) pass against it and a live call has been made.
+
+<!-- sdk-ranges:start -->
+| SDK | Range |
+|---|---|
+| `openai` | `>=1.55.3,<3` |
+| `anthropic` | `>=0.87,<1` |
+| `google-genai` | `>=1.15,<3` |
+<!-- sdk-ranges:end -->
+
+CI runs the whole test suite twice: on the locked (newest tested) versions, and on the **oldest allowed runtime versions** (every direct dependency resolved to its lowest allowed version). A floor is raised when the oldest version stops passing. The other runtime dependencies (`click>=8.2`, `pyyaml`, `httpx`, `python-dotenv`) have floors only.
+
+## Supported platforms and Python versions
+
+CI runs Python 3.11, 3.12 and 3.13. Linux is supported today; macOS and Windows support is *(planned for 1.0)* and will be tested in CI before it is promised. Dropping a platform or Python version is announced one minor release ahead.
+
+## Dependencies
+
 The LLM providers use the vendor SDKs `openai`, `anthropic` and `google-genai`. Each has a version range in `pyproject.toml`: an upper bound within the major version Quin has been tested with (today only `anthropic` has one; upper bounds for `openai` and `google-genai` are *(planned)*); a new major SDK version is adopted only after the provider contract tests (`tests/test_llm_providers.py`) pass against it and a live call has been made.
 
 ## Support
