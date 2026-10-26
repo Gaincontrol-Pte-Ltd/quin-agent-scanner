@@ -93,16 +93,18 @@ jobs:
           skills-baseline: tests/fixtures/baselines/baseline-v1.yaml
           fail-on: caution
 
+      # An older, immutable release: it always differs from the version installed from source above, so pip
+      # really installs it from PyPI instead of treating the requirement as already satisfied.
       - name: Install a released version from PyPI
         id: pypi
         uses: ./
         with:
           path: tests/fixtures/skills_repo
           upload-sarif: 'false'
-          version: '0.1.0b5'
+          version: '0.1.0b4'
 
       - name: Check the PyPI version
         shell: bash
         env:
           VERSION: ${{ steps.pypi.outputs.version }}
-        run: test "$VERSION" = "0.1.0b5"
+        run: test "$VERSION" = "0.1.0b4"
