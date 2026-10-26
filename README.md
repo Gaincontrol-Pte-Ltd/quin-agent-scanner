@@ -251,13 +251,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: Gaincontrol-Pte-Ltd/quin-agent-scanner@v1
+      - uses: Gaincontrol-Pte-Ltd/quin-agent-scanner@beta
 ```
+
+**Versions and tags.** There is no stable release yet, so use `@beta` for the latest pre-release, or pin an exact tag such as `@v0.1.0b4` for reproducible builds. Stable releases will move a major tag (`@v0` for 0.x, `@v1` for 1.x). The existing `@v1` tag is frozen at `v0.1.0b4` and will only move again once `1.0.0` is released.
 
 By default this runs in `--no-llm` mode — static findings plus CVE vulnerability checks (via OSV.dev), no API key required. For richer agent/risk analysis, pass an LLM API key:
 
 ```yaml
-      - uses: Gaincontrol-Pte-Ltd/quin-agent-scanner@v1
+      - uses: Gaincontrol-Pte-Ltd/quin-agent-scanner@beta
         with:
           llm-provider: anthropic
           llm-api-key: ${{ secrets.ANTHROPIC_API_KEY }}

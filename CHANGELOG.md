@@ -9,6 +9,11 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- Release tags: pre-release tags (`v0.1.0b4`, `...rc1`) now move a new `beta` tag and no longer move `v1`. Stable tags move a major tag (`v0` for 0.x, `v1` for 1.x). `v1` stays at `v0.1.0b4` until `1.0.0` is released. GitHub Action examples now use `@beta`; pin an exact tag such as `@v0.1.0b4` for reproducible builds.
+- Docs no longer imply a stable `0.1.0` exists: the changelog section for the first drop is now `0.1.0b1`, and the roadmap marks the first drop as beta.
+
 ### Maintenance
 
 - CI now runs lint, tests, build and smoke test on Python 3.11, 3.12 and 3.13 (previously 3.11 only).
@@ -138,9 +143,9 @@ This changelog was not split per beta, so the sections below also list changes f
 
 ---
 
-## [0.1.0] — 2026-03-31
+## [0.1.0b1] — 2026-04-30
 
-**Drop 1 — Scan Any Repo for AI**
+**Drop 1 — Scan Any Repo for AI** (the first public beta; a stable `0.1.0` has not been released yet)
 
 ### Added
 
@@ -211,4 +216,4 @@ This changelog was not split per beta, so the sections below also list changes f
 
 [Unreleased]: https://github.com/Gaincontrol-Pte-Ltd/quin-agent-scanner/compare/v0.1.0b4...HEAD
 [0.1.0b4]: https://github.com/Gaincontrol-Pte-Ltd/quin-agent-scanner/releases/tag/v0.1.0b4
-[0.1.0]: https://github.com/quin-scanner/quin-agent-scanner/releases/tag/v0.1.0
+[0.1.0b1]: https://github.com/Gaincontrol-Pte-Ltd/quin-agent-scanner/releases/tag/v0.1.0b1
