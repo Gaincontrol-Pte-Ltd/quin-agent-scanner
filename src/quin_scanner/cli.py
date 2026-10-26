@@ -11,7 +11,7 @@ from quin_scanner import __version__
 from quin_scanner.config import ScannerConfig
 from quin_scanner.models import ScanReport
 from quin_scanner.orchestrator import ScanOrchestrator
-from quin_scanner.repo_accessor import RepoAccessorFactory
+from quin_scanner.repo_accessor import LocalRepoAccessor, RepoAccessorFactory
 from quin_scanner.report import ReportGenerator
 from quin_scanner.schema import REPORT_SCHEMA_VERSION
 from quin_scanner.scanners.skills.baseline import BaselineError
@@ -97,6 +97,21 @@ def skill_summary_lines(report) -> list[str]:
     if report.metadata.get("skills_baseline"):
         lines.append(baseline_summary(report.metadata["skills_baseline"]))
     return lines
+
+
+def _open_target(target: str, **kwargs):
+    """RepoAccessorFactory.create, but a local path that is missing or not a directory is an error.
+
+    The factory routes anything that starts with "/" or "." to a local accessor, so a typo in a path
+    used to scan nothing and succeed with an empty report.
+    """
+    accessor = RepoAccessorFactory.create(target, **kwargs)
+    if isinstance(accessor, LocalRepoAccessor):
+        if not accessor.repo_path.exists():
+            raise ValueError(f"Local path does not exist: {target!r}")
+        if not accessor.repo_path.is_dir():
+            raise ValueError(f"Local path is not a directory: {target!r}")
+    return accessor
 
 
 def _build_config(
@@ -276,7 +291,7 @@ def scan(
 
     # Create accessor
     try:
-        accessor = RepoAccessorFactory.create(
+        accessor = _open_target(
             target, github_token=cfg.github_token, branch=branch, azure_token=azure_token
         )
     except ValueError as e:
@@ -412,7 +427,7 @@ def scan_batch(
         click.echo(f"Scanning {target} ...", err=True)
         accessor = None
         try:
-            accessor = RepoAccessorFactory.create(target, github_token=base_cfg.github_token)
+            accessor = _open_target(target, github_token=base_cfg.github_token)
             report = ScanOrchestrator().run(accessor, base_cfg, verbose=sys.stderr.isatty())
             _record_flags(report, _flags_used(
                 base_cfg, config=config, llm_provider=llm_provider, llm_model=llm_model,

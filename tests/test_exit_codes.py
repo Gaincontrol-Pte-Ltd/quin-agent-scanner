@@ -14,8 +14,8 @@ from quin_scanner.repo_accessor import RepoAccessorFactory
 FIXTURE = Path(__file__).resolve().parent / "fixtures" / "skills_repo"
 ROOT = Path(__file__).resolve().parent.parent
 FAST = ["--no-llm", "--no-vuln-check"]
-# Not a path, URL or owner/repo: RepoAccessorFactory.create raises ValueError. (A non-existent absolute
-# path is NOT rejected today: LocalRepoAccessor accepts it and the scan exits 0.)
+# Not a path, URL or owner/repo: RepoAccessorFactory.create raises ValueError. (A local path that does not
+# exist is rejected separately by the CLI, see the nonexistent-path tests below.)
 INVALID_TARGET = "not-a-valid-target"
 
 
@@ -159,3 +159,36 @@ def test_stability_doc_no_longer_marks_batch_exit_codes_as_planned():
     assert "planned: 1 if any target failed" not in text
     assert "at least one target failed" in text
     assert "at least one repository failed" in text
+
+
+# --- a target that does not exist locally must fail, not produce an empty report -------------
+
+def test_scan_nonexistent_absolute_path_exits_1(tmp_path):
+    result = _run(["scan", str(tmp_path / "typo"), "-o", "json", "-d", str(tmp_path / "out"), *FAST])
+    assert result.exit_code == 1
+    assert "does not exist" in result.stderr
+    assert not (tmp_path / "out").exists()  # no empty report was written
+
+
+def test_scan_nonexistent_relative_path_exits_1(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    result = _run(["scan", "./typo", "-o", "json", "-d", str(tmp_path / "out"), *FAST])
+    assert result.exit_code == 1
+    assert "does not exist" in result.stderr
+
+
+def test_scan_a_file_instead_of_a_directory_exits_1(tmp_path):
+    a_file = tmp_path / "file.txt"
+    a_file.write_text("x")
+    result = _run(["scan", str(a_file), "-o", "json", "-d", str(tmp_path / "out"), *FAST])
+    assert result.exit_code == 1
+    assert "not a directory" in result.stderr
+
+
+def test_scan_batch_nonexistent_path_counts_as_a_failed_target(tmp_path, good_repo):
+    targets = tmp_path / "targets.txt"
+    targets.write_text(f"{good_repo}\n{tmp_path / 'typo'}\n")
+    result = _run(["scan-batch", str(targets), "-o", "json", "-d", str(tmp_path / "out"), *FAST])
+    assert result.exit_code == 1
+    assert "1 of 2 targets failed" in result.stderr
+    assert len(list((tmp_path / "out").glob("*.json"))) == 1

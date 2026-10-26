@@ -21,6 +21,7 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- `scan` and `scan-batch` now reject a local path that does not exist or is not a directory (exit 1, or a failed target in a batch) instead of scanning nothing and succeeding with an empty report, so a mistyped path no longer passes in CI.
 - `scan-batch` and `scan-org` now exit 1 when at least one target (or repository) failed, after scanning all of them and writing the reports that succeeded, and print `N of M targets failed: ...` on stderr. Previously they exited 0 even if every target failed, which made them unusable in CI. The exit codes of every command are now listed in each command's `--help` and in `docs/stability.md`.
 - Removed the `Typing :: Typed` classifier: the package ships no `py.typed` marker and CI runs no type checker.
 - Removed two links to a project plan document that never existed from `CONTRIBUTING.md`.
