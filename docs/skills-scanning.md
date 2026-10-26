@@ -82,7 +82,7 @@ quin-scanner scan . --skills-baseline skills-baseline.yaml
 **Whole repository (GitHub Action).** The skills scanner runs with every scan and high and critical skill findings appear as code-scanning alerts with file and line:
 
 ```yaml
-- uses: Gaincontrol-Pte-Ltd/quin-agent-scanner@v1
+- uses: Gaincontrol-Pte-Ltd/quin-agent-scanner@beta
 ```
 
 **Gate on skills only.**
