@@ -15,6 +15,7 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - macOS and Windows are now tested in CI: the full suite runs on `macos-latest` and `windows-latest` for Python 3.11, 3.12 and 3.13, and the GitHub Action is exercised on all three operating systems. Tests that simulate Windows inputs (backslash paths, drive-letter and UNC targets, read-only files, BOM and CRLF text) also run on Linux.
 - Releases: pushing a version tag now also creates a GitHub Release whose notes are that version's CHANGELOG section (pre-releases are marked as such), with the built package attached. `scripts/release_notes.py` extracts the section.
 - Repository: issue forms (bug, detection issue, feature request), a pull request template with the CHANGELOG, corpus and stability checklist, a `CODEOWNERS` file for the stable surfaces, and a `Frontend` workflow that builds the experimental web UI when it changes.
+- Documentation: a generated command-line reference (`docs/cli.md`, produced by `scripts/gen_cli_reference.py` from the CLI; a test fails when it is stale), a migration note for users of the betas (`docs/migrating-from-the-betas.md`), and a test that fails when the README mentions a flag or command that does not exist.
 
 ### Fixed
 
