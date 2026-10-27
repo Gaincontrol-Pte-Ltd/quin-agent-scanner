@@ -1,0 +1,485 @@
+{
+  "skills": [
+    {
+      "ecosystem": "mcp",
+      "name": "MCP tool definitions",
+      "path": ".",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "aspnet-core",
+      "path": "skills/.curated/aspnet-core",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "chatgpt-apps",
+      "path": "skills/.curated/chatgpt-apps",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "cli-creator",
+      "path": "skills/.curated/cli-creator",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "cloudflare-deploy",
+      "path": "skills/.curated/cloudflare-deploy",
+      "rules": {
+        "SK-EX-002": 34,
+        "SK-EX-003": 1,
+        "SK-EXEC-001": 1,
+        "SK-EXEC-003": 1,
+        "SK-SC-005": 62
+      },
+      "score": 75,
+      "severity": {
+        "critical": 1,
+        "high": 2,
+        "low": 62,
+        "medium": 34
+      },
+      "verdict": "HIGH_RISK"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "define-goal",
+      "path": "skills/.curated/define-goal",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "figma",
+      "path": "skills/.curated/figma",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "figma-code-connect-components",
+      "path": "skills/.curated/figma-code-connect-components",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "figma-create-design-system-rules",
+      "path": "skills/.curated/figma-create-design-system-rules",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "figma-create-new-file",
+      "path": "skills/.curated/figma-create-new-file",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "figma-generate-design",
+      "path": "skills/.curated/figma-generate-design",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "figma-generate-library",
+      "path": "skills/.curated/figma-generate-library",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "figma-implement-design",
+      "path": "skills/.curated/figma-implement-design",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "figma-use",
+      "path": "skills/.curated/figma-use",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "gh-address-comments",
+      "path": "skills/.curated/gh-address-comments",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "gh-fix-ci",
+      "path": "skills/.curated/gh-fix-ci",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "hatch-pet",
+      "path": "skills/.curated/hatch-pet",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "jupyter-notebook",
+      "path": "skills/.curated/jupyter-notebook",
+      "rules": {
+        "SK-SC-005": 2
+      },
+      "score": 2,
+      "severity": {
+        "low": 2
+      },
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "linear",
+      "path": "skills/.curated/linear",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "migrate-to-codex",
+      "path": "skills/.curated/migrate-to-codex",
+      "rules": {
+        "SK-AR-003": 1
+      },
+      "score": 16,
+      "severity": {
+        "high": 1
+      },
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "netlify-deploy",
+      "path": "skills/.curated/netlify-deploy",
+      "rules": {
+        "SK-AR-001": 1,
+        "SK-SC-005": 4
+      },
+      "score": 16,
+      "severity": {
+        "high": 1,
+        "low": 4
+      },
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "notion-knowledge-capture",
+      "path": "skills/.curated/notion-knowledge-capture",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "notion-meeting-intelligence",
+      "path": "skills/.curated/notion-meeting-intelligence",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "notion-research-documentation",
+      "path": "skills/.curated/notion-research-documentation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "notion-spec-to-implementation",
+      "path": "skills/.curated/notion-spec-to-implementation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "openai-docs",
+      "path": "skills/.curated/openai-docs",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "pdf",
+      "path": "skills/.curated/pdf",
+      "rules": {
+        "SK-SC-005": 3
+      },
+      "score": 2,
+      "severity": {
+        "low": 3
+      },
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "playwright",
+      "path": "skills/.curated/playwright",
+      "rules": {
+        "SK-SC-005": 1
+      },
+      "score": 1,
+      "severity": {
+        "low": 1
+      },
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "playwright-interactive",
+      "path": "skills/.curated/playwright-interactive",
+      "rules": {
+        "SK-SC-005": 1
+      },
+      "score": 1,
+      "severity": {
+        "low": 1
+      },
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "render-deploy",
+      "path": "skills/.curated/render-deploy",
+      "rules": {
+        "SK-EXEC-001": 1,
+        "SK-SC-005": 1
+      },
+      "score": 37,
+      "severity": {
+        "critical": 1,
+        "low": 1
+      },
+      "verdict": "CAUTION"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "screenshot",
+      "path": "skills/.curated/screenshot",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "security-best-practices",
+      "path": "skills/.curated/security-best-practices",
+      "rules": {
+        "SK-AR-002": 1
+      },
+      "score": 1,
+      "severity": {
+        "low": 1
+      },
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "security-ownership-map",
+      "path": "skills/.curated/security-ownership-map",
+      "rules": {
+        "SK-SC-005": 1
+      },
+      "score": 1,
+      "severity": {
+        "low": 1
+      },
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "security-threat-model",
+      "path": "skills/.curated/security-threat-model",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "sentry",
+      "path": "skills/.curated/sentry",
+      "rules": {
+        "SK-EXEC-001": 1
+      },
+      "score": 36,
+      "severity": {
+        "critical": 1
+      },
+      "verdict": "CAUTION"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "speech",
+      "path": "skills/.curated/speech",
+      "rules": {
+        "SK-SC-005": 1
+      },
+      "score": 1,
+      "severity": {
+        "low": 1
+      },
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "transcribe",
+      "path": "skills/.curated/transcribe",
+      "rules": {
+        "SK-SC-005": 1
+      },
+      "score": 1,
+      "severity": {
+        "low": 1
+      },
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "vercel-deploy",
+      "path": "skills/.curated/vercel-deploy",
+      "rules": {
+        "SK-EX-002": 1
+      },
+      "score": 3,
+      "severity": {
+        "medium": 1
+      },
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "winui-app",
+      "path": "skills/.curated/winui-app",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "yeet",
+      "path": "skills/.curated/yeet",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "imagegen",
+      "path": "skills/.system/imagegen",
+      "rules": {
+        "SK-SC-005": 2
+      },
+      "score": 2,
+      "severity": {
+        "low": 2
+      },
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "openai-docs",
+      "path": "skills/.system/openai-docs",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "plugin-creator",
+      "path": "skills/.system/plugin-creator",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "skill-creator",
+      "path": "skills/.system/skill-creator",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "skill-installer",
+      "path": "skills/.system/skill-installer",
+      "rules": {
+        "SK-PERM-004": 1,
+        "SK-TAINT-002": 2
+      },
+      "score": 9,
+      "severity": {
+        "medium": 3
+      },
+      "verdict": "SAFE"
+    }
+  ]
+}

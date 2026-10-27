@@ -1,0 +1,20 @@
+{
+  "agents": [
+    "Weather Agent",
+    "weatherAgent"
+  ],
+  "artifacts": 15,
+  "capability_tags": [
+    "llm-api",
+    "multi-agent",
+    "orchestration",
+    "tool-use"
+  ],
+  "confidence": 0.99,
+  "framework": "Mastra",
+  "is_ai_application": true,
+  "mcp_servers": [],
+  "models": [],
+  "risk_signals": {},
+  "tools": 1
+}

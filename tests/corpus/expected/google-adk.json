@@ -1,0 +1,16 @@
+{
+  "agents": [],
+  "artifacts": 3,
+  "capability_tags": [
+    "agent-instructions",
+    "multi-agent",
+    "prompt-templates"
+  ],
+  "confidence": 0.86,
+  "framework": "unknown",
+  "is_ai_application": true,
+  "mcp_servers": [],
+  "models": [],
+  "risk_signals": {},
+  "tools": 0
+}

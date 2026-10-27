@@ -1,0 +1,156 @@
+{
+  "skills": [
+    {
+      "ecosystem": "instructions",
+      "name": "Agent instruction files",
+      "path": ".",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "brainstorming",
+      "path": "skills/brainstorming",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "diagnosing-superpowers",
+      "path": "skills/diagnosing-superpowers",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "dispatching-parallel-agents",
+      "path": "skills/dispatching-parallel-agents",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "executing-plans",
+      "path": "skills/executing-plans",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "finishing-a-development-branch",
+      "path": "skills/finishing-a-development-branch",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "receiving-code-review",
+      "path": "skills/receiving-code-review",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "requesting-code-review",
+      "path": "skills/requesting-code-review",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "subagent-driven-development",
+      "path": "skills/subagent-driven-development",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "systematic-debugging",
+      "path": "skills/systematic-debugging",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "test-driven-development",
+      "path": "skills/test-driven-development",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "using-git-worktrees",
+      "path": "skills/using-git-worktrees",
+      "rules": {
+        "SK-AR-002": 2
+      },
+      "score": 2,
+      "severity": {
+        "low": 2
+      },
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "using-superpowers",
+      "path": "skills/using-superpowers",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "verification-before-completion",
+      "path": "skills/verification-before-completion",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "writing-plans",
+      "path": "skills/writing-plans",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "writing-skills",
+      "path": "skills/writing-skills",
+      "rules": {
+        "SK-SC-005": 1
+      },
+      "score": 1,
+      "severity": {
+        "low": 1
+      },
+      "verdict": "SAFE"
+    }
+  ]
+}

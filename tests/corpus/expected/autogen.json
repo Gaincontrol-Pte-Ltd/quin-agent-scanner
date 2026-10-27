@@ -1,0 +1,52 @@
+{
+  "agents": [
+    "Assistant",
+    "Critic",
+    "GittyAgent",
+    "SchedulingAssistant",
+    "User",
+    "ai_player",
+    "assistant",
+    "assistant",
+    "assistant",
+    "assistant",
+    "assistant",
+    "assistant",
+    "critic",
+    "critic",
+    "finance_agent",
+    "hr_agent",
+    "myagent",
+    "receiver",
+    "router",
+    "search_assistant",
+    "teachable_agent",
+    "user",
+    "user",
+    "user_proxy",
+    "weather_agent",
+    "yoda"
+  ],
+  "artifacts": 269,
+  "capability_tags": [
+    "llm-api",
+    "multi-agent",
+    "orchestration",
+    "prompt-templates",
+    "rag",
+    "tool-use"
+  ],
+  "confidence": 0.99,
+  "framework": "AutoGen 0.4.3",
+  "is_ai_application": true,
+  "mcp_servers": [],
+  "models": [
+    "openai:gpt-4-turbo-preview",
+    "openai:gpt-4o",
+    "openai:gpt-4o-2024-08-06",
+    "openai:gpt-4o-mini",
+    "openai:text-embedding-3-small"
+  ],
+  "risk_signals": {},
+  "tools": 11
+}

@@ -1,0 +1,13 @@
+{
+  "skills": [
+    {
+      "ecosystem": "instructions",
+      "name": "Agent instruction files",
+      "path": ".",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    }
+  ]
+}
