@@ -1,0 +1,118 @@
+# Quality corpus (see scripts/run_corpus.py and docs/stability.md, 'Detection changes').
+# Network entries are pinned to a commit; bump a commit deliberately and run --update.
+entries:
+- name: fixture-skills
+  kind: skills
+  source:
+    path: tests/fixtures/skills_repo
+- name: fixture-instructions-benign
+  kind: skills
+  source:
+    path: tests/fixtures/instructions_benign
+- name: fixture-instructions-discussion
+  kind: skills
+  source:
+    path: tests/fixtures/instructions_discussion
+- name: fixture-instructions-malicious
+  kind: skills
+  source:
+    path: tests/fixtures/instructions_malicious
+- name: anthropic-skills
+  kind: skills
+  source:
+    repo: https://github.com/anthropics/skills
+    commit: dbd4588f9e1033efb41dad4bef2f7947c8993d44
+- name: vercel-agent-skills
+  kind: skills
+  source:
+    repo: https://github.com/vercel-labs/agent-skills
+    commit: 063bee94c3f4df8453406c830b0a7df0f2860278
+- name: superpowers-skills
+  kind: skills
+  source:
+    repo: https://github.com/obra/superpowers
+    commit: 2ce8aa15d05bd57213e6f746f953aafb7ded7a8b
+- name: openai-skills
+  kind: skills
+  source:
+    repo: https://github.com/openai/skills
+    commit: 49f948faa9258a0c61caceaf225e179651397431
+- name: claude-code-plugins
+  kind: skills
+  source:
+    repo: https://github.com/anthropics/claude-code
+    commit: 08c6a4f5121ae140d3c1b5c96e3e5ae53587b54b
+    subpath: plugins
+- name: google-adk
+  kind: agents
+  source:
+    repo: https://github.com/google/adk-samples
+    commit: 45a6999ec8e391a75266ae9507e0e7ca2285ce8e
+    paths:
+    - python/agents/llm-auditor
+- name: strands-agents
+  kind: agents
+  source:
+    repo: https://github.com/strands-agents/samples
+    commit: 434e0e2afce569e29a2b656dc3cef4d2577d91ed
+    paths:
+    - python/01-learn
+- name: microsoft-agent-framework
+  kind: agents
+  source:
+    repo: https://github.com/microsoft/agent-framework
+    commit: 1168c001dd228d6c7a623fd14f53e1f05b7b4540
+    paths:
+    - python/samples
+- name: langchain
+  kind: agents
+  source:
+    repo: https://github.com/langchain-ai/rag-from-scratch
+    commit: 1fdb7d0e4f1d3e731c8397332452715512f18667
+- name: langgraph
+  kind: agents
+  source:
+    repo: https://github.com/langchain-ai/langgraph-101
+    commit: be1d6c15d6ff51a2c6a98fa3394fd425ab7e7c3a
+- name: crewai
+  kind: agents
+  source:
+    repo: https://github.com/crewAIInc/crewAI-examples
+    commit: da94a91e691e1cf5b3151416bb15b5b62729bea8
+    paths:
+    - crews
+- name: autogen
+  kind: agents
+  source:
+    repo: https://github.com/microsoft/autogen
+    commit: 004749e6b7102c8fd317b9b1499ce5807223c278
+    paths:
+    - python/samples
+- name: openai-agents-sdk
+  kind: agents
+  source:
+    repo: https://github.com/openai/openai-agents-python
+    commit: 9de261bffaf7a7ec312beda856bd7e5468eebd41
+    paths:
+    - examples
+- name: langchain-deep-agents
+  kind: agents
+  source:
+    repo: https://github.com/langchain-ai/deepagents
+    commit: 1f4237af32eef17581e507f914424d523fd7b296
+    paths:
+    - examples
+- name: agno
+  kind: agents
+  source:
+    repo: https://github.com/agno-agi/agno
+    commit: ffe47567920e5a5c5d5d416c2b366f8c32c62f31
+    paths:
+    - cookbook/00_quickstart
+    - cookbook/02_agents
+    - cookbook/03_teams
+- name: mastra
+  kind: agents
+  source:
+    repo: https://github.com/mastra-ai/weather-agent
+    commit: 2d013424da87f763c309104de446863cf4bde94b

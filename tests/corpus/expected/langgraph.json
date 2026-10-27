@@ -1,0 +1,25 @@
+{
+  "agents": [
+    "LinkedIn Post Skill",
+    "Research Assistant",
+    "Twitter/X Post Skill",
+    "invoice_information_subagent",
+    "supervisor"
+  ],
+  "artifacts": 255,
+  "capability_tags": [
+    "agent-instructions",
+    "agent-skills",
+    "llm-api",
+    "multi-agent",
+    "prompt-templates",
+    "tool-use"
+  ],
+  "confidence": 0.99,
+  "framework": "LangGraph 1.0.1",
+  "is_ai_application": true,
+  "mcp_servers": [],
+  "models": [],
+  "risk_signals": {},
+  "tools": 19
+}

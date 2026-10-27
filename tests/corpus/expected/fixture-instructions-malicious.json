@@ -1,0 +1,21 @@
+{
+  "skills": [
+    {
+      "ecosystem": "instructions",
+      "name": "Agent instruction files",
+      "path": ".",
+      "rules": {
+        "SK-EX-001": 1,
+        "SK-EX-003": 1,
+        "SK-EXEC-001": 1,
+        "SK-PI-001": 2
+      },
+      "score": 90,
+      "severity": {
+        "critical": 1,
+        "high": 4
+      },
+      "verdict": "HIGH_RISK"
+    }
+  ]
+}

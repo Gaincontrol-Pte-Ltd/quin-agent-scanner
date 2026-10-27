@@ -11,6 +11,7 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Quality corpus: `tests/corpus/manifest.yaml` pins 5 public skill collections, 11 framework example repositories (at commit SHAs) and the in-repo fixtures; `scripts/run_corpus.py` scans them with the public CLI (no LLM) and compares a deterministic summary with `tests/corpus/expected/`. A new required-able `Corpus` workflow runs it on pull requests that touch scanners, rules or the corpus, and fails if a snapshot moved without being updated or updated without a `### Detection changes` CHANGELOG entry; a weekly run reports drift against upstream HEAD. The in-repo entries also run in the normal test suite on every OS.
 - macOS and Windows are now tested in CI: the full suite runs on `macos-latest` and `windows-latest` for Python 3.11, 3.12 and 3.13, and the GitHub Action is exercised on all three operating systems. Tests that simulate Windows inputs (backslash paths, drive-letter and UNC targets, read-only files, BOM and CRLF text) also run on Linux.
 
 ### Fixed
@@ -20,6 +21,7 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Windows: `C:\...`, `C:/...`, UNC (`\\server\share`) and `~` paths were not recognised as local paths (`C:/work/repo` was even read as an `owner/repo` shorthand).
 - Windows: report file names were built from the whole target path, so `scan-batch` and `scan -d` could not write reports for a local path; the name is now the last path component reduced to characters valid on every OS (this also changes names containing spaces or punctuation, which are now replaced by `_`).
 - The `scan-batch` targets file is read as UTF-8 and tolerates a BOM and CRLF line endings; the Git askpass helper is written with LF line endings and a securely created temporary file.
+- Reproducible results: the same repository could produce different agents and tools on different machines. File listings are now sorted, scanner results are merged in a fixed order rather than thread-completion order, and on equal confidence the specific scanner (for example agent instances) wins over the generic code-pattern scanner when both report the same location. Capped lists (50 agents, 100 tools) therefore keep the same items everywhere.
 
 ### Changed
 

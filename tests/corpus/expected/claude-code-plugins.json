@@ -1,0 +1,106 @@
+{
+  "skills": [
+    {
+      "ecosystem": "generic",
+      "name": "claude-opus-4-5-migration",
+      "path": "claude-opus-4-5-migration/skills/claude-opus-4-5-migration",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "frontend-design",
+      "path": "frontend-design/skills/frontend-design",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "Writing Hookify Rules",
+      "path": "hookify/skills/writing-rules",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "Agent Development",
+      "path": "plugin-dev/skills/agent-development",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "Command Development",
+      "path": "plugin-dev/skills/command-development",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "Hook Development",
+      "path": "plugin-dev/skills/hook-development",
+      "rules": {
+        "SK-EX-002": 1,
+        "SK-EXEC-002": 1,
+        "SK-SC-005": 1
+      },
+      "score": 20,
+      "severity": {
+        "high": 1,
+        "low": 1,
+        "medium": 1
+      },
+      "verdict": "CAUTION"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "MCP Integration",
+      "path": "plugin-dev/skills/mcp-integration",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "Plugin Settings",
+      "path": "plugin-dev/skills/plugin-settings",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "Plugin Structure",
+      "path": "plugin-dev/skills/plugin-structure",
+      "rules": {
+        "SK-SC-005": 1
+      },
+      "score": 1,
+      "severity": {
+        "low": 1
+      },
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "Skill Development",
+      "path": "plugin-dev/skills/skill-development",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    }
+  ]
+}

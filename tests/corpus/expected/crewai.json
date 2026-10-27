@@ -1,0 +1,37 @@
+{
+  "agents": [
+    "\"Senior Idea Analyst\"\n",
+    "Activity Planner\n",
+    "CV Reader\n",
+    "Job Candidate Researcher\n",
+    "Lead Market Analyst\n",
+    "Meta Quest Expert\n",
+    "Requirements Manager\n",
+    "Research Analyst\n",
+    "Senior Software Engineer\n",
+    "The Best Financial Analyst\n",
+    "spamfilter\n"
+  ],
+  "artifacts": 343,
+  "capability_tags": [
+    "llm-api",
+    "multi-agent",
+    "orchestration",
+    "prompt-templates",
+    "rag",
+    "tool-use"
+  ],
+  "confidence": 0.99,
+  "framework": "CrewAI 0.152.0",
+  "is_ai_application": true,
+  "mcp_servers": [],
+  "models": [
+    "meta:llama3.1",
+    "openai:gpt-3.5-turbo",
+    "openai:gpt-4",
+    "openai:gpt-4o",
+    "unknown:openhermes"
+  ],
+  "risk_signals": {},
+  "tools": 18
+}

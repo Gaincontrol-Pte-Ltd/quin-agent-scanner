@@ -39,7 +39,7 @@ Breaking changes need a new **major** version, and a [deprecation](#deprecation)
 Detection improves over time. A rule becoming more or less sensitive can move a skill's verdict or score, or add or remove findings. That is **not** a breaking change, but it is never silent:
 
 - the CHANGELOG lists it under a **Detection changes** heading;
-- the pull request updates the quality-corpus snapshot so reviewers can see exactly what moved *(planned)*;
+- the pull request updates the quality-corpus snapshots (`tests/corpus/expected/`, produced by `scripts/run_corpus.py --update`) so reviewers see exactly which skills and repositories moved, and CI fails if a rule or scanner change moves a snapshot without updating it, or updates it without a CHANGELOG entry;
 - the [baseline](../README.md#scan-a-skill-before-installing-it) lets you accept existing findings so only new ones fail a build.
 
 ## Deprecation
