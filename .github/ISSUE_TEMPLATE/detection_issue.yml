@@ -1,0 +1,41 @@
+name: Detection issue (false positive / false negative)
+description: Quin flagged something it should not have, or missed something it should have found
+labels: ["bug"]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: Quin version
+      description: Output of `quin-scanner --version`
+    validations:
+      required: true
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What went wrong
+      options:
+        - False positive (flagged, but it is fine)
+        - False negative (missed something real)
+        - Wrong framework, agent or tool attribution
+        - Wrong severity or score
+    validations:
+      required: true
+  - type: input
+    id: rule
+    attributes:
+      label: Rule or threat ID
+      description: For example `SK-EX-002` or `AG-03`. Leave blank for a false negative.
+  - type: textarea
+    id: sample
+    attributes:
+      label: Minimal sample
+      description: The smallest file or snippet that reproduces it. Public repositories are welcome; do not paste private code or secrets.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected instead
+    validations:
+      required: true

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
-  ArrowLeft, Bot, Shield, Wrench, Server, Cpu, AlertTriangle, CheckCircle,
+  ArrowLeft, Bot, Shield, AlertTriangle, CheckCircle,
   ExternalLink, ChevronDown, ChevronUp,
 } from 'lucide-react';
 import { pollJob } from '../api';
@@ -334,7 +334,7 @@ export default function Results() {
             <button
               onClick={() => navigate('/')}
               style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '.82rem', color: 'rgba(253,246,236,0.6)', background: 'none', border: 'none', cursor: 'pointer', transition: 'color 150ms' }}
-              onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.color = T.cream)}
+              onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.color = T.text)}
               onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.color = 'rgba(253,246,236,0.6)')}
             >
               <ArrowLeft size={14} /> New scan
@@ -346,7 +346,7 @@ export default function Results() {
           {/* Brand + title */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
             <div>
-              <div style={{ fontSize: '1.32rem', fontWeight: 700, letterSpacing: '-.025em', color: T.cream, lineHeight: 1.1 }}>
+              <div style={{ fontSize: '1.32rem', fontWeight: 700, letterSpacing: '-.025em', color: T.text, lineHeight: 1.1 }}>
                 Quin <span style={{ color: T.quin }}>Scanner</span>
               </div>
               <div style={{ fontSize: '.7rem', fontWeight: 600, color: 'rgba(253,246,236,0.55)', letterSpacing: '.12em', textTransform: 'uppercase', marginTop: 4 }}>
@@ -354,7 +354,7 @@ export default function Results() {
               </div>
             </div>
             <div style={{ textAlign: 'right' }}>
-              <div style={{ fontWeight: 600, color: T.cream, fontSize: '.88rem', fontFamily: 'Fira Code, monospace', wordBreak: 'break-all' }}>
+              <div style={{ fontWeight: 600, color: T.text, fontSize: '.88rem', fontFamily: 'Fira Code, monospace', wordBreak: 'break-all' }}>
                 {repoName}
               </div>
               <div style={{ fontSize: '.78rem', color: 'rgba(253,246,236,0.55)', marginTop: 3 }}>

@@ -1,0 +1,12 @@
+# Default owner for everything.
+*                                    @gcxvinz
+
+# Surfaces covered by the stability policy (docs/stability.md): changes here need care.
+/action.yml                          @gcxvinz
+/docs/schema/                        @gcxvinz
+/docs/stability.md                   @gcxvinz
+/src/quin_scanner/rules/             @gcxvinz
+/src/quin_scanner/schema.py          @gcxvinz
+/tests/corpus/                       @gcxvinz
+/tests/schema_baseline/              @gcxvinz
+/.github/                            @gcxvinz
