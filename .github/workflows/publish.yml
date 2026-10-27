@@ -65,3 +65,40 @@ jobs:
           git push origin "$floating" --force
           echo "Moved $floating to $GITHUB_REF_NAME"
 
+
+  github-release:
+    name: GitHub Release
+    needs: publish
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          version: "latest"
+
+      - name: Build package
+        run: uv build
+
+      - name: Create or update the GitHub Release
+        # The body is this version's CHANGELOG section. Pre-releases (aN, bN, rcN) are
+        # marked as such so they never show as the latest release. Re-running a failed
+        # publish updates the existing release instead of erroring.
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          python3 scripts/release_notes.py "$TAG" > notes.md
+          flags=()
+          if [[ "$TAG" =~ (a|b|rc)[0-9]+$ ]]; then flags+=(--prerelease); fi
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release edit "$TAG" --title "$TAG" --notes-file notes.md "${flags[@]}"
+            gh release upload "$TAG" dist/* --clobber
+          else
+            gh release create "$TAG" dist/* --title "$TAG" --notes-file notes.md --verify-tag "${flags[@]}"
+          fi
