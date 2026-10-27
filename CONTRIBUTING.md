@@ -49,6 +49,7 @@ Check the [roadmap](#project-roadmap) first — features may already be schedule
 2. **Keep scope tight** — one feature or fix per PR
 3. **Update CHANGELOG.md** under `[Unreleased]`
 4. Open the PR with a clear description of what and why
+   CI runs the suite on Linux, macOS and Windows. Write portable code: repo-relative paths are always `/`-separated (use `to_repo_path` in `repo_accessor.py`), read and write text files with an explicit `encoding="utf-8"`, remove temporary clones with `remove_tree`, and do not assume a POSIX shell or file modes in tests (use `pytest.mark.skipif(sys.platform == "win32", reason=...)` only when the behaviour genuinely does not exist on Windows).
 5. **LLM providers and SDK bumps** — changes to `src/quin_scanner/llm/` and bumps of `anthropic`, `google-genai` or `openai` must keep `tests/test_llm_providers.py` green. These tests run the real SDKs against mocked endpoints without API keys; they are the only CI check that a provider still works after an SDK upgrade
 
 ---

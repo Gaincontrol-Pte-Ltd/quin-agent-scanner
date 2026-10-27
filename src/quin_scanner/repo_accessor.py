@@ -3,13 +3,60 @@ from __future__ import annotations
 import json
 import os
 import re
+import shutil
+import stat
 import sys
+import tempfile
 import time
 import urllib.error
 import urllib.request
 from abc import ABC, abstractmethod
 from collections.abc import Callable
-from pathlib import Path
+from pathlib import Path, PurePath
+
+_WINDOWS_PATH = re.compile(r"^(?:[A-Za-z]:[\\/]|\\\\)")
+
+
+def to_repo_path(path: PurePath) -> str:
+    """A repo-relative path as a string with forward slashes on every OS."""
+    return path.as_posix()
+
+
+def remove_tree(path: Path) -> None:
+    """shutil.rmtree that also removes read-only files and directories.
+
+    git writes object files read-only and Windows refuses to delete read-only files, so a plain
+    rmtree of a fresh clone raises PermissionError there.
+    """
+    path = Path(path)
+    if not path.exists():
+        return
+
+    def _retry(function, target, _exc) -> None:
+        os.chmod(target, stat.S_IRWXU)
+        parent = os.path.dirname(target)
+        if parent:
+            os.chmod(parent, stat.S_IRWXU)
+        function(target)
+
+    if sys.version_info >= (3, 12):
+        shutil.rmtree(path, onexc=_retry)
+    else:
+        shutil.rmtree(path, onerror=lambda function, target, exc_info: _retry(function, target, exc_info))
+
+
+def _write_askpass_script(token: str) -> str:
+    """Write the GIT_ASKPASS helper and return its path.
+
+    Created with mkstemp (no race on the name), owner-only, and written with LF newlines: a CRLF in the
+    shebang line (Windows text mode) would make it '#!/bin/sh\\r'.
+    """
+    fd, name = tempfile.mkstemp(prefix="quin_askpass_", suffix=".sh")
+    with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as handle:
+        handle.write(f"#!/bin/sh\necho {token}\n")
+    os.chmod(name, stat.S_IRWXU)
+    return name
+
 
 # ── Network resilience & progress utilities ──────────────────────────────────
 
@@ -129,7 +176,7 @@ class LocalRepoAccessor(RepoAccessor):
 
     def list_files(self, glob_pattern: str = "**/*") -> list[str]:
         return [
-            str(p.relative_to(self.repo_path))
+            to_repo_path(p.relative_to(self.repo_path))
             for p in self.repo_path.glob(glob_pattern)
             if p.is_file()
         ]
@@ -275,9 +322,7 @@ class GitCloneAccessor(RepoAccessor):
 
     def setup(self, verbose: bool = True) -> None:
         """Clone repo to temp directory with progress and retry."""
-        import shutil
         import subprocess
-        import tempfile
 
         url = self.repo_url
         env = {**os.environ, "GIT_LFS_SKIP_SMUDGE": "1"}
@@ -286,11 +331,7 @@ class GitCloneAccessor(RepoAccessor):
         # command-line arguments (which are visible in process listings).
         askpass_script: str | None = None
         if self.github_token:
-            import stat
-            askpass_file = Path(tempfile.mktemp(prefix="quin_askpass_", suffix=".sh"))
-            askpass_file.write_text(f"#!/bin/sh\necho {self.github_token}\n")
-            askpass_file.chmod(stat.S_IRWXU)
-            askpass_script = str(askpass_file)
+            askpass_script = _write_askpass_script(self.github_token)
             env["GIT_ASKPASS"] = askpass_script
             # Rewrite HTTPS URL to include a dummy username so git triggers askpass
             if url.startswith("https://") and "@" not in url:
@@ -327,7 +368,10 @@ class GitCloneAccessor(RepoAccessor):
                     buf += ch
             proc.wait()
             if proc.returncode != 0 and not _has_files(tmp):
-                shutil.rmtree(tmp, ignore_errors=True)
+                try:
+                    remove_tree(tmp)
+                except OSError:
+                    pass
                 raise subprocess.CalledProcessError(
                     proc.returncode, cmd, proc.stdout.read() if proc.stdout else b"",  # type: ignore[union-attr]
                     b"",
@@ -371,9 +415,8 @@ class GitCloneAccessor(RepoAccessor):
 
     def cleanup(self) -> None:
         """Remove temp directory."""
-        import shutil
         if self._temp_dir and self._temp_dir.exists():
-            shutil.rmtree(self._temp_dir)
+            remove_tree(self._temp_dir)
             self._temp_dir = None
 
     def list_files(self, glob_pattern: str = "**/*") -> list[str]:
@@ -449,9 +492,14 @@ class RepoAccessorFactory:
                 target = target[: tree_match.start()]
             return GitCloneAccessor(target, github_token=github_token, branch=branch, subpath=subpath)
 
-        # Local path: starts with / or . or is an existing directory
-        target_path = Path(target)
-        if target.startswith("/") or target.startswith(".") or target_path.exists():
+        # Local path: POSIX absolute or relative, a home directory, a Windows drive or UNC path,
+        # or anything that exists on disk
+        target_path = Path(target).expanduser() if target.startswith("~") else Path(target)
+        if (
+            target.startswith(("/", ".", "~"))
+            or _WINDOWS_PATH.match(target)
+            or target_path.exists()
+        ):
             return LocalRepoAccessor(target_path)
 
         # owner/repo shorthand (exactly one slash, no spaces)
