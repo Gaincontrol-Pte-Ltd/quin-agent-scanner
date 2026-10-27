@@ -161,6 +161,11 @@ def diff(kind: str, old: dict, new: dict) -> list[str]:
             for rule in sorted(a["rules"].keys() | b["rules"].keys()):
                 if a["rules"].get(rule, 0) != b["rules"].get(rule, 0):
                     lines.append(f"{path}: rule {rule} {a['rules'].get(rule, 0)} -> {b['rules'].get(rule, 0)}")
+            for severity in sorted(a["severity"].keys() | b["severity"].keys()):
+                if a["severity"].get(severity, 0) != b["severity"].get(severity, 0):
+                    lines.append(
+                        f"{path}: severity {severity} {a['severity'].get(severity, 0)} -> {b['severity'].get(severity, 0)}"
+                    )
         return lines
     for key in sorted(old.keys() | new.keys()):
         if old.get(key) != new.get(key):

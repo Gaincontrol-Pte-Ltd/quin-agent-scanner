@@ -124,3 +124,13 @@ def test_update_is_idempotent_for_the_in_repo_entries(tmp_path, monkeypatch):
     assert {p.name: p.read_text(encoding="utf-8") for p in tmp_path.glob("*.json")} == first
     assert run_corpus.main(["--check", "--local-only"]) == 0
     assert all(json.loads(text) for text in first.values())
+
+
+def test_skills_diff_reports_severity_changes_even_when_rule_counts_are_equal():
+    # A rule whose severity was changed (same findings, different weight) must be visible in the diff.
+    old = run_corpus.summarize("skills", _skills_report(("s/a", "a", "CAUTION", 36, {"critical": 1}, ["SK-EXEC-001"])))
+    new = run_corpus.summarize("skills", _skills_report(("s/a", "a", "SAFE", 4, {"low": 1}, ["SK-EXEC-001"])))
+    text = "\n".join(run_corpus.diff("skills", old, new))
+    assert "s/a: severity critical 1 -> 0" in text
+    assert "s/a: severity low 0 -> 1" in text
+    assert "s/a: verdict CAUTION -> SAFE" in text
