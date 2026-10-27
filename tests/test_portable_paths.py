@@ -165,3 +165,47 @@ def test_output_filename_uses_the_last_path_component(target, expected):
     assert name.startswith(expected + "_"), name
     assert name.endswith(".json")
     assert not any(ch in name for ch in '\\/:*?"<>|'), name
+
+
+# --- the file listing order must not influence results (capped lists keep a prefix) ---------------
+
+def test_file_index_is_sorted_whatever_order_the_accessor_lists_files():
+    accessor = _BackslashAccessor({"z.py": "1", "a/b.py": "2", "m.py": "3", "a/a.py": "4"})
+    index = FileIndex(accessor)
+    index.build()
+    assert index.all_files() == sorted(index.all_files())
+    assert index.all_files() == ["a/a.py", "a/b.py", "m.py", "z.py"]
+
+
+def test_local_accessor_lists_files_in_sorted_order(tmp_path):
+    for name in ("zeta.py", "alpha.py", "mid/b.py", "mid/a.py", "beta.py"):
+        path = tmp_path / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("x = 1\n")
+    paths = LocalRepoAccessor(tmp_path).list_files()
+    assert paths == sorted(paths)
+
+
+class _ReversedAccessor(LocalRepoAccessor):
+    """Lists files in the opposite order, like a filesystem that does not return them sorted."""
+
+    def list_files(self, glob_pattern: str = "**/*") -> list[str]:
+        return list(reversed(super().list_files(glob_pattern)))
+
+
+def test_a_capped_scan_keeps_the_same_agents_whatever_order_files_are_listed(tmp_path):
+    from quin_scanner.config import ScannerConfig
+    from quin_scanner.orchestrator import ScanOrchestrator
+
+    for i in range(60):  # more instances than the orchestrator's cap of 50
+        (tmp_path / f"agent_{i:02d}.py").write_text(f'agent = Agent(name="agent_{i:02d}")\n')
+    config = ScannerConfig(enabled_scanners=["agent_instance"], no_llm=True, vuln_check_enabled=False)
+
+    forward = ScanOrchestrator().run(LocalRepoAccessor(tmp_path), config, verbose=False)
+    backward = ScanOrchestrator().run(_ReversedAccessor(tmp_path), config, verbose=False)
+
+    names_forward = sorted(a.name for a in forward.agents)
+    names_backward = sorted(a.name for a in backward.agents)
+    assert names_forward == names_backward
+    assert len(names_forward) == 50
+    assert names_forward == [f"agent_{i:02d}" for i in range(50)]  # the first 50 in path order

@@ -175,11 +175,13 @@ class LocalRepoAccessor(RepoAccessor):
         self.repo_path = repo_path.resolve()
 
     def list_files(self, glob_pattern: str = "**/*") -> list[str]:
-        return [
+        # Sorted: filesystems return entries in different orders, and some results are capped
+        # (a prefix is kept), so an unsorted listing made reports differ between machines.
+        return sorted(
             to_repo_path(p.relative_to(self.repo_path))
             for p in self.repo_path.glob(glob_pattern)
             if p.is_file()
-        ]
+        )
 
     def read_file(self, path: str) -> str:
         return (self.repo_path / path).read_text(encoding="utf-8", errors="replace")

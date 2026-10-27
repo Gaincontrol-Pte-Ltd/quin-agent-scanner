@@ -21,6 +21,7 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Windows: `C:\...`, `C:/...`, UNC (`\\server\share`) and `~` paths were not recognised as local paths (`C:/work/repo` was even read as an `owner/repo` shorthand).
 - Windows: report file names were built from the whole target path, so `scan-batch` and `scan -d` could not write reports for a local path; the name is now the last path component reduced to characters valid on every OS (this also changes names containing spaces or punctuation, which are now replaced by `_`).
 - The `scan-batch` targets file is read as UTF-8 and tolerates a BOM and CRLF line endings; the Git askpass helper is written with LF line endings and a securely created temporary file.
+- Reproducible results: the same repository could produce different agents and tools on different machines. File listings are now sorted, scanner results are merged in a fixed order rather than thread-completion order, and on equal confidence the specific scanner (for example agent instances) wins over the generic code-pattern scanner when both report the same location. Capped lists (50 agents, 100 tools) therefore keep the same items everywhere.
 
 ### Changed
 
