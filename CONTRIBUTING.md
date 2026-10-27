@@ -49,6 +49,7 @@ Check the [roadmap](#project-roadmap) first — features may already be schedule
 2. **Keep scope tight** — one feature or fix per PR
 3. **Update CHANGELOG.md** under `[Unreleased]`
 4. Open the PR with a clear description of what and why
+   CI runs the suite on Linux, macOS and Windows. Write portable code: repo-relative paths are always `/`-separated (use `to_repo_path` in `repo_accessor.py`), read and write text files with an explicit `encoding="utf-8"`, remove temporary clones with `remove_tree`, and do not assume a POSIX shell or file modes in tests (use `pytest.mark.skipif(sys.platform == "win32", reason=...)` only when the behaviour genuinely does not exist on Windows).
 5. **LLM providers and SDK bumps** — changes to `src/quin_scanner/llm/` and bumps of `anthropic`, `google-genai` or `openai` must keep `tests/test_llm_providers.py` green. These tests run the real SDKs against mocked endpoints without API keys; they are the only CI check that a provider still works after an SDK upgrade
 
 ---
@@ -84,6 +85,11 @@ When you add or change a rule:
 3. Check the effect on real content: `quin-scanner skills scan <folder> --no-vuln-check` on a few public skill repositories and on `tests/fixtures/skills_repo`. `evil-formatter` must stay `HIGH_RISK`; `commit-helper` and `injection-awareness` must stay `SAFE` with no findings.
 4. Never weaken a rule so that an obvious true positive stops firing; tighten the context instead.
 5. Run `python3 -m pytest tests/ -q` and `ruff check src/ --select F,E4,E7,E9`, and add a line under `[Unreleased]` in `CHANGELOG.md`.
+6. Run `python3 scripts/run_corpus.py --check`. It scans pinned public repositories and the fixtures without an LLM. If your change is meant to move results, run `python3 scripts/run_corpus.py --update`, commit the changed files in `tests/corpus/expected/` and describe the effect under `### Detection changes` in `CHANGELOG.md`. Use `--local-only` for a fast offline check; the in-repo entries also run in the normal test suite.
+
+### Quality corpus
+
+`tests/corpus/manifest.yaml` lists the repositories and fixtures that make up the quality corpus. To add an entry, add it to the manifest with a pinned commit SHA (or an in-repo path), then run `python3 scripts/run_corpus.py --update --only NAME` and commit the new snapshot in `tests/corpus/expected/`. A pinned commit is bumped deliberately, never automatically: change the SHA, run `--update --only NAME`, and review the snapshot diff.
 
 ---
 

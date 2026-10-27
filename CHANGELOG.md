@@ -9,6 +9,22 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Quality corpus: `tests/corpus/manifest.yaml` pins 5 public skill collections, 11 framework example repositories (at commit SHAs) and the in-repo fixtures; `scripts/run_corpus.py` scans them with the public CLI (no LLM) and compares a deterministic summary with `tests/corpus/expected/`. A new required-able `Corpus` workflow runs it on pull requests that touch scanners, rules or the corpus, and fails if a snapshot moved without being updated or updated without a `### Detection changes` CHANGELOG entry; a weekly run reports drift against upstream HEAD. The in-repo entries also run in the normal test suite on every OS.
+- macOS and Windows are now tested in CI: the full suite runs on `macos-latest` and `windows-latest` for Python 3.11, 3.12 and 3.13, and the GitHub Action is exercised on all three operating systems. Tests that simulate Windows inputs (backslash paths, drive-letter and UNC targets, read-only files, BOM and CRLF text) also run on Linux.
+- Releases: pushing a version tag now also creates a GitHub Release whose notes are that version's CHANGELOG section (pre-releases are marked as such), with the built package attached. `scripts/release_notes.py` extracts the section.
+- Repository: issue forms (bug, detection issue, feature request), a pull request template with the CHANGELOG, corpus and stability checklist, a `CODEOWNERS` file for the stable surfaces, and a `Frontend` workflow that builds the experimental web UI when it changes.
+
+### Fixed
+
+- Windows: skill, MCP and instruction-file discovery found nothing because file paths used backslashes (repo-relative paths are now always `/`-separated, at the accessor boundary and again in the file index).
+- Windows: cleaning up a cloned GitHub repository raised `PermissionError` on git's read-only files, so a scan of a GitHub URL failed at cleanup; temporary clones are now removed with a helper that handles read-only files.
+- Windows: `C:\...`, `C:/...`, UNC (`\\server\share`) and `~` paths were not recognised as local paths (`C:/work/repo` was even read as an `owner/repo` shorthand).
+- Windows: report file names were built from the whole target path, so `scan-batch` and `scan -d` could not write reports for a local path; the name is now the last path component reduced to characters valid on every OS (this also changes names containing spaces or punctuation, which are now replaced by `_`).
+- The `scan-batch` targets file is read as UTF-8 and tolerates a BOM and CRLF line endings; the Git askpass helper is written with LF line endings and a securely created temporary file.
+- Reproducible results: the same repository could produce different agents and tools on different machines. File listings are now sorted, scanner results are merged in a fixed order rather than thread-completion order, and on equal confidence the specific scanner (for example agent instances) wins over the generic code-pattern scanner when both report the same location. Capped lists (50 agents, 100 tools) therefore keep the same items everywhere.
+
 ### Changed
 
 - Dependency ranges now match what is tested: `click>=8.2` (was 8.1), `openai>=1.55.3,<3` (was `>=1.0`; older versions break with current `httpx`), `google-genai>=1.15,<3` (was `>=1.0`), `httpx>=0.28.1` (was `>=0.27`; `google-genai` already required it). The vendor SDKs now have a ceiling at the next major version, like `anthropic` already had. Installs that pin older versions of these packages must upgrade them.

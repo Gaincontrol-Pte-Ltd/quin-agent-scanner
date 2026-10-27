@@ -392,7 +392,7 @@ Sample HTML reports for several supported frameworks live in [`examples/reports/
 
 ### Prerequisites
 
-- **Python 3.11+** -- [download](https://www.python.org/downloads/)
+- **Python 3.11+** -- [download](https://www.python.org/downloads/). Quin runs on **Linux, macOS and Windows**; CI runs the full test suite on all three
 - **An LLM API key** _(optional)_ -- OpenAI, Anthropic, Google, or a local Ollama model. Not needed with `--no-llm`, and not needed for `quin-scanner skills scan`, which is static unless you pass an LLM option
 - **git** -- for scanning GitHub repos
 - **GitHub token** _(optional)_ -- for private repos or org scanning

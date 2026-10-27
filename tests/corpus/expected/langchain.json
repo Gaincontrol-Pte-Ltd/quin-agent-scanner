@@ -1,0 +1,14 @@
+{
+  "agents": [],
+  "artifacts": 85,
+  "capability_tags": [
+    "llm-api"
+  ],
+  "confidence": 0.9,
+  "framework": "unknown",
+  "is_ai_application": true,
+  "mcp_servers": [],
+  "models": [],
+  "risk_signals": {},
+  "tools": 0
+}

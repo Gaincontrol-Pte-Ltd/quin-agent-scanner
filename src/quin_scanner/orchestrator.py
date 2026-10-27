@@ -975,15 +975,18 @@ class ScanOrchestrator:
             return scanner.name(), findings
 
         with ThreadPoolExecutor() as executor:
-            futures = {executor.submit(_run_scanner, s): s for s in scanners}
-            for future in as_completed(futures):
-                scanner_name, findings = future.result()
-                all_findings.extend(findings)
-                if findings:
-                    findings_by_scanner[scanner_name] = len(findings)
-                completed_results.append((scanner_name, findings))
+            futures = [executor.submit(_run_scanner, s) for s in scanners]
+            for done, _ in enumerate(as_completed(futures), start=1):
                 if verbose:
-                    _progress_bar("Scanners   ", len(completed_results), len(scanners))
+                    _progress_bar("Scanners   ", done, len(scanners))
+        # Merge in scanner order, not completion order: capped lists keep a prefix, so
+        # thread timing must not decide which findings survive.
+        for future in futures:
+            scanner_name, findings = future.result()
+            all_findings.extend(findings)
+            if findings:
+                findings_by_scanner[scanner_name] = len(findings)
+            completed_results.append((scanner_name, findings))
 
         # Print per-scanner summary after progress bar completes
         if verbose:
@@ -1491,12 +1494,16 @@ class ScanOrchestrator:
         """Deduplicate findings by (file_path, line_number, capability_tag).
 
         When multiple scanners report the same signal at the same location,
-        keep only the finding with the highest confidence.
+        keep only the finding with the highest confidence. On a tie the specific
+        scanner wins over the generic CodePatternScanner, whatever the input order.
         """
+        def rank(f: ScanFinding) -> tuple[float, bool]:
+            return (f.confidence, f.scanner_name != "CodePatternScanner")
+
         best: dict[tuple, ScanFinding] = {}
         for f in findings:
             key = (f.file_path, f.line_number, f.capability_tag)
-            if key not in best or f.confidence > best[key].confidence:
+            if key not in best or rank(f) > rank(best[key]):
                 best[key] = f
         return list(best.values())
 

@@ -163,6 +163,15 @@ class TestDeduplication:
         assert len(deduped) == 1
         assert deduped[0].confidence == 0.9
 
+    def test_tie_goes_to_the_specific_scanner_whatever_the_order(self):
+        # Agents and tools are derived from these scanners' findings, so a generic
+        # CodePatternScanner hit at the same place must not displace them.
+        generic = _finding("CodePatternScanner", "Agent(", confidence=0.9, capability_tag="agent")
+        specific = _finding("AgentInstanceScanner", "Agent(", confidence=0.9, capability_tag="agent")
+        for findings in ([generic, specific], [specific, generic]):
+            deduped = ScanOrchestrator._deduplicate(findings)
+            assert [f.scanner_name for f in deduped] == ["AgentInstanceScanner"]
+
     def test_different_tags_kept(self):
         findings = [
             _finding("ScannerA", "match", capability_tag="tag1"),

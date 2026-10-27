@@ -1,0 +1,209 @@
+{
+  "skills": [
+    {
+      "ecosystem": "generic",
+      "name": "academy-guide",
+      "path": "skills/academy-guide",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "algorithmic-art",
+      "path": "skills/algorithmic-art",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "brand-guidelines",
+      "path": "skills/brand-guidelines",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "canvas-design",
+      "path": "skills/canvas-design",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "claude-api",
+      "path": "skills/claude-api",
+      "rules": {
+        "SK-AR-002": 8,
+        "SK-EX-002": 1,
+        "SK-SC-005": 4
+      },
+      "score": 7,
+      "severity": {
+        "low": 12,
+        "medium": 1
+      },
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "discernment-nudge",
+      "path": "skills/discernment-nudge",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "doc-coauthoring",
+      "path": "skills/doc-coauthoring",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "docx",
+      "path": "skills/docx",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "frontend-design",
+      "path": "skills/frontend-design",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "internal-comms",
+      "path": "skills/internal-comms",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "mcp-builder",
+      "path": "skills/mcp-builder",
+      "rules": {
+        "SK-SC-001": 2,
+        "SK-SC-005": 3
+      },
+      "score": 4,
+      "severity": {
+        "low": 5
+      },
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "pdf",
+      "path": "skills/pdf",
+      "rules": {
+        "SK-SC-005": 2
+      },
+      "score": 2,
+      "severity": {
+        "low": 2
+      },
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "pptx",
+      "path": "skills/pptx",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "skill-creator",
+      "path": "skills/skill-creator",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "slack-gif-creator",
+      "path": "skills/slack-gif-creator",
+      "rules": {
+        "SK-SC-001": 4,
+        "SK-SC-005": 3
+      },
+      "score": 4,
+      "severity": {
+        "low": 7
+      },
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "theme-factory",
+      "path": "skills/theme-factory",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "web-artifacts-builder",
+      "path": "skills/web-artifacts-builder",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "webapp-testing",
+      "path": "skills/webapp-testing",
+      "rules": {
+        "SK-CODE-002": 1
+      },
+      "score": 15,
+      "severity": {
+        "high": 1
+      },
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "xlsx",
+      "path": "skills/xlsx",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "template-skill",
+      "path": "template",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    }
+  ]
+}

@@ -32,7 +32,7 @@ class FileIndex:
 
     def build(self) -> None:
         """Populate the index by listing all files via the accessor."""
-        self._discovered_files = self._accessor.list_files("**/*")
+        self._discovered_files = sorted(p.replace("\\", "/") for p in self._accessor.list_files("**/*"))
         self._files = [f for f in self._discovered_files if not _is_vendor_path(f)]
         self._excluded_files = [f for f in self._discovered_files if _is_vendor_path(f)]
 

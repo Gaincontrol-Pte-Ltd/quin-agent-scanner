@@ -39,7 +39,7 @@ Breaking changes need a new **major** version, and a [deprecation](#deprecation)
 Detection improves over time. A rule becoming more or less sensitive can move a skill's verdict or score, or add or remove findings. That is **not** a breaking change, but it is never silent:
 
 - the CHANGELOG lists it under a **Detection changes** heading;
-- the pull request updates the quality-corpus snapshot so reviewers can see exactly what moved *(planned)*;
+- the pull request updates the quality-corpus snapshots (`tests/corpus/expected/`, produced by `scripts/run_corpus.py --update`) so reviewers see exactly which skills and repositories moved, and CI fails if a rule or scanner change moves a snapshot without updating it, or updates it without a CHANGELOG entry;
 - the [baseline](../README.md#scan-a-skill-before-installing-it) lets you accept existing findings so only new ones fail a build.
 
 ## Deprecation
@@ -122,7 +122,7 @@ Inputs and outputs are part of the contract; new inputs are always optional with
 
 ## Supported platforms and Python versions
 
-CI runs Python 3.11, 3.12 and 3.13. Linux is supported today; macOS and Windows support is *(planned for 1.0)* and will be tested in CI before it is promised. Dropping a platform or Python version is announced one minor release ahead.
+CI runs the full test suite on **Linux, macOS and Windows**, each on Python 3.11, 3.12 and 3.13, and runs the GitHub Action on all three operating systems. Known limits: authenticated `git clone` of private repositories (the `GIT_ASKPASS` helper) is not exercised by CI on Windows, and on Windows paths longer than 260 characters need long-path support enabled in the operating system. Dropping a platform or Python version is announced one minor release ahead.
 
 ## Dependencies
 

@@ -1,0 +1,45 @@
+{
+  "skills": [
+    {
+      "ecosystem": "claude",
+      "name": "commit-helper",
+      "path": ".claude/skills/commit-helper",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "claude",
+      "name": "evil-formatter",
+      "path": ".claude/skills/evil-formatter",
+      "rules": {
+        "SK-CODE-005": 1,
+        "SK-EX-001": 1,
+        "SK-EX-003": 1,
+        "SK-PERM-001": 1,
+        "SK-PERM-004": 1,
+        "SK-PERM-005": 1,
+        "SK-PI-001": 1,
+        "SK-PI-003": 1,
+        "SK-TAINT-001": 1
+      },
+      "score": 100,
+      "severity": {
+        "critical": 1,
+        "high": 7,
+        "medium": 1
+      },
+      "verdict": "HIGH_RISK"
+    },
+    {
+      "ecosystem": "claude",
+      "name": "injection-awareness",
+      "path": ".claude/skills/injection-awareness",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    }
+  ]
+}

@@ -62,3 +62,4 @@ report/*.yml
 # Scratch commit message drafts
 /commit-message-1.txt
 /commit-message-2.txt
+.corpus-cache/
