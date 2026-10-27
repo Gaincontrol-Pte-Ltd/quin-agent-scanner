@@ -1,0 +1,88 @@
+name: Corpus
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '17 5 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  corpus:
+    name: Quality corpus
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Always runs (so it can be a required check) but only does the work when it can matter.
+      - name: Decide whether the corpus is relevant
+        id: relevant
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT" != "pull_request" ]; then
+            echo "relevant=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          changed="$(git diff --name-only "origin/$BASE_REF...HEAD")"
+          if echo "$changed" | grep -E -q '^(src/quin_scanner/(scanners|rules)/|src/quin_scanner/(orchestrator|file_index|repo_accessor|models|config|cli|risk_taxonomy)\.py|tests/corpus/|scripts/run_corpus\.py|pyproject\.toml|uv\.lock)'; then
+            echo "relevant=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "relevant=false" >> "$GITHUB_OUTPUT"
+            echo "No scanner, rule or corpus files changed; skipping the corpus run."
+          fi
+
+      - name: Snapshots changed without a CHANGELOG entry
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          set -euo pipefail
+          if git diff --name-only "origin/$BASE_REF...HEAD" | grep -q '^tests/corpus/expected/'; then
+            if ! git diff --name-only "origin/$BASE_REF...HEAD" | grep -q '^CHANGELOG.md$'; then
+              echo "::error::tests/corpus/expected/ changed but CHANGELOG.md did not. Describe the detection change under '### Detection changes' in [Unreleased]."
+              exit 1
+            fi
+            if ! awk '/^## \[Unreleased\]/{f=1;next} /^## \[/{f=0} f' CHANGELOG.md | grep -q '^### Detection changes'; then
+              echo "::error::The [Unreleased] section of CHANGELOG.md needs a '### Detection changes' heading describing the corpus change."
+              exit 1
+            fi
+          fi
+
+      - name: Install uv
+        if: steps.relevant.outputs.relevant == 'true'
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+
+      - name: Set up Python
+        if: steps.relevant.outputs.relevant == 'true'
+        run: uv python install 3.12
+
+      - name: Install dependencies
+        if: steps.relevant.outputs.relevant == 'true'
+        run: uv sync --all-extras
+
+      - name: Cache fetched corpus repositories
+        if: steps.relevant.outputs.relevant == 'true'
+        uses: actions/cache@v4
+        with:
+          path: .corpus-cache
+          key: corpus-${{ hashFiles('tests/corpus/manifest.yaml') }}
+
+      - name: Check the corpus against the pinned commits
+        if: steps.relevant.outputs.relevant == 'true' && github.event_name != 'schedule'
+        run: uv run python scripts/run_corpus.py --check
+
+      # Weekly: how would the snapshots change against upstream HEAD? Failing here is a signal, not a blocker.
+      - name: Drift against upstream HEAD
+        if: github.event_name == 'schedule'
+        run: uv run python scripts/run_corpus.py --check --latest | tee "$GITHUB_STEP_SUMMARY"

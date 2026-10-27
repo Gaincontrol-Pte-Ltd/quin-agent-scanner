@@ -11,6 +11,7 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Quality corpus: `tests/corpus/manifest.yaml` pins 5 public skill collections, 11 framework example repositories (at commit SHAs) and the in-repo fixtures; `scripts/run_corpus.py` scans them with the public CLI (no LLM) and compares a deterministic summary with `tests/corpus/expected/`. A new required-able `Corpus` workflow runs it on pull requests that touch scanners, rules or the corpus, and fails if a snapshot moved without being updated or updated without a `### Detection changes` CHANGELOG entry; a weekly run reports drift against upstream HEAD. The in-repo entries also run in the normal test suite on every OS.
 - macOS and Windows are now tested in CI: the full suite runs on `macos-latest` and `windows-latest` for Python 3.11, 3.12 and 3.13, and the GitHub Action is exercised on all three operating systems. Tests that simulate Windows inputs (backslash paths, drive-letter and UNC targets, read-only files, BOM and CRLF text) also run on Linux.
 
 ### Fixed
