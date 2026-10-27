@@ -46,9 +46,10 @@ jobs:
           BASE_REF: ${{ github.base_ref }}
         run: |
           set -euo pipefail
-          if git diff --name-only "origin/$BASE_REF...HEAD" | grep -q '^tests/corpus/expected/'; then
+          # Only modified or deleted snapshots are detection changes; a new entry adds coverage, it moves nothing.
+          if git diff --name-only --diff-filter=MD "origin/$BASE_REF...HEAD" | grep -q '^tests/corpus/expected/'; then
             if ! git diff --name-only "origin/$BASE_REF...HEAD" | grep -q '^CHANGELOG.md$'; then
-              echo "::error::tests/corpus/expected/ changed but CHANGELOG.md did not. Describe the detection change under '### Detection changes' in [Unreleased]."
+              echo "::error::An existing tests/corpus/expected/ snapshot changed but CHANGELOG.md did not. Describe the detection change under '### Detection changes' in [Unreleased]."
               exit 1
             fi
             if ! awk '/^## \[Unreleased\]/{f=1;next} /^## \[/{f=0} f' CHANGELOG.md | grep -q '^### Detection changes'; then
