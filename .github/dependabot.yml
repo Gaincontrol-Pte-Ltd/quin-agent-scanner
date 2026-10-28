@@ -12,6 +12,15 @@ updates:
     groups:
       python-minor-and-patch:
         update-types: ["minor", "patch"]
+    ignore:
+      # The LLM SDKs have a deliberate ceiling at the next major version (see pyproject.toml)
+      # until the SDK-decoupling work. Minor and patch updates inside the ceiling still arrive.
+      - dependency-name: "openai"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "anthropic"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "google-genai"
+        update-types: ["version-update:semver-major"]
 
   # GitHub Actions used by the workflows
   - package-ecosystem: "github-actions"
