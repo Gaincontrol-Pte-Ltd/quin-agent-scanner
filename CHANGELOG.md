@@ -9,6 +9,10 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.0.0rc1] — 2026-10-28
+
+**First release candidate for 1.0.** The interfaces in the [stability policy](docs/stability.md) are frozen from this release: the CLI and its exit codes, the JSON/YAML report schema (`schema_version` 1.0), SARIF output and rule IDs, and the config, baseline and GitHub Action interfaces. Quin is now tested on Linux, macOS and Windows with Python 3.11, 3.12 and 3.13, and a pinned corpus of public repositories guards detection quality. `1.0.0` follows after about two weeks without a contract change or an open critical bug; please try this release on your repositories and [report problems](https://github.com/Gaincontrol-Pte-Ltd/quin-agent-scanner/issues). Upgrading from a beta? Read [Migrating from the betas](docs/migrating-from-the-betas.md) first.
+
 ### Added
 
 - Quality corpus: `tests/corpus/manifest.yaml` pins 5 public skill collections, 11 framework example repositories (at commit SHAs) and the in-repo fixtures; `scripts/run_corpus.py` scans them with the public CLI (no LLM) and compares a deterministic summary with `tests/corpus/expected/`. A new required-able `Corpus` workflow runs it on pull requests that touch scanners, rules or the corpus, and fails if a snapshot moved without being updated or updated without a `### Detection changes` CHANGELOG entry; a weekly run reports drift against upstream HEAD. The in-repo entries also run in the normal test suite on every OS.
@@ -16,27 +20,8 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Releases: pushing a version tag now also creates a GitHub Release whose notes are that version's CHANGELOG section (pre-releases are marked as such), with the built package attached. `scripts/release_notes.py` extracts the section.
 - Repository: issue forms (bug, detection issue, feature request), a pull request template with the CHANGELOG, corpus and stability checklist, a `CODEOWNERS` file for the stable surfaces, and a `Frontend` workflow that builds the experimental web UI when it changes.
 - Documentation: a generated command-line reference (`docs/cli.md`, produced by `scripts/gen_cli_reference.py` from the CLI; a test fails when it is stale), a migration note for users of the betas (`docs/migrating-from-the-betas.md`), and a test that fails when the README mentions a flag or command that does not exist.
-
-### Fixed
-
-- Windows: skill, MCP and instruction-file discovery found nothing because file paths used backslashes (repo-relative paths are now always `/`-separated, at the accessor boundary and again in the file index).
-- Windows: cleaning up a cloned GitHub repository raised `PermissionError` on git's read-only files, so a scan of a GitHub URL failed at cleanup; temporary clones are now removed with a helper that handles read-only files.
-- Windows: `C:\...`, `C:/...`, UNC (`\\server\share`) and `~` paths were not recognised as local paths (`C:/work/repo` was even read as an `owner/repo` shorthand).
-- Windows: report file names were built from the whole target path, so `scan-batch` and `scan -d` could not write reports for a local path; the name is now the last path component reduced to characters valid on every OS (this also changes names containing spaces or punctuation, which are now replaced by `_`).
-- The `scan-batch` targets file is read as UTF-8 and tolerates a BOM and CRLF line endings; the Git askpass helper is written with LF line endings and a securely created temporary file.
-- Reproducible results: the same repository could produce different agents and tools on different machines. File listings are now sorted, scanner results are merged in a fixed order rather than thread-completion order, and on equal confidence the specific scanner (for example agent instances) wins over the generic code-pattern scanner when both report the same location. Capped lists (50 agents, 100 tools) therefore keep the same items everywhere.
-
-### Changed
-
-- Dependency ranges now match what is tested: `click>=8.2` (was 8.1), `openai>=1.55.3,<3` (was `>=1.0`; older versions break with current `httpx`), `google-genai>=1.15,<3` (was `>=1.0`), `httpx>=0.28.1` (was `>=0.27`; `google-genai` already required it). The vendor SDKs now have a ceiling at the next major version, like `anthropic` already had. Installs that pin older versions of these packages must upgrade them.
-
-### Added
-
 - CI job "Tests on the oldest allowed dependencies": runs the whole suite with every direct runtime dependency resolved to its lowest allowed version, so the floors are real. `tests/test_dependency_policy.py` checks that every runtime dependency has a floor, the LLM SDKs have a ceiling, the locked versions satisfy the ranges, and the SDK ranges in `docs/stability.md` match `pyproject.toml`.
 - `SECURITY.md` explains how to verify a release's PyPI attestation; the publish workflow requests attestations explicitly (previously the action's default).
-
-### Added
-
 - GitHub Action: new optional inputs `path`, `skills-baseline`, `fail-on` (gate the job on skill verdicts, checked after the SARIF upload), `upload-sarif`, `output-report`, `version` and `python-version`, and outputs `sarif-path`, `report-path` and `version`. `.github/workflows/test-action.yml` runs the action on fixtures in CI, and `tests/test_action_contract.py` freezes the inputs and outputs.
 - Config files may carry `config_version` (default 1); a newer version is rejected with an error that says to upgrade. Unknown config keys now produce a warning on stderr instead of being silently ignored. A missing, unreadable or invalid config file exits 2 in `scan`, `scan-batch` and `scan-org` (it used to surface as a traceback); `scan-org` now validates the config before listing repositories.
 - ID registry tests (`tests/test_id_registry.py`, frozen `tests/id_baseline_1.0.json`): a skill rule ID that existed at 1.0 may not disappear unless it is listed in the new "Retired rules" table in `docs/skill-rules.md`; a retired ID may never be emitted again; threat (`T001`-`T014`) and control (`C001`-`C014`) IDs and names are pinned.
@@ -51,12 +36,24 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- Dependency ranges now match what is tested: `click>=8.2` (was 8.1), `openai>=1.55.3,<3` (was `>=1.0`; older versions break with current `httpx`), `google-genai>=1.15,<3` (was `>=1.0`), `httpx>=0.28.1` (was `>=0.27`; `google-genai` already required it). The vendor SDKs now have a ceiling at the next major version, like `anthropic` already had. Installs that pin older versions of these packages must upgrade them.
 - GitHub Action: by default the action now installs quin-scanner from its own checkout, so the tag you pin selects the scanner version; it used to install the latest PyPI release whatever the tag. Inputs are passed to the shell through environment variables instead of string interpolation. Takes effect for a tag once a release moves it; `@v1` stays frozen at `v0.1.0b4`.
 - The skills baseline loader accepts any version from 1 up to the current one (only 1 exists so far) and rejects a newer version with an error that says to upgrade, and a malformed version with its own message.
 - `scan` and `scan-batch` now reject a local path that does not exist or is not a directory (exit 1, or a failed target in a batch) instead of scanning nothing and succeeding with an empty report, so a mistyped path no longer passes in CI.
 - `scan-batch` and `scan-org` now exit 1 when at least one target (or repository) failed, after scanning all of them and writing the reports that succeeded, and print `N of M targets failed: ...` on stderr. Previously they exited 0 even if every target failed, which made them unusable in CI. The exit codes of every command are now listed in each command's `--help` and in `docs/stability.md`.
 - Removed the `Typing :: Typed` classifier: the package ships no `py.typed` marker and CI runs no type checker.
 - Removed two links to a project plan document that never existed from `CONTRIBUTING.md`.
+
+### Fixed
+
+- Windows: skill, MCP and instruction-file discovery found nothing because file paths used backslashes (repo-relative paths are now always `/`-separated, at the accessor boundary and again in the file index).
+- Windows: cleaning up a cloned GitHub repository raised `PermissionError` on git's read-only files, so a scan of a GitHub URL failed at cleanup; temporary clones are now removed with a helper that handles read-only files.
+- Windows: `C:\...`, `C:/...`, UNC (`\\server\share`) and `~` paths were not recognised as local paths (`C:/work/repo` was even read as an `owner/repo` shorthand).
+- Windows: report file names were built from the whole target path, so `scan-batch` and `scan -d` could not write reports for a local path; the name is now the last path component reduced to characters valid on every OS (this also changes names containing spaces or punctuation, which are now replaced by `_`).
+- The `scan-batch` targets file is read as UTF-8 and tolerates a BOM and CRLF line endings; the Git askpass helper is written with LF line endings and a securely created temporary file.
+- Reproducible results: the same repository could produce different agents and tools on different machines. File listings are now sorted, scanner results are merged in a fixed order rather than thread-completion order, and on equal confidence the specific scanner (for example agent instances) wins over the generic code-pattern scanner when both report the same location. Capped lists (50 agents, 100 tools) therefore keep the same items everywhere.
+
+---
 
 ## [0.1.0b5] — 2026-10-26
 
@@ -279,7 +276,8 @@ This changelog was not split per beta, so the sections below also list changes f
 
 ---
 
-[Unreleased]: https://github.com/Gaincontrol-Pte-Ltd/quin-agent-scanner/compare/v0.1.0b5...HEAD
+[Unreleased]: https://github.com/Gaincontrol-Pte-Ltd/quin-agent-scanner/compare/v1.0.0rc1...HEAD
+[1.0.0rc1]: https://github.com/Gaincontrol-Pte-Ltd/quin-agent-scanner/releases/tag/v1.0.0rc1
 [0.1.0b5]: https://github.com/Gaincontrol-Pte-Ltd/quin-agent-scanner/releases/tag/v0.1.0b5
 [0.1.0b4]: https://github.com/Gaincontrol-Pte-Ltd/quin-agent-scanner/releases/tag/v0.1.0b4
 [0.1.0b1]: https://github.com/Gaincontrol-Pte-Ltd/quin-agent-scanner/releases/tag/v0.1.0b1

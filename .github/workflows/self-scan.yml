@@ -16,5 +16,11 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      - name: Remove deliberately malicious test fixtures
+        # tests/fixtures holds skills and instruction files that are meant to be flagged (the
+        # corpus pins their results). Scanning them here only filled the code-scanning alerts
+        # with expected findings. Removing them keeps every other path repo-relative.
+        run: rm -rf tests/fixtures
+
       - name: Run quin-scanner
         uses: ./

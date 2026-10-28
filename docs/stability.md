@@ -1,6 +1,6 @@
 # Stability and Support Policy
 
-> **Status:** this policy takes effect with `1.0.0`. Until then Quin is a beta and any surface below may change between releases. Items marked *(planned)* are delivered before 1.0; everything else describes today's behaviour.
+> **Status:** this policy takes effect with `1.0.0`. `1.0.0rc1` is the release candidate: every surface below is frozen for it, and a change to one restarts the soak period. Until `1.0.0` is released, a breaking change is still possible if a problem found in the release candidate requires it, and it would be announced in the CHANGELOG.
 
 Quin follows [Semantic Versioning 2.0](https://semver.org/) for the stable surfaces listed here. Everything else is internal and may change in any release.
 
