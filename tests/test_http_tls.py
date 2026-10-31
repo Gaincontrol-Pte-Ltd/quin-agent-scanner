@@ -20,6 +20,7 @@ def _ca_count(expr: str) -> int:
     return int(out.stdout.strip())
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="Windows always loads the system certificate store, whatever SSL_CERT_FILE says")
 def test_a_python_without_a_ca_bundle_would_have_no_trusted_certificates():
     # This is the python.org-on-macOS situation: the default context trusts nothing.
     assert _ca_count("import ssl; print(ssl.create_default_context().cert_store_stats()['x509_ca'])") == 0
