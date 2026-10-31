@@ -17,11 +17,11 @@ order:
   - MCP
   - Skill
   - Infra & config
-  - Aegis governance
+  - Zino governance
   - Other
 
 by_category:
-  governance: Aegis governance
+  governance: Zino governance
   agent_instance: Agent
   tool_definition: Tool
   prompt: Prompt template

@@ -62,8 +62,8 @@ def _flags_used(
         flags.append("--no-vuln-check")
     elif vuln_search_provider:
         flags.append(f"--vuln-search-provider {vuln_search_provider}")
-    if cfg.detect_aegis:
-        flags.append("--detect-aegis")
+    if cfg.detect_zino:
+        flags.append("--detect-zino")
     if cfg.skills_baseline_path:
         flags.append(f"--skills-baseline {Path(cfg.skills_baseline_path).name}")
     if branch and branch != "main":
@@ -228,8 +228,8 @@ def cli() -> None:
     help="LLM provider for web-based vulnerability search (reuses that provider's API key env var)",
 )
 @click.option(
-    "--detect-aegis", is_flag=True, default=False,
-    help="Detect Aegis SDK usage and classify the agent as governed (off by default)",
+    "--detect-zino", is_flag=True, default=False,
+    help="Detect Zino SDK usage and classify the agent as governed (off by default)",
 )
 @click.option(
     "--skills-baseline", default=None, metavar="FILE",
@@ -252,7 +252,7 @@ def scan(
     openai_compatible_url: str | None,
     no_vuln_check: bool,
     vuln_search_provider: str | None,
-    detect_aegis: bool,
+    detect_zino: bool,
     skills_baseline: str | None,
 ) -> None:
     """Scan a single repository for GenAI/Agentic AI indicators.
@@ -270,7 +270,7 @@ def scan(
       quin-scanner scan ./my-project
       quin-scanner scan owner/repo --no-llm -o yaml
       quin-scanner scan owner/repo --min-confidence 0.7 -d reports/
-      quin-scanner scan ./my-agent --detect-aegis --no-llm
+      quin-scanner scan ./my-agent --detect-zino --no-llm
       quin-scanner scan ./my-agent --skills-baseline skills-baseline.yaml
       quin-scanner scan owner/repo --llm-provider anthropic --llm-model claude-sonnet-4-20250514
     """
@@ -285,8 +285,8 @@ def scan(
         sys.exit(2)
 
     # CLI overrides for vulnerability checking
-    if detect_aegis:
-        cfg.detect_aegis = True
+    if detect_zino:
+        cfg.detect_zino = True
     if skills_baseline:
         cfg.skills_baseline_path = skills_baseline
     if no_vuln_check:
@@ -364,8 +364,8 @@ def scan(
     help="LLM provider for web-based vulnerability search",
 )
 @click.option(
-    "--detect-aegis", is_flag=True, default=False,
-    help="Detect Aegis SDK usage and classify the agent as governed (off by default)",
+    "--detect-zino", is_flag=True, default=False,
+    help="Detect Zino SDK usage and classify the agent as governed (off by default)",
 )
 def scan_batch(
     targets_file: str,
@@ -380,7 +380,7 @@ def scan_batch(
     openai_compatible_url: str | None,
     no_vuln_check: bool,
     vuln_search_provider: str | None,
-    detect_aegis: bool,
+    detect_zino: bool,
 ) -> None:
     """Scan multiple repositories listed in a file.
 
@@ -424,8 +424,8 @@ def scan_batch(
         click.echo(f"Error: {e}", err=True)
         sys.exit(2)
 
-    if detect_aegis:
-        base_cfg.detect_aegis = True
+    if detect_zino:
+        base_cfg.detect_zino = True
     if no_vuln_check:
         base_cfg.vuln_check_enabled = False
     if vuln_search_provider:
@@ -478,8 +478,8 @@ def scan_batch(
     help="LLM provider for web-based vulnerability search",
 )
 @click.option(
-    "--detect-aegis", is_flag=True, default=False,
-    help="Detect Aegis SDK usage and classify the agent as governed (off by default)",
+    "--detect-zino", is_flag=True, default=False,
+    help="Detect Zino SDK usage and classify the agent as governed (off by default)",
 )
 @click.pass_context
 def scan_org(
@@ -495,7 +495,7 @@ def scan_org(
     openai_compatible_url: str | None,
     no_vuln_check: bool,
     vuln_search_provider: str | None,
-    detect_aegis: bool,
+    detect_zino: bool,
 ) -> None:
     """Scan all repositories in a GitHub organization or user account.
 
@@ -559,8 +559,8 @@ def scan_org(
         sys.stderr.flush()
     click.echo(f"Found {len(repos)} repos to scan.", err=True)
 
-    if detect_aegis:
-        base_cfg.detect_aegis = True
+    if detect_zino:
+        base_cfg.detect_zino = True
     if no_vuln_check:
         base_cfg.vuln_check_enabled = False
     if vuln_search_provider:

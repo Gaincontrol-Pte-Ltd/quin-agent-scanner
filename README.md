@@ -22,7 +22,7 @@ Quin is built by [Gaincontrol](https://gaincontrol.ai/), headquartered in Singap
 | Product | What it does |
 |---|---|
 | **[Quin](https://gaincontrol.ai/quin)** | AI Agent Scanner -- see every agent, trust nothing blindly |
-| **[Aegis](https://gaincontrol.ai/)** | AI Identity Governance -- every agent operates only within its granted authority |
+| **[Zino](https://gaincontrol.ai/)** | AI Identity Governance -- every agent operates only within its granted authority |
 | **[Drona](https://gaincontrol.ai/)** | Safe Execution Fabric -- deterministic execution for probabilistic AI |
 
 - **Website:** [gaincontrol.ai](https://gaincontrol.ai/)
@@ -46,7 +46,7 @@ Quin maps the AI and agent components present in a repository, preserves the evi
 | **Complete finding inventory** | All raw scanner observations, including observations that are deduplicated in the summary artifact list or omitted from the LLM context to keep synthesis bounded. |
 | **Scan coverage** | Files discovered, indexed, excluded as vendor/generated, read successfully or unsuccessfully, and scanners enabled, completed, or returning findings. |
 | **Risk and vulnerability analysis** | Optional two-pass LLM system classification and agent synthesis, taxonomy-grounded risk signals with evidence references, and OSV.dev checks for detected framework versions. Optional web search can supplement vulnerability lookup. |
-| **Aegis governance detection** | Optional detection of Aegis SDK usage, including whether it is actively used, declared only, or absent from an AI application. Enable with `--detect-aegis`. |
+| **Zino governance detection** | Optional detection of Zino SDK usage, including whether it is actively used, declared only, or absent from an AI application. Enable with `--detect-zino`. |
 | **Reports and CI** | HTML, JSON, YAML, and SARIF reports. The HTML report includes inventory, coverage, relationships, agents, models, tools/MCP (with per-skill risk cards), infrastructure, artifacts, and raw data. The GitHub Action can publish SARIF findings, including high and critical skill findings, as code-scanning annotations. |
 | **Static-only operation** | Use `--no-llm` to run repository discovery without an LLM provider or API key. Use `--no-vuln-check` to skip external vulnerability lookups. |
 
@@ -157,12 +157,12 @@ quin-scanner scan ./path/to/repo --config scanner-config.yaml --vuln-search-prov
 
 ---
 
-### Aegis governed-agent detection
+### Zino governed-agent detection
 
-Pass `--detect-aegis` to also check whether the code uses the Aegis SDK. The report then includes a `governance` section classifying the repo as `governed` (SDK imported/initialised or hook/plugin/config present), `declared_only` (listed as a dependency but never used), `ungoverned` (AI app with no Aegis) or `not_applicable`. Off by default; also settable via `governance: {detect_aegis: true}` in the config file.
+Pass `--detect-zino` to also check whether the code uses the Zino SDK. The report then includes a `governance` section classifying the repo as `governed` (SDK imported/initialised or hook/plugin/config present), `declared_only` (listed as a dependency but never used), `ungoverned` (AI app with no Zino) or `not_applicable`. Off by default; also settable via `governance: {detect_zino: true}` in the config file.
 
 ```bash
-quin-scanner scan ./my-agent --detect-aegis --no-llm
+quin-scanner scan ./my-agent --detect-zino --no-llm
 ```
 
 ### Scan a skill before installing it
@@ -220,7 +220,7 @@ Common `scan` options:
 | `--no-llm` | Static analysis only; no LLM provider or API key. |
 | `--llm-provider`, `--llm-model`, `--llm-api-key`, `--openai-compatible-url`, `-c/--config` | Choose and configure the LLM provider. |
 | `--no-vuln-check`, `--vuln-search-provider` | Skip or configure vulnerability lookups. |
-| `--detect-aegis` | Classify whether the code uses the Aegis SDK. |
+| `--detect-zino` | Classify whether the code uses the Zino SDK. |
 | `--skills-baseline FILE` | Suppress skill findings accepted in a baseline file. |
 | `--min-confidence`, `--branch`, `--github-token`, `--azure-token` | Filter artifacts, pick a branch, or authenticate. |
 
@@ -429,7 +429,7 @@ uv run quin-scanner scan ./path/to/repo --config scanner-config.yaml
 
 ## How It Works
 
-Quin runs 14 configurable static scanner plugins in parallel. They share a bounded read cache (1 MB per file, 50 MB per scan), so each file is fetched from the repository, or the GitHub API, once. It then builds inventories and coverage metrics, identifies model usage and endpoints, optionally checks known vulnerabilities, and optionally runs a two-pass LLM pipeline. Aegis governance detection is an additional opt-in scan.
+Quin runs 14 configurable static scanner plugins in parallel. They share a bounded read cache (1 MB per file, 50 MB per scan), so each file is fetched from the repository, or the GitHub API, once. It then builds inventories and coverage metrics, identifies model usage and endpoints, optionally checks known vulnerabilities, and optionally runs a two-pass LLM pipeline. Zino governance detection is an additional opt-in scan.
 
 ```
 Repo  -->  14 Scanners (parallel)  -->  Inventory + Coverage  -->  Vulnerability Lookup  -->  Optional LLM Analysis  -->  Report

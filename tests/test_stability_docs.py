@@ -57,7 +57,7 @@ def test_documented_report_fields_match_the_report():
         ).to_dict()
     )
     assert always == actual
-    assert optional == {"governance"}  # only present with --detect-aegis
+    assert optional == {"governance"}  # only present with --detect-zino
 
 
 def test_typed_classifier_requires_a_py_typed_marker():

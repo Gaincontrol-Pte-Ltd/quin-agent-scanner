@@ -1,0 +1,84 @@
+# Zino SDK detection rules (used only when --detect-zino is enabled).
+# An agent that integrates the Zino SDK is classified as "governed".
+
+# Dependency names (normalized: lowercase, "_" -> "-"). Matched against the
+# same manifests the DependencyScanner reads (requirements*.txt, pyproject.toml,
+# package.json). A trailing "*" is a prefix match.
+dependencies:
+  python:
+    - zino-core
+    - zino-core-mcp
+    - zino-sdk
+    - zino-agno
+    - zino-autogen
+    - zino-bedrock
+    - zino-bedrock-openai
+    - zino-claude
+    - zino-crewai
+    - zino-google-adk
+    - zino-langchain
+    - zino-langflow
+    - zino-maf
+    - zino-openclaw
+    - zino-pi
+    - zino-strands
+    - zino-secret-manager-*
+  nodejs:
+    - zino-openclaw-plugin
+    - zino-sdk
+
+# Integration package -> framework it governs (informational).
+integrations:
+  zino-agno: agno
+  zino-autogen: autogen
+  zino-bedrock: bedrock
+  zino-bedrock-openai: bedrock-openai
+  zino-claude: claude
+  zino-crewai: crewai
+  zino-google-adk: google-adk
+  zino-langchain: langchain
+  zino-langflow: langflow
+  zino-maf: microsoft-agent-framework
+  zino-openclaw: openclaw
+  zino-pi: pi
+  zino-strands: strands
+
+# Source-code patterns, per line.
+#   import      - the SDK is imported
+#   integration - the SDK is wired in (engine initialised, tools/middleware/hooks wrapped)
+code_patterns:
+  - pattern: '^\s*(from|import)\s+zino(_[a-z0-9_]+)?\b'
+    language: python
+    kind: import
+  - pattern: '\bzino_initialize\s*\('
+    language: python
+    kind: integration
+  - pattern: '\bZino(BaseTool|FunctionMiddleware|Interceptor|Engine|PolicyEngine|ClaudeHook|OpenClawHook|PiHook)\b'
+    language: python
+    kind: integration
+  - pattern: '\bload_mcp_tools(_async)?\s*\('
+    language: python
+    kind: integration
+  - pattern: '(from|require\()\s*[''"]zino[-_/a-z0-9]*[''"]'
+    language: javascript
+    kind: import
+  - pattern: '(from|import|require\()\s*[''"]zino-[a-z0-9-]+[''"]'
+    language: javascript
+    kind: import
+
+# File-name markers (basename match) for hook/plugin based integrations.
+file_markers:
+  - name: zino-openclaw
+    file: openclaw.plugin.json
+    content: '"id"\s*:\s*"zino-'
+  - name: zino-pi
+    file: zino-pi.ts
+  - name: zino_validator
+    file: zino_validator
+
+# Config keys: a top-level `zino:` block in YAML config that points at the
+# Zino engine (config_file / spire_socket / policy).
+config:
+  files: ["**/*.yaml", "**/*.yml"]
+  pattern: '^zino\s*:'
+  requires_any_of: ['config_file\s*:', 'spire_socket\s*:', 'policy']

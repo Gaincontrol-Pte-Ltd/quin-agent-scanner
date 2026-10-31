@@ -30,7 +30,7 @@ from quin_scanner.report import ReportGenerator
         ("code_pattern", "tool-use", "@tool", "Tool"),
         ("agent_instance", "multi-agent", "Agent(", "Agent"),
         ("dockerfile", "llm-api", "FROM python", "Infra & config"),
-        ("governance", "aegis-governed:import", "from aegis_core import x", "Aegis governance"),
+        ("governance", "zino-governed:import", "from zino_core import x", "Zino governance"),
         ("code_pattern", "something-new", "x", "Other"),
     ],
 )
@@ -40,7 +40,7 @@ def test_artifact_type(category, tag, text, expected):
 
 def test_every_type_is_in_display_order():
     order = set(type_order())
-    for t in ("LLM API", "Agent framework", "Prompt template", "Tool", "Aegis governance"):
+    for t in ("LLM API", "Agent framework", "Prompt template", "Tool", "Zino governance"):
         assert t in order
 
 

@@ -32,9 +32,9 @@ class TestFlagsRecordedInReport:
         return json.loads(out.read_text()) if fmt == "json" else out.read_text()
 
     def test_flags_listed(self, tmp_path):
-        r = self._run(tmp_path, "--no-llm", "--no-vuln-check", "--detect-aegis", "--min-confidence", "0.5")
+        r = self._run(tmp_path, "--no-llm", "--no-vuln-check", "--detect-zino", "--min-confidence", "0.5")
         assert r["metadata"]["scan_options"]["flags"] == [
-            "--no-llm", "--no-vuln-check", "--detect-aegis", "--min-confidence 0.5",
+            "--no-llm", "--no-vuln-check", "--detect-zino", "--min-confidence 0.5",
         ]
 
     def test_defaults_are_empty_list(self, tmp_path, monkeypatch):
@@ -52,10 +52,10 @@ class TestFlagsRecordedInReport:
     def test_config_file_shows_basename_only(self, tmp_path):
         cfg = tmp_path / "secret-dir" / "my-config.yaml"
         cfg.parent.mkdir()
-        cfg.write_text("llm:\n  provider: openai\ngovernance:\n  detect_aegis: true\n")
+        cfg.write_text("llm:\n  provider: openai\ngovernance:\n  detect_zino: true\n")
         r = self._run(tmp_path, "--no-llm", "--no-vuln-check", "-c", str(cfg))
         flags = r["metadata"]["scan_options"]["flags"]
-        assert "--config my-config.yaml" in flags and "--detect-aegis" in flags
+        assert "--config my-config.yaml" in flags and "--detect-zino" in flags
         assert "secret-dir" not in str(flags)
 
     def test_html_shows_scan_options_strip(self, tmp_path):

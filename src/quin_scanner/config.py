@@ -22,7 +22,7 @@ _KNOWN_CONFIG_KEYS: dict[str, set[str] | None] = {
         "osv_timeout_seconds", "web_timeout_seconds", "web_retries",
     },
     "scanners": {"enabled"},
-    "governance": {"detect_aegis"},
+    "governance": {"detect_zino"},
 }
 
 
@@ -129,8 +129,8 @@ class ScannerConfig:
     # severity-aware sort so the cap keeps the highest-severity entries.
     # Set to 0 or None to disable the cap.
     max_repo_risk_signals: int | None = 10
-    # Opt-in: detect Aegis SDK usage and classify the repo as a governed agent.
-    detect_aegis: bool = False
+    # Opt-in: detect Zino SDK usage and classify the repo as a governed agent.
+    detect_zino: bool = False
     # Optional skills baseline file (see `quin-scanner skills baseline`). Findings it lists
     # are removed before scoring and promotion; a missing/malformed file fails the scan.
     skills_baseline_path: str | None = None
@@ -174,10 +174,10 @@ class ScannerConfig:
             vuln_web_timeout=float(vuln_cfg.get("web_timeout_seconds", 5.0)),
             vuln_web_retries=max(0, int(vuln_cfg.get("web_retries", 1))),
             max_repo_risk_signals=_parse_max_signals(out_cfg.get("max_repo_risk_signals", 10)),
-            detect_aegis=bool((data.get("governance") or {}).get("detect_aegis", False)),
+            detect_zino=bool((data.get("governance") or {}).get("detect_zino", False)),
         )
 
-    _BOOL_FIELDS: frozenset[str] = frozenset({"no_llm", "detect_aegis"})
+    _BOOL_FIELDS: frozenset[str] = frozenset({"no_llm", "detect_zino"})
 
     @classmethod
     def load_from_args(cls, **kwargs: Any) -> "ScannerConfig":

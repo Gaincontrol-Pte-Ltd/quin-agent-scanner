@@ -278,16 +278,16 @@ class Vulnerability:
 
 @dataclass
 class GovernanceInfo:
-    """Aegis SDK governance classification (only produced with --detect-aegis)."""
-    aegis_detected: bool
+    """Zino SDK governance classification (only produced with --detect-zino)."""
+    zino_detected: bool
     status: str                          # "governed" | "declared_only" | "ungoverned" | "not_applicable"
     evidence_kinds: list[str] = field(default_factory=list)   # "dependency" | "import" | "integration" | "plugin" | "config"
-    packages: list[str] = field(default_factory=list)         # Aegis packages declared as dependencies
+    packages: list[str] = field(default_factory=list)         # Zino packages declared as dependencies
     evidence: list[ScanFinding] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return {
-            "aegis_detected": self.aegis_detected,
+            "zino_detected": self.zino_detected,
             "status": self.status,
             "evidence_kinds": self.evidence_kinds,
             "packages": self.packages,
@@ -402,7 +402,7 @@ class ScanReport:
     metadata: dict[str, Any] = field(default_factory=dict)
     # Content hashes of the source files (file_fingerprint.py): lets a running agent be matched to this repository.
     file_hashes: list[dict[str, str]] = field(default_factory=list)
-    # Populated only when Aegis detection is requested (--detect-aegis).
+    # Populated only when Zino detection is requested (--detect-zino).
     governance: GovernanceInfo | None = None
     skills: list[SkillAssessment] = field(default_factory=list)
 
