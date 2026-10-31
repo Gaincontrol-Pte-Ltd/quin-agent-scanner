@@ -1,0 +1,38 @@
+{
+  "agents": [
+    "ChiefEditor",
+    "Editor",
+    "Human",
+    "Publisher",
+    "Researcher",
+    "Reviewer",
+    "Reviser",
+    "Writer"
+  ],
+  "artifacts": 178,
+  "capability_tags": [
+    "agent-instructions",
+    "agent-skills",
+    "llm-api",
+    "memory",
+    "multi-agent",
+    "prompt-templates",
+    "rag",
+    "tool-use"
+  ],
+  "confidence": 0.99,
+  "framework": "LangGraph 0.2.76",
+  "is_ai_application": true,
+  "mcp_servers": [
+    "gpt-researcher"
+  ],
+  "models": [
+    "openai:gpt-4o",
+    "openai:gpt-5.4",
+    "openai:text-embedding-004",
+    "openai:text-embedding-3-large",
+    "unknown:Embeddings"
+  ],
+  "risk_signals": {},
+  "tools": 2
+}

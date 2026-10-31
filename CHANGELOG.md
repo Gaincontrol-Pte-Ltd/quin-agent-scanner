@@ -9,6 +9,10 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Quality corpus: five external repositories from the 1.0.0rc1 pilot (gpt-researcher, browser-use, modelcontextprotocol/servers, ChatDev and the awesome-claude-skills collection), pinned at commit SHAs. Their snapshots record today's results including known gaps (#70, #71, #72), so the fixes that follow show up as snapshot diffs.
+
 ## [1.0.0rc1] — 2026-10-28
 
 **First release candidate for 1.0.** The interfaces in the [stability policy](docs/stability.md) are frozen from this release: the CLI and its exit codes, the JSON/YAML report schema (`schema_version` 1.0), SARIF output and rule IDs, and the config, baseline and GitHub Action interfaces. Quin is now tested on Linux, macOS and Windows with Python 3.11, 3.12 and 3.13, and a pinned corpus of public repositories guards detection quality. `1.0.0` follows after about two weeks without a contract change or an open critical bug; please try this release on your repositories and [report problems](https://github.com/Gaincontrol-Pte-Ltd/quin-agent-scanner/issues). Upgrading from a beta? Read [Migrating from the betas](docs/migrating-from-the-betas.md) first.

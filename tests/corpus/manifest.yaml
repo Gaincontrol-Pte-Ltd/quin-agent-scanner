@@ -116,3 +116,49 @@ entries:
   source:
     repo: https://github.com/mastra-ai/weather-agent
     commit: 2d013424da87f763c309104de446863cf4bde94b
+# Added from the 1.0.0rc1 technical pilot (external repositories, not owned by Gaincontrol).
+# Their snapshots pin today's results, including known gaps (issues #70-#72): when a fix changes them,
+# the snapshot diff is the proof.
+- name: gpt-researcher
+  kind: agents
+  source:
+    repo: https://github.com/assafelovic/gpt-researcher
+    commit: 3582a6841fe7dc801e2a34e34ee408641aea9bce
+    paths:
+    - multi_agents
+    - gpt_researcher
+    - mcp-server
+    - skills
+- name: browser-use
+  kind: agents
+  source:
+    repo: https://github.com/browser-use/browser-use
+    commit: 2cc71890e65056b67fdb29d98bb407749c15bb08
+    paths:
+    - browser_use
+    - examples
+    - skills
+- name: mcp-servers
+  kind: agents
+  source:
+    repo: https://github.com/modelcontextprotocol/servers
+    commit: ef9808f71090d0db3eda99e2af2ba78f1086f4fb
+    paths:
+    - src
+- name: chatdev
+  kind: agents
+  source:
+    repo: https://github.com/OpenBMB/ChatDev
+    commit: a2ea4a263cebe9a7abd01ee3b5b0bf95698ed328
+    paths:
+    - yaml_instance
+    - runtime
+    - entity
+    - functions
+    - mcp_example
+    - workflow
+- name: awesome-claude-skills
+  kind: skills
+  source:
+    repo: https://github.com/ComposioHQ/awesome-claude-skills
+    commit: be2a406907dbc61b73e6827ded415c96139d13a2
