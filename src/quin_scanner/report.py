@@ -71,4 +71,5 @@ class ReportGenerator:
     def write_to_file(cls, report: ScanReport, path: str, fmt: str) -> None:
         """Write report to a file."""
         content = cls.to_string(report, fmt)
-        Path(path).write_text(content, encoding="utf-8")
+        # newline="\n": the same bytes on every OS (text mode would write CRLF on Windows)
+        Path(path).write_text(content, encoding="utf-8", newline="\n")

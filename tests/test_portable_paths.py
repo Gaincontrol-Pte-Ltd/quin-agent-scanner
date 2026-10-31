@@ -209,3 +209,58 @@ def test_a_capped_scan_keeps_the_same_agents_whatever_order_files_are_listed(tmp
     assert names_forward == names_backward
     assert len(names_forward) == 50
     assert names_forward == [f"agent_{i:02d}" for i in range(50)]  # the first 50 in path order
+
+
+# --- Output files use LF line endings on every OS ---------------------------------------------------------------
+
+@pytest.fixture
+def windows_text_mode(monkeypatch):
+    """Make Path.write_text behave as it does on Windows: "\\n" becomes "\\r\\n" unless newline= says otherwise."""
+    import pathlib
+
+    original = pathlib.Path.write_text
+
+    def write_text(self, data, encoding=None, errors=None, newline=None):
+        if newline is None:
+            data = data.replace("\n", "\r\n")
+            newline = ""  # already translated
+        return original(self, data, encoding=encoding, errors=errors, newline=newline)
+
+    monkeypatch.setattr(pathlib.Path, "write_text", write_text)
+
+
+def _only_lf(path) -> None:
+    raw = path.read_bytes()
+    assert raw and b"\r" not in raw, f"{path.name} contains carriage returns"
+
+
+@pytest.mark.parametrize("fmt", ["json", "yaml", "sarif", "html"])
+def test_scan_reports_are_written_with_lf_line_endings(tmp_path, windows_text_mode, fmt):
+    target = tmp_path / "app"
+    target.mkdir()
+    (target / "main.py").write_text("from openai import OpenAI\nclient = OpenAI()\n", encoding="utf-8")
+    out = tmp_path / f"report.{fmt}"
+    result = CliRunner().invoke(cli, ["scan", str(target), "--no-llm", "--no-vuln-check", "-o", fmt, "-f", str(out)])
+    assert result.exit_code == 0, result.output
+    _only_lf(out)
+
+
+@pytest.mark.parametrize("fmt", ["json", "sarif"])
+def test_skills_scan_output_files_are_written_with_lf_line_endings(tmp_path, windows_text_mode, fmt):
+    skill = tmp_path / "skills" / "demo"
+    skill.mkdir(parents=True)
+    (skill / "SKILL.md").write_text("---\nname: demo\ndescription: Demo skill.\n---\n\nFormat text.\n", encoding="utf-8")
+    out = tmp_path / f"skills.{fmt}"
+    result = CliRunner().invoke(cli, ["skills", "scan", str(tmp_path / "skills"), "--no-vuln-check", "-o", fmt, "-f", str(out)])
+    assert result.exit_code == 0, result.output
+    _only_lf(out)
+
+
+def test_skills_baseline_is_written_with_lf_line_endings(tmp_path, windows_text_mode):
+    skill = tmp_path / "skills" / "demo"
+    skill.mkdir(parents=True)
+    (skill / "SKILL.md").write_text("---\nname: demo\ndescription: Demo skill.\n---\n\nFormat text.\n", encoding="utf-8")
+    out = tmp_path / "baseline.yaml"
+    result = CliRunner().invoke(cli, ["skills", "baseline", str(tmp_path / "skills"), "-o", str(out), "--no-vuln-check"])
+    assert result.exit_code == 0, result.output
+    _only_lf(out)
