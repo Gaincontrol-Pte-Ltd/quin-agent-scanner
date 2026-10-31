@@ -80,3 +80,17 @@ class TestScanPackageJson:
         accessor, file_index = _build_package_json(tmp_path, {"@mastra/core": "^1.2.3"})
         findings = DependencyScanner().scan(accessor, file_index)
         assert _extract_framework_version("Mastra", findings) == "1.2.3"
+
+
+def test_browser_use_is_a_recognised_framework():
+    from quin_scanner.models import ScanFinding
+
+    def finding(scanner, text):
+        return ScanFinding(scanner_name=scanner, category="t", file_path="src/x.py", line_number=1,
+                           match_text=text, capability_tag="tool-use", confidence=0.9)
+
+    # The repository itself (self-imports) and an application that depends on it.
+    assert _detect_framework([finding("CodePatternScanner", "from browser_use import Agent")]) == "Browser Use"
+    assert _detect_framework([finding("DependencyScanner", "browser-use==0.7.0")]) == "Browser Use"
+    # A more specific framework still wins over a browser-use dependency.
+    assert _detect_framework([finding("DependencyScanner", "browser-use==0.7.0"), finding("DependencyScanner", "langgraph>=0.2")]) == "LangGraph"

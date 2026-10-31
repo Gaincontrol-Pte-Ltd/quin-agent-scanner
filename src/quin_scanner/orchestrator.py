@@ -702,6 +702,9 @@ def _detect_framework(findings: list) -> str:
         (re.compile(r"import\s+agno\b", re.IGNORECASE), "Agno"),
         # Mastra — self-imports
         (re.compile(r"from\s+['\"]@mastra/core", re.IGNORECASE), "Mastra"),
+        # Browser Use — self-imports
+        (re.compile(r"from\s+browser_use\b", re.IGNORECASE), "Browser Use"),
+        (re.compile(r"import\s+browser_use\b", re.IGNORECASE), "Browser Use"),
     ]
     code_texts = [
         f.match_text

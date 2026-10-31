@@ -203,6 +203,13 @@ patterns:
   - pattern: "import\\s+agno\\b"
     language: python
     capability_tag: llm-api
+  # Browser Use
+  - pattern: "from\\s+browser_use\\b"
+    language: python
+    capability_tag: tool-use
+  - pattern: "import\\s+browser_use\\b"
+    language: python
+    capability_tag: tool-use
   - pattern: "AgentOS\\s*\\("
     language: python
     capability_tag: orchestration

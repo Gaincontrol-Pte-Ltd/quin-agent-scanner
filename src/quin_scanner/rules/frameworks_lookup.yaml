@@ -53,6 +53,9 @@ packages:
   langchain-core: "LangChain"
   langchain-community: "LangChain"
   openclaw: "OpenClaw"
+  # Lowest priority: an application that merely depends on browser-use keeps the framework it is built on.
+  browser-use: "Browser Use"
+  browser_use: "Browser Use"
 
 # File marker name → framework
 # Checked against FrameworkMarkerScanner findings (file names)
@@ -134,3 +137,6 @@ ecosystems:
   Flowise:
     ecosystem: "npm"
     package: "flowise"
+  "Browser Use":
+    ecosystem: "PyPI"
+    package: "browser-use"

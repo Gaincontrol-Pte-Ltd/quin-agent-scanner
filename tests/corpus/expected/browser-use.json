@@ -1,11 +1,6 @@
 {
-  "agents": [
-    "Alice Johnson",
-    "Find the founders of browser-use",
-    "find the founders of browser-use",
-    "prod-secrets"
-  ],
-  "artifacts": 396,
+  "agents": [],
+  "artifacts": 1275,
   "capability_tags": [
     "agent-instructions",
     "agent-skills",
@@ -17,7 +12,7 @@
     "tool-use"
   ],
   "confidence": 0.99,
-  "framework": "unknown",
+  "framework": "Browser Use",
   "is_ai_application": true,
   "mcp_servers": [],
   "models": [
@@ -59,5 +54,5 @@
     "T005": 5,
     "T006": 2
   },
-  "tools": 28
+  "tools": 27
 }
