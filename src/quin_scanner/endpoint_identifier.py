@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 from urllib.parse import urlsplit
 
 from quin_scanner.models import EndpointUsage
+from quin_scanner.redaction import redact_url_credentials
 
 if TYPE_CHECKING:
     from quin_scanner.file_index import FileIndex
@@ -21,18 +22,9 @@ _CODE_EXTENSIONS = {".py", ".js", ".ts", ".jsx", ".tsx", ".mjs", ".cjs", ".go", 
 _CONFIG_EXTENSIONS = {".yaml", ".yml", ".json", ".toml", ".ini", ".cfg"}
 
 # ── Credential redaction ────────────────────────────────────────────────────
-_USERINFO_RE = re.compile(r'(://)[^/\s@"\'`]+@')
-_SECRET_QUERY_RE = re.compile(
-    r'([?&;](?:api[-_]?key|key|token|access[-_]?token|secret|client[-_]?secret|password|passwd|pwd|'
-    r'auth|authorization|sig|signature|code)=)[^&\s"\'`]+',
-    re.IGNORECASE,
-)
-
-
 def redact(text: str) -> str:
     """Remove credentials embedded in a URL or URL-bearing expression."""
-    text = _USERINFO_RE.sub(r"\1REDACTED@", text)
-    return _SECRET_QUERY_RE.sub(r"\1REDACTED", text)
+    return redact_url_credentials(text)
 
 
 # ── Classification ──────────────────────────────────────────────────────────

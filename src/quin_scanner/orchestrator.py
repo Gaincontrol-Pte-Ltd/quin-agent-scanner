@@ -68,6 +68,14 @@ _READ_CACHE_MAX_FILE_BYTES = 1024 * 1024
 _READ_CACHE_MAX_TOTAL_BYTES = 50 * 1024 * 1024
 
 
+class ScanInterrupted(BaseException):
+    """Raised inside scanner threads once the scan was interrupted.
+
+    A BaseException on purpose: scanners skip unreadable files with ``except Exception: continue``, which must not
+    swallow the signal to stop.
+    """
+
+
 class _ReadTrackingAccessor:
     """Track scanner file reads and cache their contents, without changing scanner behavior.
 
@@ -95,6 +103,7 @@ class _ReadTrackingAccessor:
         self._cached_bytes = 0
         self._cache_hits = 0
         self._inflight: dict[str, threading.Event] = {}
+        self.cancelled = threading.Event()  # set when the scan is interrupted: further reads raise ScanInterrupted
 
     def read_file(self, path: str) -> str:
         with self._lock:
@@ -110,6 +119,8 @@ class _ReadTrackingAccessor:
         return content
 
     def _read_through(self, path: str) -> str:
+        if self.cancelled.is_set():
+            raise ScanInterrupted()
         while True:
             with self._lock:
                 cached = self._cache.get(path)
@@ -977,11 +988,19 @@ class ScanOrchestrator:
                 findings = skill_scanner.summary_findings()
             return scanner.name(), findings
 
-        with ThreadPoolExecutor() as executor:
+        executor = ThreadPoolExecutor()
+        try:
             futures = [executor.submit(_run_scanner, s) for s in scanners]
             for done, _ in enumerate(as_completed(futures), start=1):
                 if verbose:
                     _progress_bar("Scanners   ", done, len(scanners))
+        except BaseException:
+            # Ctrl-C (or any failure): stop the scanners at their next file read instead of waiting for them to finish.
+            tracked_accessor.cancelled.set()
+            executor.shutdown(wait=True, cancel_futures=True)
+            raise
+        else:
+            executor.shutdown(wait=True)
         # Merge in scanner order, not completion order: capped lists keep a prefix, so
         # thread timing must not decide which findings survive.
         for future in futures:

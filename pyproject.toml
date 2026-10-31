@@ -30,6 +30,7 @@ dependencies = [
     "anthropic>=0.87,<1",
     "google-genai>=1.15,<3",
     "httpx>=0.28.1",
+    "certifi>=2023.7.22",
     "python-dotenv>=1.2.2",
 ]
 

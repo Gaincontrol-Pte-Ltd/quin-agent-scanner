@@ -1,12 +1,11 @@
 {
   "agents": [],
-  "artifacts": 3,
+  "artifacts": 2,
   "capability_tags": [
     "agent-instructions",
-    "multi-agent",
-    "prompt-templates"
+    "multi-agent"
   ],
-  "confidence": 0.86,
+  "confidence": 0.83,
   "framework": "unknown",
   "is_ai_application": true,
   "mcp_servers": [],

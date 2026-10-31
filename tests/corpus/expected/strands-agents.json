@@ -1,6 +1,6 @@
 {
   "agents": [],
-  "artifacts": 202,
+  "artifacts": 200,
   "capability_tags": [
     "agent-skills",
     "llm-api",

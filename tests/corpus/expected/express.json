@@ -1,0 +1,12 @@
+{
+  "agents": [],
+  "artifacts": 0,
+  "capability_tags": [],
+  "confidence": 0.0,
+  "framework": "unknown",
+  "is_ai_application": false,
+  "mcp_servers": [],
+  "models": [],
+  "risk_signals": {},
+  "tools": 0
+}

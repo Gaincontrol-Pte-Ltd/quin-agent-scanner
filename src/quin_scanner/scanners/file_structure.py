@@ -15,6 +15,11 @@ def _first_tag(tags: list[str] | str) -> str:
     return tags
 
 
+# Hosting and CI configuration directories. A `workflows/` directory inside one of them is a CI pipeline
+# (every repository that uses GitHub Actions has one), not an AI workflow, so it is not an AI marker.
+_CI_CONFIG_DIRS = frozenset({".github", ".gitlab", ".gitea", ".forgejo", ".circleci", ".buildkite", ".azuredevops", ".azure-pipelines"})
+
+
 class FileStructureScanner(BaseScanner):
     """Detects AI-related directories and file extensions."""
 
@@ -35,7 +40,9 @@ class FileStructureScanner(BaseScanner):
         dirs_seen: set[str] = set()
         for f in all_files:
             parts = Path(f).parts
-            for part in parts[:-1]:  # exclude filename itself
+            for i, part in enumerate(parts[:-1]):  # exclude filename itself
+                if part == "workflows" and any(p in _CI_CONFIG_DIRS for p in parts[:i]):
+                    continue  # `.github/workflows` and friends hold CI pipelines, not AI workflows
                 dirs_seen.add(part)
 
         # Check directory markers

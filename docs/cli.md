@@ -173,7 +173,7 @@ Arguments: `ORG_NAME`
 | Option | Type | Default | Environment variable | Description |
 |---|---|---|---|---|
 | `--output`, `-o` | `json` \| `yaml` \| `html` \| `sarif` | `html` |  | Output format |
-| `--output-dir` | path | `./report` |  | Directory for per-repo output files |
+| `--output-dir`, `-d` | path | `./report` |  | Directory for per-repo output files |
 | `--github-token` | text |  | `GITHUB_TOKEN` | GitHub PAT (overrides GITHUB_TOKEN env var) |
 | `--skip-archived` | flag | off |  | Skip archived repositories |
 | `--skip-forks` | flag | off |  | Skip forked repositories |

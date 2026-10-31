@@ -27,11 +27,10 @@
     "weather_agent",
     "yoda"
   ],
-  "artifacts": 269,
+  "artifacts": 266,
   "capability_tags": [
     "llm-api",
     "multi-agent",
-    "orchestration",
     "prompt-templates",
     "rag",
     "tool-use"

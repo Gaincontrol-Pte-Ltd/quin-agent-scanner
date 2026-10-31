@@ -55,8 +55,11 @@ class PromptDiscoveryScanner(BaseScanner):
         signals_data = yaml.safe_load(
             (_RULES_DIR / "prompt_signals.yaml").read_text(encoding="utf-8")
         )
-        self._md_signals: list[str] = [
-            s.lower() for s in signals_data.get("md_prompt_signals", [])
+        # A signal counts at the start of a line (after indentation, a quote marker or a list bullet), the way a prompt states
+        # its role. The same words in the middle of a sentence are ordinary documentation ("If you are a program author ...").
+        self._md_signals: list[re.Pattern[str]] = [
+            re.compile(r"^[ \t]*(?:[>*+\-][ \t]+)*" + re.escape(s.lower()) + r"\b", re.MULTILINE)
+            for s in signals_data.get("md_prompt_signals", [])
         ]
 
         exclusions_data = yaml.safe_load(
@@ -175,7 +178,7 @@ class PromptDiscoveryScanner(BaseScanner):
             except Exception:
                 continue
             preview = content[:_MD_SCAN_CHARS].lower()
-            if any(signal in preview for signal in self._md_signals):
+            if any(signal.search(preview) for signal in self._md_signals):
                 findings.append(
                     ScanFinding(
                         scanner_name=self.name(),

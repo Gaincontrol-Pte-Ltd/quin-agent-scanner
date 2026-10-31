@@ -70,7 +70,7 @@ uv tool install quin-scanner
 
 ### 2. Set up your `.env`
 
-Create a `.env` file in your working directory:
+Create a `.env` file in your working directory (Quin loads the first `.env` it finds in the current directory or any parent directory, so run it from the folder whose `.env` you mean):
 
 ```bash
 # Pick one LLM provider:

@@ -14,6 +14,8 @@ from abc import ABC, abstractmethod
 from collections.abc import Callable
 from pathlib import Path, PurePath
 
+from quin_scanner import _http
+
 _WINDOWS_PATH = re.compile(r"^(?:[A-Za-z]:[\\/]|\\\\)")
 
 
@@ -71,7 +73,7 @@ def _is_permanent_error(exc: Exception) -> bool:
     """Return True if the error is permanent and should not be retried."""
     if isinstance(exc, urllib.error.HTTPError):
         return exc.code in _PERMANENT_HTTP_CODES
-    return False
+    return isinstance(exc, _http.TLSVerificationError)  # no retry can fix a certificate problem
 
 
 def _retry_with_backoff(
@@ -289,14 +291,14 @@ class GitHubMCPAccessor(RepoAccessor):
     def _get_json(self, url: str) -> dict:
         def _do() -> dict:
             req = urllib.request.Request(url, headers=self._headers())
-            with urllib.request.urlopen(req, timeout=30) as resp:
+            with _http.urlopen(req, timeout=30) as resp:
                 return json.loads(resp.read())
         return _retry_with_backoff(_do)
 
     def _get_text(self, url: str) -> str:
         def _do() -> str:
             req = urllib.request.Request(url, headers=self._headers())
-            with urllib.request.urlopen(req, timeout=30) as resp:
+            with _http.urlopen(req, timeout=30) as resp:
                 return resp.read().decode("utf-8", errors="replace")
         return _retry_with_backoff(_do)
 
@@ -352,23 +354,36 @@ class GitCloneAccessor(RepoAccessor):
             proc = subprocess.Popen(
                 cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env
             )
-            # Read stderr byte-by-byte to handle \r-delimited progress lines
-            buf = b""
-            while True:
-                ch = proc.stderr.read(1)  # type: ignore[union-attr]
-                if not ch:
-                    break
-                if ch in (b"\r", b"\n"):
-                    line = buf.decode("utf-8", errors="replace")
-                    buf = b""
-                    if verbose and line.strip():
-                        parsed = _parse_git_progress(line)
-                        if parsed:
-                            phase, pct = parsed
-                            _render_clone_progress("Cloning    ", phase, pct)
-                else:
-                    buf += ch
-            proc.wait()
+            try:
+                # Read stderr byte-by-byte to handle \r-delimited progress lines
+                buf = b""
+                while True:
+                    ch = proc.stderr.read(1)  # type: ignore[union-attr]
+                    if not ch:
+                        break
+                    if ch in (b"\r", b"\n"):
+                        line = buf.decode("utf-8", errors="replace")
+                        buf = b""
+                        if verbose and line.strip():
+                            parsed = _parse_git_progress(line)
+                            if parsed:
+                                phase, pct = parsed
+                                _render_clone_progress("Cloning    ", phase, pct)
+                    else:
+                        buf += ch
+                proc.wait()
+            except BaseException:
+                # Interrupted (Ctrl-C) mid-clone: stop git and do not leave a partial clone in the temp directory.
+                try:
+                    proc.kill()
+                    proc.wait(timeout=10)
+                except Exception:  # noqa: BLE001
+                    pass
+                try:
+                    remove_tree(tmp)
+                except OSError:
+                    pass
+                raise
             if proc.returncode != 0 and not _has_files(tmp):
                 try:
                     remove_tree(tmp)

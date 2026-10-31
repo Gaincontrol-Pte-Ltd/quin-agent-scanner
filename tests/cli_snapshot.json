@@ -587,7 +587,8 @@
         "multiple": false,
         "name": "output_dir",
         "opts": [
-          "--output-dir"
+          "--output-dir",
+          "-d"
         ],
         "required": false,
         "type": "path"

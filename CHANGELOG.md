@@ -9,6 +9,23 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Security
+
+- **Hard-coded API keys in scanned source code are redacted.** The matched source line of a finding (`artifacts[].match_text` and `inventory[]`) used to be copied into JSON, YAML and HTML reports as written, so `client = OpenAI(api_key="sk-...")` put the key into the report; the same text is part of the context sent to an LLM when you scan with one. Provider keys (OpenAI and Anthropic `sk-...`, Google `AIza...`, GitHub, AWS, Slack, Hugging Face), bearer tokens, private-key headers, URL credentials and the quoted value of `api_key`/`secret`/`token`/`password`-style assignments are now replaced by `[REDACTED]` when a finding is created, before any report or LLM sees it. `.env` files, configuration, Dockerfiles, Kubernetes, CI files, notebooks and MCP configuration were already redacted. SARIF output was not affected. Reports produced by earlier releases may contain such keys: rotate any key that was in a scanned repository and appeared in a stored report.
+
+### Added
+
+- `scan-org` accepts `-d` as a short form of `--output-dir`, like `scan` and `scan-batch`.
+- `certifi` is now a declared dependency (it was already installed through `httpx`); it supplies the CA bundle used for the GitHub API on Pythons that ship none.
+- Quality corpus: three real non-AI repositories (Flask, Express, cobra), so a non-AI repository staying `is_ai_application: false` is guarded.
+- README: a note that the CLI loads a `.env` file from the current directory or any parent directory.
+
+### Detection changes
+
+- **CI workflow directories are no longer an AI marker.** A directory named `workflows/` counted as an "orchestration" marker, so every repository that uses GitHub Actions (`.github/workflows`) was reported as an AI application at 0.75 confidence: Flask, Express, cobra, ripgrep and spring-petclinic all were. A `workflows/` directory inside `.github`, `.gitlab`, `.gitea`, `.forgejo`, `.circleci`, `.buildkite`, `.azuredevops` or `.azure-pipelines` no longer counts; a real `workflows/` directory elsewhere, and other directories inside `.github` such as `agents/`, still do. Non-AI repositories that used GitHub Actions now report `is_ai_application: false`.
+- **`Task(` only counts as itself.** The orchestration pattern for CrewAI's `Task(...)` also matched the end of any identifier (`FlaskTask(`, `UserTask(`, `ComputeTask(`) and `asyncio.Task(`, so Flask (through its Celery example) was reported as an AI application. It now has to start at a word boundary and not follow a dot. CrewAI's `Task(description=...)`, including multi-line calls, is still found.
+- **Markdown is a prompt when it states a role or task.** The phrases ("you are a", "act as", "your task is", ...) used to match anywhere in the first 2,000 characters, so documentation such as "If you are a program author ..." was reported as a prompt. They now count at the start of a line (after indentation, a quote marker or a bullet), as a prompt states its role, and `## System Prompt`-style headings still count.
+
 ### Changed
 
 - **Breaking: governed-agent detection now targets the Zino SDK.** This changes interfaces that were frozen for `1.0.0rc2`, so the soak period restarts. If you used the old Aegis names, rename them:
@@ -17,6 +34,13 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   - in the report, `governance.aegis_detected` is now `governance.zino_detected`, and the evidence tag `aegis-governed` is now `zino-governed`.
 
   The scanner detects the `zino-*` packages (`zino-core`, `zino-<framework>`, `zino-secret-manager-*`, `zino-openclaw-plugin`), `zino_*` imports, integration calls (`zino_initialize`, `ZinoBaseTool`, `ZinoFunctionMiddleware`, ...) and `zino:` engine config. The HTML report's governance card, the "About Zino" panel and the promo use the new name.
+
+### Fixed
+
+- **Ctrl-C stops a scan promptly.** After Ctrl-C a scan used to keep running until it would have finished (about 44 seconds in a test, whenever the key was pressed) before printing `Aborted!`; scanner threads now stop at their next file read. An interrupted GitHub clone also stops `git` and removes its partial clone from the temporary directory instead of leaving it behind.
+- **`owner/repo` shorthand and `scan-org` on Pythons without a CA bundle.** On python.org Python for macOS (until "Install Certificates.command" is run) they failed with a raw `CERTIFICATE_VERIFY_FAILED`. The GitHub API calls now trust the system store plus the `certifi` bundle, and a certificate problem that remains is reported as one line that says what to do instead of being retried. Full repository URLs (cloned with `git`) and vulnerability lookups were not affected.
+- **`-f` into a folder that does not exist yet** (`scan`, `skills scan`, `skills baseline -o`) creates the folder, as `-d` does. A destination that cannot be written is now reported before the scan starts (`Error: cannot write FILE: ...`) instead of after it, which used to discard the whole run with a raw `[Errno 2]`.
+- A `SyntaxWarning: invalid escape sequence` was printed to users when the package was byte-compiled at install time (in the HTML report template); the generated report is unchanged.
 
 ## [1.0.0rc2] — 2026-10-31
 
