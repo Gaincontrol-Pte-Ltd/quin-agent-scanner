@@ -32,6 +32,7 @@
     "Guarded Agent",
     "Guardrails Demo Agent",
     "Hackernews Agent",
+    "Image to Image Agent",
     "Input Validator",
     "Instruction-Tuned Agent",
     "Learning Agent",
@@ -48,7 +49,6 @@
     "Simple Agent",
     "Tool-Enabled Agent",
     "Topics Analyzer",
-    "Video Caption Generator Agent",
     "Writer"
   ],
   "artifacts": 2221,

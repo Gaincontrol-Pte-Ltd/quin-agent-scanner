@@ -126,6 +126,10 @@ python:
     capability_tags: [llm-api, orchestration, tool-use, multi-agent]
   - package: phidata
     capability_tags: [llm-api, orchestration, tool-use, multi-agent]
+  - package: browser-use
+    capability_tags: [llm-api, orchestration, tool-use]
+  - package: browser_use
+    capability_tags: [llm-api, orchestration, tool-use]
   - package: databricks-agents
     capability_tags: [llm-api, orchestration, fine-tuning]
   - package: databricks-sdk
