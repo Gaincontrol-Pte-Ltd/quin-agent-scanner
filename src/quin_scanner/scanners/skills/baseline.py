@@ -76,7 +76,7 @@ def write_baseline(path: str | Path, assessments: list[SkillAssessment]) -> int:
         "generated": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "entries": ordered,
     }
-    Path(path).write_text(yaml.safe_dump(doc, sort_keys=False, allow_unicode=True), encoding="utf-8")
+    Path(path).write_text(yaml.safe_dump(doc, sort_keys=False, allow_unicode=True), encoding="utf-8", newline="\n")
     return len(ordered)
 
 

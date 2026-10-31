@@ -1,7 +1,9 @@
 """AgentInstanceScanner — extracts named agent instantiations from code and config files."""
 from __future__ import annotations
 
+import ast
 import re
+import warnings
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -17,26 +19,27 @@ if TYPE_CHECKING:
 # Code extensions to scan
 _CODE_EXTENSIONS = {".py", ".ts", ".js", ".jsx", ".tsx", ".mjs"}
 
-# Named agent instantiation patterns
+# Named agent instantiation, as regexes. Python files are parsed with ``ast`` instead (see
+# ``_python_agent_calls``); these cover TypeScript/JavaScript and Python files that do not parse.
+# ``name`` (or ``agent_name``) must be a real keyword or property: not the tail of another identifier
+# (``vault_name=``, ``eval_name=``).
+_NAME_ARG = r'(?<![\w.])(?:agent_)?name\s*[:=]\s*["\']([^"\']+)["\']'
 _AGENT_CODE_PATTERNS = [
     # Multi-line aware patterns (re.DOTALL): Agent(... name="..." ...) spanning multiple lines.
     # Cap lookahead to 500 chars to avoid catastrophic backtracking.
     # Generic Agent(name="...", ...) — also matches TS/JS object-literal syntax
     # new Agent({ name: "..." }), e.g. Mastra.
-    re.compile(r'Agent\s*\([^)]{0,500}?name\s*[:=]\s*["\']([^"\']+)["\']', re.IGNORECASE | re.DOTALL),
-    # AssistantAgent(name="...", ...)
-    re.compile(r'AssistantAgent\s*\([^)]{0,500}?name\s*=\s*["\']([^"\']+)["\']', re.IGNORECASE | re.DOTALL),
-    # UserProxyAgent(name="...", ...)
-    re.compile(r'UserProxyAgent\s*\([^)]{0,500}?name\s*=\s*["\']([^"\']+)["\']', re.IGNORECASE | re.DOTALL),
-    # ConversableAgent(name="...", ...)
-    re.compile(r'ConversableAgent\s*\([^)]{0,500}?name\s*=\s*["\']([^"\']+)["\']', re.IGNORECASE | re.DOTALL),
-    # GroupChatManager / similar patterns
-    re.compile(r'GroupChatManager\s*\([^)]{0,500}?name\s*=\s*["\']([^"\']+)["\']', re.IGNORECASE | re.DOTALL),
-    # @agent decorator followed by def function_name
-    re.compile(r'@agent\s*\ndef\s+(\w+)', re.MULTILINE),
-    # name="..." as first positional in Agent(...) — simpler fallback
-    re.compile(r'(?:Agent|Runner)\s*\(\s*["\']([^"\']{2,50})["\']'),
+    re.compile(r'Agent\s*\([^)]{0,500}?' + _NAME_ARG, re.IGNORECASE | re.DOTALL),
+    # GroupChatManager(name="...", ...)
+    re.compile(r'GroupChatManager\s*\([^)]{0,500}?' + _NAME_ARG, re.IGNORECASE | re.DOTALL),
+    # <Something>Agent("name", ...): classes that take the name as their first positional argument
+    # (AutoGen's AssistantAgent, UserProxyAgent). A bare Agent("...") is not matched: for the agent
+    # frameworks that use that spelling the first argument is a task or a model, not a name.
+    re.compile(r'\w+Agent\s*\(\s*["\']([^"\']{2,50})["\']'),
 ]
+
+# @agent decorator followed by def function_name (any language of the code extensions)
+_AGENT_DECORATOR_PATTERN = re.compile(r'@agent\s*\ndef\s+(\w+)', re.MULTILINE)
 
 # Class inheritance patterns that define agent roles
 # e.g. class ProductManager(Role): ... — MetaGPT, custom frameworks
@@ -54,6 +57,11 @@ _AGENT_CONFIG_NAMES = {"agents.yaml", "agents.yml", "crew.yaml", "crew.yml"}
 
 # Google ADK config-based agent files (adk create --type=config)
 _ADK_ROOT_AGENT_NAMES = {"root_agent.yaml", "root_agent.yml"}
+
+# Workflow graphs (ChatDev and similar): `graph: {nodes: [{id: ..., type: agent}, ...]}` in a YAML file with any name.
+# Only files that mention both markers are parsed, and very large files are skipped.
+_WORKFLOW_YAML_SUFFIXES = {".yaml", ".yml"}
+_MAX_WORKFLOW_YAML_BYTES = 512 * 1024
 
 # Markdown agent spec patterns
 _MD_AGENT_TITLE_RE = re.compile(
@@ -79,6 +87,54 @@ _TEST_PATH_RE = re.compile(
 
 def _is_test_path(path: str) -> bool:
     return bool(_TEST_PATH_RE.search(path))
+
+
+_NAME_KEYWORDS = frozenset({"name", "agent_name"})
+
+
+def _callee_name(func: ast.expr) -> str | None:
+    if isinstance(func, ast.Name):
+        return func.id
+    if isinstance(func, ast.Attribute):
+        return func.attr
+    return None
+
+
+def _string_constant(node: ast.expr | None) -> str | None:
+    return node.value if isinstance(node, ast.Constant) and isinstance(node.value, str) else None
+
+
+def _python_agent_calls(content: str) -> list[tuple[int, str]] | None:
+    """(line, name) of every agent construction in Python source, or None if the source does not parse.
+
+    A name is the literal ``name=`` (or ``agent_name=``) keyword of a call to ``...Agent(...)`` / ``GroupChatManager(...)``, or,
+    for a class such as ``AssistantAgent`` that is not the bare ``Agent``, its first positional string.
+    Text inside a string argument and the keywords of nested calls are not arguments of the agent.
+    """
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            tree = ast.parse(content)
+    except (SyntaxError, ValueError, RecursionError):
+        return None
+    found: list[tuple[int, int, str]] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        callee = _callee_name(node.func)
+        if not callee:
+            continue
+        lowered = callee.lower()
+        if lowered != "groupchatmanager" and not lowered.endswith("agent"):
+            continue
+        name = next((_string_constant(kw.value) for kw in node.keywords if kw.arg in _NAME_KEYWORDS), None)
+        if name is None and callee.endswith("Agent") and callee != "Agent" and node.args:
+            positional = _string_constant(node.args[0])
+            if positional is not None and 2 <= len(positional) <= 50:
+                name = positional
+        if name:
+            found.append((node.lineno, node.col_offset, name))
+    return [(line, name) for line, _, name in sorted(found)]
 
 
 class AgentInstanceScanner(BaseScanner):
@@ -112,6 +168,9 @@ class AgentInstanceScanner(BaseScanner):
                 elif fname == "flow.dag.yaml":
                     content = accessor.read_file(path)
                     findings.extend(self._scan_flow_dag(content, path, seen))
+                elif suffix in _WORKFLOW_YAML_SUFFIXES:
+                    content = accessor.read_file(path)
+                    findings.extend(self._scan_workflow_graph(content, path, seen))
                 elif suffix == ".md" and self._in_agent_dir(path):
                     content = accessor.read_file(path)
                     findings.extend(self._scan_agent_markdown(content, path, seen))
@@ -122,30 +181,38 @@ class AgentInstanceScanner(BaseScanner):
 
     def _scan_code(self, content: str, path: str, seen: set[str]) -> list[ScanFinding]:
         findings = []
-        # Scan full content (not per-line): _AGENT_CODE_PATTERNS are compiled with
-        # re.DOTALL specifically to match constructor calls formatted with one
-        # kwarg per line (Agent(\n  name="...",\n  ...\n)), which is the dominant
-        # style for well-formatted Python/TS. Per-line search would defeat DOTALL
-        # entirely, since a single line never contains the '\n' DOTALL exists for.
-        for pattern in _AGENT_CODE_PATTERNS:
-            for m in pattern.finditer(content):
-                agent_name = m.group(1).strip()
-                if not agent_name or len(agent_name) > 80:
-                    continue
-                lineno = content[:m.start()].count("\n") + 1
-                key = f"{path}:{lineno}:{agent_name}"
-                if key in seen:
-                    continue
-                seen.add(key)
-                findings.append(ScanFinding(
-                    scanner_name=self.name(),
-                    category="agent_instance",
-                    file_path=path,
-                    line_number=lineno,
-                    match_text=agent_name,
-                    capability_tag="multi-agent",
-                    confidence=0.85,
-                ))
+
+        def add(lineno: int, agent_name: str) -> None:
+            agent_name = agent_name.strip()
+            if not agent_name or len(agent_name) > 80:
+                return
+            key = f"{path}:{lineno}:{agent_name}"
+            if key in seen:
+                return
+            seen.add(key)
+            findings.append(ScanFinding(
+                scanner_name=self.name(),
+                category="agent_instance",
+                file_path=path,
+                line_number=lineno,
+                match_text=agent_name,
+                capability_tag="multi-agent",
+                confidence=0.85,
+            ))
+
+        calls = _python_agent_calls(content) if path.lower().endswith(".py") else None
+        if calls is not None:
+            for lineno, agent_name in calls:
+                add(lineno, agent_name)
+        else:
+            # Scan full content (not per-line): the patterns are compiled with re.DOTALL specifically to
+            # match constructor calls formatted with one kwarg per line (Agent(\n  name="...",\n  ...\n)),
+            # the dominant style for well-formatted code. A per-line search would defeat DOTALL entirely.
+            for pattern in _AGENT_CODE_PATTERNS:
+                for m in pattern.finditer(content):
+                    add(content[:m.start()].count("\n") + 1, m.group(1))
+        for m in _AGENT_DECORATOR_PATTERN.finditer(content):
+            add(content[:m.start()].count("\n") + 1, m.group(1))
         # Class inheritance patterns: class X(Role), class X(BaseAgent), etc.
         for pattern, conf in _AGENT_CLASS_PATTERNS:
             for m in pattern.finditer(content):
@@ -337,4 +404,38 @@ class AgentInstanceScanner(BaseScanner):
                             capability_tag="multi-agent",
                             confidence=0.88,
                         ))
+        return findings
+
+    def _scan_workflow_graph(self, content: str, path: str, seen: set[str]) -> list[ScanFinding]:
+        """Agent nodes of a workflow graph: ``graph.nodes[]`` items with ``type: agent``, named by their ``id``."""
+        findings: list[ScanFinding] = []
+        if len(content) > _MAX_WORKFLOW_YAML_BYTES or "nodes" not in content or "agent" not in content:
+            return findings
+        try:
+            data = yaml.safe_load(content)
+        except Exception:
+            return findings
+        graph = data.get("graph") if isinstance(data, dict) else None
+        nodes = graph.get("nodes") if isinstance(graph, dict) else None
+        if not isinstance(nodes, list):
+            return findings
+        for node in nodes:
+            if not isinstance(node, dict) or node.get("type") != "agent":
+                continue
+            node_id = node.get("id") or node.get("name")
+            if not node_id:
+                continue
+            key = f"{path}::{node_id}"
+            if key in seen:
+                continue
+            seen.add(key)
+            findings.append(ScanFinding(
+                scanner_name=self.name(),
+                category="agent_instance",
+                file_path=path,
+                line_number=0,
+                match_text=str(node_id),
+                capability_tag="multi-agent",
+                confidence=0.88,
+            ))
         return findings
