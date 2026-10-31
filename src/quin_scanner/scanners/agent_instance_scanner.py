@@ -58,6 +58,11 @@ _AGENT_CONFIG_NAMES = {"agents.yaml", "agents.yml", "crew.yaml", "crew.yml"}
 # Google ADK config-based agent files (adk create --type=config)
 _ADK_ROOT_AGENT_NAMES = {"root_agent.yaml", "root_agent.yml"}
 
+# Workflow graphs (ChatDev and similar): `graph: {nodes: [{id: ..., type: agent}, ...]}` in a YAML file with any name.
+# Only files that mention both markers are parsed, and very large files are skipped.
+_WORKFLOW_YAML_SUFFIXES = {".yaml", ".yml"}
+_MAX_WORKFLOW_YAML_BYTES = 512 * 1024
+
 # Markdown agent spec patterns
 _MD_AGENT_TITLE_RE = re.compile(
     r'^#\s+(?:Agent\s*\d*[:\-—]\s*)?(.+)', re.MULTILINE,
@@ -163,6 +168,9 @@ class AgentInstanceScanner(BaseScanner):
                 elif fname == "flow.dag.yaml":
                     content = accessor.read_file(path)
                     findings.extend(self._scan_flow_dag(content, path, seen))
+                elif suffix in _WORKFLOW_YAML_SUFFIXES:
+                    content = accessor.read_file(path)
+                    findings.extend(self._scan_workflow_graph(content, path, seen))
                 elif suffix == ".md" and self._in_agent_dir(path):
                     content = accessor.read_file(path)
                     findings.extend(self._scan_agent_markdown(content, path, seen))
@@ -396,4 +404,38 @@ class AgentInstanceScanner(BaseScanner):
                             capability_tag="multi-agent",
                             confidence=0.88,
                         ))
+        return findings
+
+    def _scan_workflow_graph(self, content: str, path: str, seen: set[str]) -> list[ScanFinding]:
+        """Agent nodes of a workflow graph: ``graph.nodes[]`` items with ``type: agent``, named by their ``id``."""
+        findings: list[ScanFinding] = []
+        if len(content) > _MAX_WORKFLOW_YAML_BYTES or "nodes" not in content or "agent" not in content:
+            return findings
+        try:
+            data = yaml.safe_load(content)
+        except Exception:
+            return findings
+        graph = data.get("graph") if isinstance(data, dict) else None
+        nodes = graph.get("nodes") if isinstance(graph, dict) else None
+        if not isinstance(nodes, list):
+            return findings
+        for node in nodes:
+            if not isinstance(node, dict) or node.get("type") != "agent":
+                continue
+            node_id = node.get("id") or node.get("name")
+            if not node_id:
+                continue
+            key = f"{path}::{node_id}"
+            if key in seen:
+                continue
+            seen.add(key)
+            findings.append(ScanFinding(
+                scanner_name=self.name(),
+                category="agent_instance",
+                file_path=path,
+                line_number=0,
+                match_text=str(node_id),
+                capability_tag="multi-agent",
+                confidence=0.88,
+            ))
         return findings

@@ -87,3 +87,63 @@ def test_findings_keep_their_line_numbers(tmp_path):
     index.build()
     (finding,) = AgentInstanceScanner().scan(accessor, index)
     assert (finding.match_text, finding.line_number) == ("late", 3)
+
+
+# --- Workflow graphs in YAML (issue #72) --------------------------------------------------------------------------
+
+WORKFLOW = """\
+graph:
+  id: Demo
+  nodes:
+    - id: Counter
+      type: loop_counter
+      config: {max_iterations: 3}
+    - id: Programmer Code Review
+      type: agent
+      config:
+        name: gpt-4o
+        role: You are Programmer.
+    - id: Reviewer
+      type: agent
+      config: {name: gpt-4o}
+    - id: FINAL
+      type: passthrough
+  edges: []
+"""
+
+
+def test_agent_nodes_of_a_workflow_graph_are_agents_whatever_the_file_is_called(tmp_path):
+    names = _names(tmp_path, WORKFLOW, "ChatDev_v1.yaml")
+    assert names == ["Programmer Code Review", "Reviewer"]  # the node ids, not the model name or other node types
+
+
+def test_a_workflow_graph_with_no_agent_nodes_has_no_agents(tmp_path):
+    source = WORKFLOW.replace("type: agent", "type: passthrough")
+    assert _names(tmp_path, source, "flow.yml") == []
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "type: agent\nname: not-a-graph\n",  # no nodes
+        "steps:\n  - id: a\n    type: agent\n",  # not graph.nodes
+        "graph:\n  nodes: not-a-list\n  type: agent\n",
+        "graph: [unbalanced\n  nodes:\n    type: agent\n",  # invalid YAML
+    ],
+)
+def test_yaml_that_is_not_a_workflow_graph_is_ignored(tmp_path, source):
+    assert _names(tmp_path, source, "other.yaml") == []
+
+
+def test_a_very_large_yaml_file_is_not_parsed(tmp_path):
+    filler = "# " + "x" * 80 + "\n"
+    source = WORKFLOW + filler * 8000  # well over the size limit
+    assert _names(tmp_path, source, "huge.yaml") == []
+
+
+def test_agents_yaml_and_flow_dag_keep_their_own_parsers(tmp_path):
+    (tmp_path / "flow.dag.yaml").write_text("nodes:\n  - name: planner\n    type: llm\n", encoding="utf-8")
+    accessor = LocalRepoAccessor(tmp_path)
+    index = FileIndex(accessor)
+    index.build()
+    assert [f.match_text for f in AgentInstanceScanner().scan(accessor, index)] == ["planner"]
