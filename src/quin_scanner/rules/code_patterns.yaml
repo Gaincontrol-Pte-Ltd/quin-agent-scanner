@@ -203,6 +203,32 @@ patterns:
   - pattern: "import\\s+agno\\b"
     language: python
     capability_tag: llm-api
+  # Browser Use
+  - pattern: "from\\s+browser_use\\b"
+    language: python
+    capability_tag: tool-use
+  - pattern: "import\\s+browser_use\\b"
+    language: python
+    capability_tag: tool-use
+  # Model Context Protocol SDKs (servers and clients)
+  - pattern: "from\\s+mcp\\b"
+    language: python
+    capability_tag: tool-use
+  - pattern: "import\\s+mcp\\b"
+    language: python
+    capability_tag: tool-use
+  - pattern: "from\\s+fastmcp\\b"
+    language: python
+    capability_tag: tool-use
+  - pattern: "\\bFastMCP\\s*\\("
+    language: python
+    capability_tag: tool-use
+  - pattern: "['\"]@modelcontextprotocol/sdk"
+    language: javascript
+    capability_tag: tool-use
+  - pattern: "new\\s+McpServer\\s*\\("
+    language: javascript
+    capability_tag: tool-use
   - pattern: "AgentOS\\s*\\("
     language: python
     capability_tag: orchestration
