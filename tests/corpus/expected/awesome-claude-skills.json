@@ -1,0 +1,1804 @@
+{
+  "skills": [
+    {
+      "ecosystem": "generic",
+      "name": "artifacts-builder",
+      "path": "artifacts-builder",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "brand-guidelines",
+      "path": "brand-guidelines",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "canvas-design",
+      "path": "canvas-design",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "changelog-generator",
+      "path": "changelog-generator",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "competitive-ads-extractor",
+      "path": "competitive-ads-extractor",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "-21risk-automation",
+      "path": "composio-skills/-21risk-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "-2chat-automation",
+      "path": "composio-skills/-2chat-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "ably-automation",
+      "path": "composio-skills/ably-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "abstract-automation",
+      "path": "composio-skills/abstract-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "abuselpdb-automation",
+      "path": "composio-skills/abuselpdb-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "abyssale-automation",
+      "path": "composio-skills/abyssale-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "accelo-automation",
+      "path": "composio-skills/accelo-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "accredible-certificates-automation",
+      "path": "composio-skills/accredible-certificates-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "acculynx-automation",
+      "path": "composio-skills/acculynx-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "active-campaign-automation",
+      "path": "composio-skills/active-campaign-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "addresszen-automation",
+      "path": "composio-skills/addresszen-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "adobe-automation",
+      "path": "composio-skills/adobe-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "adrapid-automation",
+      "path": "composio-skills/adrapid-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "adyntel-automation",
+      "path": "composio-skills/adyntel-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "aero-workflow-automation",
+      "path": "composio-skills/aero-workflow-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "aeroleads-automation",
+      "path": "composio-skills/aeroleads-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "affinda-automation",
+      "path": "composio-skills/affinda-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "affinity-automation",
+      "path": "composio-skills/affinity-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "agencyzoom-automation",
+      "path": "composio-skills/agencyzoom-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "agent-mail-automation",
+      "path": "composio-skills/agent-mail-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "agentql-automation",
+      "path": "composio-skills/agentql-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "agenty-automation",
+      "path": "composio-skills/agenty-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "agiled-automation",
+      "path": "composio-skills/agiled-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "agility-cms-automation",
+      "path": "composio-skills/agility-cms-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "Ahrefs Automation",
+      "path": "composio-skills/ahrefs-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "ai-ml-api-automation",
+      "path": "composio-skills/ai-ml-api-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "aivoov-automation",
+      "path": "composio-skills/aivoov-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "alchemy-automation",
+      "path": "composio-skills/alchemy-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "algodocs-automation",
+      "path": "composio-skills/algodocs-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "algolia-automation",
+      "path": "composio-skills/algolia-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "all-images-ai-automation",
+      "path": "composio-skills/all-images-ai-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "alpha-vantage-automation",
+      "path": "composio-skills/alpha-vantage-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "altoviz-automation",
+      "path": "composio-skills/altoviz-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "alttext-ai-automation",
+      "path": "composio-skills/alttext-ai-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "amara-automation",
+      "path": "composio-skills/amara-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "amazon-automation",
+      "path": "composio-skills/amazon-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "ambee-automation",
+      "path": "composio-skills/ambee-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "ambient-weather-automation",
+      "path": "composio-skills/ambient-weather-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "amcards-automation",
+      "path": "composio-skills/amcards-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "anchor-browser-automation",
+      "path": "composio-skills/anchor-browser-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "anonyflow-automation",
+      "path": "composio-skills/anonyflow-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "anthropic-administrator-automation",
+      "path": "composio-skills/anthropic-administrator-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "anthropic_administrator-automation",
+      "path": "composio-skills/anthropic_administrator-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "apaleo-automation",
+      "path": "composio-skills/apaleo-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "apex27-automation",
+      "path": "composio-skills/apex27-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "api-bible-automation",
+      "path": "composio-skills/api-bible-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "api-labz-automation",
+      "path": "composio-skills/api-labz-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "api-ninjas-automation",
+      "path": "composio-skills/api-ninjas-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "api-sports-automation",
+      "path": "composio-skills/api-sports-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "api2pdf-automation",
+      "path": "composio-skills/api2pdf-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "apiflash-automation",
+      "path": "composio-skills/apiflash-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "Apify Automation",
+      "path": "composio-skills/apify-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "apilio-automation",
+      "path": "composio-skills/apilio-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "apipie-ai-automation",
+      "path": "composio-skills/apipie-ai-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "apitemplate-io-automation",
+      "path": "composio-skills/apitemplate-io-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "apiverve-automation",
+      "path": "composio-skills/apiverve-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "Apollo Automation",
+      "path": "composio-skills/apollo-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "appcircle-automation",
+      "path": "composio-skills/appcircle-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "appdrag-automation",
+      "path": "composio-skills/appdrag-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "appointo-automation",
+      "path": "composio-skills/appointo-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "appsflyer-automation",
+      "path": "composio-skills/appsflyer-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "appveyor-automation",
+      "path": "composio-skills/appveyor-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "aryn-automation",
+      "path": "composio-skills/aryn-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "ascora-automation",
+      "path": "composio-skills/ascora-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "Ashby Automation",
+      "path": "composio-skills/ashby-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "asin-data-api-automation",
+      "path": "composio-skills/asin-data-api-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "astica-ai-automation",
+      "path": "composio-skills/astica-ai-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "async-interview-automation",
+      "path": "composio-skills/async-interview-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "atlassian-automation",
+      "path": "composio-skills/atlassian-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "Attio Automation",
+      "path": "composio-skills/attio-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "auth0-automation",
+      "path": "composio-skills/auth0-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "autobound-automation",
+      "path": "composio-skills/autobound-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "autom-automation",
+      "path": "composio-skills/autom-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "axonaut-automation",
+      "path": "composio-skills/axonaut-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "ayrshare-automation",
+      "path": "composio-skills/ayrshare-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "backendless-automation",
+      "path": "composio-skills/backendless-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "bannerbear-automation",
+      "path": "composio-skills/bannerbear-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "bart-automation",
+      "path": "composio-skills/bart-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "baselinker-automation",
+      "path": "composio-skills/baselinker-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "baserow-automation",
+      "path": "composio-skills/baserow-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "basin-automation",
+      "path": "composio-skills/basin-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "battlenet-automation",
+      "path": "composio-skills/battlenet-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "beaconchain-automation",
+      "path": "composio-skills/beaconchain-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "beaconstac-automation",
+      "path": "composio-skills/beaconstac-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "beamer-automation",
+      "path": "composio-skills/beamer-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "beeminder-automation",
+      "path": "composio-skills/beeminder-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "bench-automation",
+      "path": "composio-skills/bench-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "benchmark-email-automation",
+      "path": "composio-skills/benchmark-email-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "benzinga-automation",
+      "path": "composio-skills/benzinga-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "bestbuy-automation",
+      "path": "composio-skills/bestbuy-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "better-proposals-automation",
+      "path": "composio-skills/better-proposals-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "better-stack-automation",
+      "path": "composio-skills/better-stack-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "bidsketch-automation",
+      "path": "composio-skills/bidsketch-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "big-data-cloud-automation",
+      "path": "composio-skills/big-data-cloud-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "bigmailer-automation",
+      "path": "composio-skills/bigmailer-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "bigml-automation",
+      "path": "composio-skills/bigml-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "bigpicture-io-automation",
+      "path": "composio-skills/bigpicture-io-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "bitquery-automation",
+      "path": "composio-skills/bitquery-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "bitwarden-automation",
+      "path": "composio-skills/bitwarden-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "blackbaud-automation",
+      "path": "composio-skills/blackbaud-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "blackboard-automation",
+      "path": "composio-skills/blackboard-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "blocknative-automation",
+      "path": "composio-skills/blocknative-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "boldsign-automation",
+      "path": "composio-skills/boldsign-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "bolna-automation",
+      "path": "composio-skills/bolna-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "boloforms-automation",
+      "path": "composio-skills/boloforms-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "bolt-iot-automation",
+      "path": "composio-skills/bolt-iot-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "bonsai-automation",
+      "path": "composio-skills/bonsai-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "bookingmood-automation",
+      "path": "composio-skills/bookingmood-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "booqable-automation",
+      "path": "composio-skills/booqable-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "borneo-automation",
+      "path": "composio-skills/borneo-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "botbaba-automation",
+      "path": "composio-skills/botbaba-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "botpress-automation",
+      "path": "composio-skills/botpress-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "botsonic-automation",
+      "path": "composio-skills/botsonic-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "botstar-automation",
+      "path": "composio-skills/botstar-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "bouncer-automation",
+      "path": "composio-skills/bouncer-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "boxhero-automation",
+      "path": "composio-skills/boxhero-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "Braintree Automation",
+      "path": "composio-skills/braintree-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "brandfetch-automation",
+      "path": "composio-skills/brandfetch-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "breeze-automation",
+      "path": "composio-skills/breeze-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "breezy-hr-automation",
+      "path": "composio-skills/breezy-hr-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "brex-automation",
+      "path": "composio-skills/brex-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "brex-staging-automation",
+      "path": "composio-skills/brex-staging-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "brightdata-automation",
+      "path": "composio-skills/brightdata-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "brightpearl-automation",
+      "path": "composio-skills/brightpearl-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "brilliant-directories-automation",
+      "path": "composio-skills/brilliant-directories-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "browseai-automation",
+      "path": "composio-skills/browseai-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "browser-tool-automation",
+      "path": "composio-skills/browser-tool-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "browserbase-tool-automation",
+      "path": "composio-skills/browserbase-tool-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "browserhub-automation",
+      "path": "composio-skills/browserhub-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "browserless-automation",
+      "path": "composio-skills/browserless-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "btcpay-server-automation",
+      "path": "composio-skills/btcpay-server-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "bubble-automation",
+      "path": "composio-skills/bubble-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "bugbug-automation",
+      "path": "composio-skills/bugbug-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "bugherd-automation",
+      "path": "composio-skills/bugherd-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "bugsnag-automation",
+      "path": "composio-skills/bugsnag-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "buildkite-automation",
+      "path": "composio-skills/buildkite-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "builtwith-automation",
+      "path": "composio-skills/builtwith-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "bunnycdn-automation",
+      "path": "composio-skills/bunnycdn-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "byteforms-automation",
+      "path": "composio-skills/byteforms-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "cabinpanda-automation",
+      "path": "composio-skills/cabinpanda-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "cal-automation",
+      "path": "composio-skills/cal-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "calendarhero-automation",
+      "path": "composio-skills/calendarhero-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "callerapi-automation",
+      "path": "composio-skills/callerapi-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "callingly-automation",
+      "path": "composio-skills/callingly-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "callpage-automation",
+      "path": "composio-skills/callpage-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "campaign-cleaner-automation",
+      "path": "composio-skills/campaign-cleaner-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "campayn-automation",
+      "path": "composio-skills/campayn-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "canny-automation",
+      "path": "composio-skills/canny-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "canvas-automation",
+      "path": "composio-skills/canvas-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "Capsule CRM Automation",
+      "path": "composio-skills/capsule-crm-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "capsule_crm-automation",
+      "path": "composio-skills/capsule_crm-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "carbone-automation",
+      "path": "composio-skills/carbone-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "cardly-automation",
+      "path": "composio-skills/cardly-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "castingwords-automation",
+      "path": "composio-skills/castingwords-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "cats-automation",
+      "path": "composio-skills/cats-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "cdr-platform-automation",
+      "path": "composio-skills/cdr-platform-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "census-bureau-automation",
+      "path": "composio-skills/census-bureau-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "centralstationcrm-automation",
+      "path": "composio-skills/centralstationcrm-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "certifier-automation",
+      "path": "composio-skills/certifier-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "chaser-automation",
+      "path": "composio-skills/chaser-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "chatbotkit-automation",
+      "path": "composio-skills/chatbotkit-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "chatfai-automation",
+      "path": "composio-skills/chatfai-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "chatwork-automation",
+      "path": "composio-skills/chatwork-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "chmeetings-automation",
+      "path": "composio-skills/chmeetings-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "cincopa-automation",
+      "path": "composio-skills/cincopa-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "claid-ai-automation",
+      "path": "composio-skills/claid-ai-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "classmarker-automation",
+      "path": "composio-skills/classmarker-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "clearout-automation",
+      "path": "composio-skills/clearout-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "clickmeeting-automation",
+      "path": "composio-skills/clickmeeting-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "Clockify Automation",
+      "path": "composio-skills/clockify-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "cloudcart-automation",
+      "path": "composio-skills/cloudcart-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "cloudconvert-automation",
+      "path": "composio-skills/cloudconvert-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "cloudflare-api-key-automation",
+      "path": "composio-skills/cloudflare-api-key-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "cloudflare-automation",
+      "path": "composio-skills/cloudflare-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "cloudflare-browser-rendering-automation",
+      "path": "composio-skills/cloudflare-browser-rendering-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "Cloudinary Automation",
+      "path": "composio-skills/cloudinary-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "cloudlayer-automation",
+      "path": "composio-skills/cloudlayer-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "cloudpress-automation",
+      "path": "composio-skills/cloudpress-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "coassemble-automation",
+      "path": "composio-skills/coassemble-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "codacy-automation",
+      "path": "composio-skills/codacy-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "codeinterpreter-automation",
+      "path": "composio-skills/codeinterpreter-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "codereadr-automation",
+      "path": "composio-skills/codereadr-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "Coinbase Automation",
+      "path": "composio-skills/coinbase-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "coinmarketcal-automation",
+      "path": "composio-skills/coinmarketcal-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "coinmarketcap-automation",
+      "path": "composio-skills/coinmarketcap-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "coinranking-automation",
+      "path": "composio-skills/coinranking-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "college-football-data-automation",
+      "path": "composio-skills/college-football-data-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "composio-automation",
+      "path": "composio-skills/composio-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "composio-search-automation",
+      "path": "composio-skills/composio-search-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "connecteam-automation",
+      "path": "composio-skills/connecteam-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "Contentful Automation",
+      "path": "composio-skills/contentful-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "contentful-graphql-automation",
+      "path": "composio-skills/contentful-graphql-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "control-d-automation",
+      "path": "composio-skills/control-d-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "conversion-tools-automation",
+      "path": "composio-skills/conversion-tools-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    },
+    {
+      "ecosystem": "generic",
+      "name": "convertapi-automation",
+      "path": "composio-skills/convertapi-automation",
+      "rules": {},
+      "score": 0,
+      "severity": {},
+      "verdict": "SAFE"
+    }
+  ]
+}

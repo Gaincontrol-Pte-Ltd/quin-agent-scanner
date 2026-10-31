@@ -39,8 +39,6 @@ packages:
   semantic-kernel: "Semantic Kernel"
   promptflow: "PromptFlow"
   promptflow-core: "PromptFlow"
-  mcp: "MCP"
-  modelcontextprotocol: "MCP"
   crewai: "CrewAI"
   dify: "Dify"
   ai: "Vercel AI SDK"
@@ -53,6 +51,12 @@ packages:
   langchain-core: "LangChain"
   langchain-community: "LangChain"
   openclaw: "OpenClaw"
+  # Lowest priority: an application that merely depends on browser-use keeps the framework it is built on.
+  browser-use: "Browser Use"
+  browser_use: "Browser Use"
+  # No MCP entries on purpose. `mcp` and `modelcontextprotocol` used to be listed (and were inert because no
+  # dependency rule emitted them); the MCP SDK is now detected, but depending on it does not say what an application
+  # is: clients and multi-agent systems (ChatDev) use it too, and would be mislabelled "MCP".
 
 # File marker name → framework
 # Checked against FrameworkMarkerScanner findings (file names)
@@ -134,3 +138,6 @@ ecosystems:
   Flowise:
     ecosystem: "npm"
     package: "flowise"
+  "Browser Use":
+    ecosystem: "PyPI"
+    package: "browser-use"

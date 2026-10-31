@@ -51,7 +51,7 @@
     "translator",
     "triage_agent"
   ],
-  "artifacts": 456,
+  "artifacts": 463,
   "capability_tags": [
     "agent-instructions",
     "agent-skills",

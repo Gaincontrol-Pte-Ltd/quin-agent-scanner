@@ -779,7 +779,7 @@ def skills_scan(
 
     if output_file:
         try:
-            Path(output_file).write_text(rendered + "\n", encoding="utf-8")
+            Path(output_file).write_text(rendered + "\n", encoding="utf-8", newline="\n")
         except OSError as e:
             click.echo(f"Error: cannot write {output_file}: {e}", err=True)
             sys.exit(2)
