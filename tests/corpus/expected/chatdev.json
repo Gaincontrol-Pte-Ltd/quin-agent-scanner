@@ -41,7 +41,7 @@
     "manager",
     "writer"
   ],
-  "artifacts": 105,
+  "artifacts": 115,
   "capability_tags": [
     "agent-skills",
     "embeddings",
@@ -49,7 +49,8 @@
     "memory",
     "multi-agent",
     "prompt-templates",
-    "rag"
+    "rag",
+    "tool-use"
   ],
   "confidence": 0.99,
   "framework": "unknown",

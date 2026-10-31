@@ -130,6 +130,10 @@ python:
     capability_tags: [llm-api, orchestration, tool-use]
   - package: browser_use
     capability_tags: [llm-api, orchestration, tool-use]
+  - package: mcp
+    capability_tags: [tool-use]
+  - package: fastmcp
+    capability_tags: [tool-use]
   - package: databricks-agents
     capability_tags: [llm-api, orchestration, fine-tuning]
   - package: databricks-sdk
@@ -170,6 +174,8 @@ nodejs:
     capability_tags: [llm-api, orchestration, tool-use, multi-agent]
   - package: mastra
     capability_tags: [llm-api, orchestration, tool-use, multi-agent]
+  - package: "@modelcontextprotocol/sdk"
+    capability_tags: [tool-use]
 
 go:
   - package: github.com/sashabaranov/go-openai
