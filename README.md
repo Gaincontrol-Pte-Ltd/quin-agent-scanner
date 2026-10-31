@@ -11,7 +11,7 @@ Point Quin at a repo and get back: every AI agent, what it does, what tools it h
 
 Learn more at [gaincontrol.ai/quin](https://gaincontrol.ai/quin).
 
-> **Note:** This is version **1.0.0rc1**, the release candidate for 1.0. The interfaces in the [stability policy](docs/stability.md) are frozen; `1.0.0` follows after a soak period without contract changes. Scan results are provided **as-is** and may be incomplete, inaccurate, or contain false positives/negatives. **Always review and validate findings independently before making security, compliance, or architectural decisions based on them.** The authors and contributors of Quin accept no responsibility or liability for any actions taken, or not taken, based on the output of this tool. If you encounter any issues, please [open an issue](https://github.com/Gaincontrol-Pte-Ltd/quin-agent-scanner/issues) or email us at [pixiedust@gaincontrol.ai](mailto:pixiedust@gaincontrol.ai) -- your feedback helps us improve the scanner.
+> **Note:** This is version **1.0.0rc2**, the current release candidate for 1.0. The interfaces in the [stability policy](docs/stability.md) are frozen; `1.0.0` follows after a soak period without contract changes. Scan results are provided **as-is** and may be incomplete, inaccurate, or contain false positives/negatives. **Always review and validate findings independently before making security, compliance, or architectural decisions based on them.** The authors and contributors of Quin accept no responsibility or liability for any actions taken, or not taken, based on the output of this tool. If you encounter any issues, please [open an issue](https://github.com/Gaincontrol-Pte-Ltd/quin-agent-scanner/issues) or email us at [pixiedust@gaincontrol.ai](mailto:pixiedust@gaincontrol.ai) -- your feedback helps us improve the scanner.
 
 ---
 
@@ -471,7 +471,7 @@ Precedence: `--vuln-search-provider` CLI flag > `VULN_SEARCH_PROVIDER` env var >
 
 ## Stability
 
-Quin `1.0.0rc1` is the release candidate for 1.0. From `1.0.0`, the CLI and its exit codes, the JSON/YAML report schema, SARIF output and rule IDs, and the config, baseline and GitHub Action interfaces follow semantic versioning with a deprecation window; see the [stability policy](docs/stability.md). The **Python import API** (`import quin_scanner`) is not public: the CLI is the supported interface. The web UI in [`ui/`](ui/) is experimental. Upgrading from a beta? See [Migrating from the betas](docs/migrating-from-the-betas.md).
+Quin `1.0.0rc2` is the current release candidate for 1.0. From `1.0.0`, the CLI and its exit codes, the JSON/YAML report schema, SARIF output and rule IDs, and the config, baseline and GitHub Action interfaces follow semantic versioning with a deprecation window; see the [stability policy](docs/stability.md). The **Python import API** (`import quin_scanner`) is not public: the CLI is the supported interface. The web UI in [`ui/`](ui/) is experimental. Upgrading from a beta? See [Migrating from the betas](docs/migrating-from-the-betas.md).
 
 ---
 

@@ -9,6 +9,10 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.0.0rc2] — 2026-10-31
+
+**Second release candidate for 1.0.** Fixes the problems the `1.0.0rc1` pilot found: report and baseline files are written with LF line endings on every OS, agent names are read from real constructor arguments instead of text inside strings (and many agents the old matching missed are now found), agents defined as workflow-graph nodes in YAML are detected, Browser Use is a recognised framework, and the MCP SDK is recognised. No stable interface changed: the CLI, report schema (`schema_version` 1.0), exit codes, rule IDs, config, baseline and Action interfaces are the same as in `1.0.0rc1`. Detection results change as listed under *Detection changes*. The two-week soak period restarts with this release; `1.0.0` follows if it passes without a contract change or an open critical bug. Please [report problems](https://github.com/Gaincontrol-Pte-Ltd/quin-agent-scanner/issues).
+
 ### Added
 
 - Quality corpus: five external repositories from the 1.0.0rc1 pilot (gpt-researcher, browser-use, modelcontextprotocol/servers, ChatDev and the awesome-claude-skills collection), pinned at commit SHAs. Their snapshots record today's results including known gaps (#70, #71, #72), so the fixes that follow show up as snapshot diffs.
@@ -19,6 +23,10 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **Browser Use is a recognised framework (#70).** Self-imports (`from browser_use`), the `browser-use` dependency, and an OSV lookup entry; the lowest priority, so an application built on another framework keeps it. Side effects on the browser-use repository itself: its `from browser_use import ...` lines are now code-pattern artifacts (396 to 1275), and its own `browser-use` skill is no longer also listed as a tool (28 to 27 tools), because tools named like a known dependency are filtered.
 - **Agent nodes of YAML workflow graphs are agents (#72).** A YAML file with any name whose `graph.nodes` list contains items with `type: agent` now yields one agent per such node, named by its `id` (ChatDev defines its agents this way under `yaml_instance/`). Only files mentioning both `nodes` and `agent` are parsed, and files over 512 KB are skipped; `agents.yaml`, `crew.yaml`, `root_agent.yaml` and `flow.dag.yaml` keep their own parsers. Corpus: ChatDev goes from 0 agents to 40 (and gains the `multi-agent` tag). ChatDev's framework stays `unknown`: it has no marker file or published package to recognise it by.
 - **The MCP SDK is recognised (#71, first part).** Dependency rules for `mcp`, `fastmcp` and `@modelcontextprotocol/sdk`, and code patterns for `from mcp`, `FastMCP(`, `new McpServer(` and imports of the TypeScript SDK, all with the existing `tool-use` capability tag. A repository that builds an MCP server or client is now recognised as an AI project and its SDK usage shows up as artifacts; before, an MCP server project with no `mcp.json` was not recognised at all. Effects in the corpus: more artifacts in repositories that import the SDK (for example modelcontextprotocol/servers 10 to 81), and ChatDev gains the `tool-use` tag. No report field changes, and `mcp_servers` still lists only servers named in configuration files: listing the servers a repository *implements*, and their tools, needs a new field (schema 1.1) and is planned after 1.0. Depending on the SDK does not set `framework`: clients and multi-agent systems use it too, so the unused `mcp` and `modelcontextprotocol` entries were removed from the framework lookup rather than activated.
+
+### Changed
+
+- The locked `openai` is 2.54.0 and the CI workflows use newer versions of their actions (checkout, setup-uv, cache, setup-node). Neither affects what users install: the runtime dependency ranges are unchanged.
 
 ### Fixed
 
@@ -291,7 +299,8 @@ This changelog was not split per beta, so the sections below also list changes f
 
 ---
 
-[Unreleased]: https://github.com/Gaincontrol-Pte-Ltd/quin-agent-scanner/compare/v1.0.0rc1...HEAD
+[Unreleased]: https://github.com/Gaincontrol-Pte-Ltd/quin-agent-scanner/compare/v1.0.0rc2...HEAD
+[1.0.0rc2]: https://github.com/Gaincontrol-Pte-Ltd/quin-agent-scanner/releases/tag/v1.0.0rc2
 [1.0.0rc1]: https://github.com/Gaincontrol-Pte-Ltd/quin-agent-scanner/releases/tag/v1.0.0rc1
 [0.1.0b5]: https://github.com/Gaincontrol-Pte-Ltd/quin-agent-scanner/releases/tag/v0.1.0b5
 [0.1.0b4]: https://github.com/Gaincontrol-Pte-Ltd/quin-agent-scanner/releases/tag/v0.1.0b4
