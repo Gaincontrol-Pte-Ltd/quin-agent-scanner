@@ -1,0 +1,22 @@
+{
+  "agents": [],
+  "artifacts": 65,
+  "capability_tags": [
+    "agent-skills",
+    "embeddings",
+    "llm-api",
+    "memory",
+    "prompt-templates",
+    "rag"
+  ],
+  "confidence": 0.99,
+  "framework": "unknown",
+  "is_ai_application": true,
+  "mcp_servers": [],
+  "models": [
+    "openai:text-embedding-3-small",
+    "openai:text-embedding-ada-002"
+  ],
+  "risk_signals": {},
+  "tools": 1
+}

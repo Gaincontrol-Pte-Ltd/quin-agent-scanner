@@ -1,0 +1,22 @@
+{
+  "agents": [],
+  "artifacts": 10,
+  "capability_tags": [
+    "agent-instructions",
+    "agent-skills",
+    "llm-api",
+    "memory",
+    "multi-agent",
+    "prompt-templates",
+    "tool-use"
+  ],
+  "confidence": 0.99,
+  "framework": "unknown",
+  "is_ai_application": true,
+  "mcp_servers": [
+    "mcp-docs"
+  ],
+  "models": [],
+  "risk_signals": {},
+  "tools": 0
+}
