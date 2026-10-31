@@ -1,6 +1,6 @@
 """Content fingerprints of a repository's source files.
 
-The Aegis SDK hashes the project modules a running agent has loaded, and the control plane compares them with
+The Zino SDK hashes the project modules a running agent has loaded, and the control plane compares them with
 these hashes to find which repository an agent runs from (several shared files, one repository). No name or
 setting has to be configured by the team, so the hash must be computed identically on both sides:
 
@@ -9,7 +9,7 @@ setting has to be configured by the team, so the hash must be computed identical
 and a file is only hashed when its stripped text is at least MIN_CHARS long, so empty ``__init__.py`` files and
 other boilerplate that every project has do not make unrelated repositories look alike.
 
-Keep ``normalized_digest`` in step with ``aegis_core/code_fingerprint.py`` in the SDK: both repositories test it
+Keep ``normalized_digest`` in step with ``zino_core/code_fingerprint.py`` in the SDK: both repositories test it
 against the same known value.
 """
 from __future__ import annotations

@@ -73,7 +73,7 @@ Examples:
   quin-scanner scan ./my-project
   quin-scanner scan owner/repo --no-llm -o yaml
   quin-scanner scan owner/repo --min-confidence 0.7 -d reports/
-  quin-scanner scan ./my-agent --detect-aegis --no-llm
+  quin-scanner scan ./my-agent --detect-zino --no-llm
   quin-scanner scan ./my-agent --skills-baseline skills-baseline.yaml
   quin-scanner scan owner/repo --llm-provider anthropic --llm-model claude-sonnet-4-20250514
 ```
@@ -101,7 +101,7 @@ Arguments: `TARGET`
 | `--openai-compatible-url` | text |  |  | Base URL for OpenAI-compatible endpoints (vLLM, LiteLLM, Azure, etc.) |
 | `--no-vuln-check` | flag | off |  | Skip vulnerability lookup (OSV + web search) |
 | `--vuln-search-provider` | `perplexity` \| `gemini` \| `openai` \| `anthropic` \| `none` |  | `VULN_SEARCH_PROVIDER` | LLM provider for web-based vulnerability search (reuses that provider's API key env var) |
-| `--detect-aegis` | flag | off |  | Detect Aegis SDK usage and classify the agent as governed (off by default) |
+| `--detect-zino` | flag | off |  | Detect Zino SDK usage and classify the agent as governed (off by default) |
 | `--skills-baseline` | text |  |  | Suppress skill findings listed in this baseline (from 'quin-scanner skills baseline') |
 
 ## `quin-scanner scan-batch`
@@ -142,7 +142,7 @@ Arguments: `TARGETS_FILE`
 | `--openai-compatible-url` | text |  |  | Base URL for OpenAI-compatible endpoints (vLLM, LiteLLM, Azure, etc.) |
 | `--no-vuln-check` | flag | off |  | Skip vulnerability lookup (OSV + web search) |
 | `--vuln-search-provider` | `perplexity` \| `gemini` \| `openai` \| `anthropic` \| `none` |  | `VULN_SEARCH_PROVIDER` | LLM provider for web-based vulnerability search |
-| `--detect-aegis` | flag | off |  | Detect Aegis SDK usage and classify the agent as governed (off by default) |
+| `--detect-zino` | flag | off |  | Detect Zino SDK usage and classify the agent as governed (off by default) |
 
 ## `quin-scanner scan-org`
 
@@ -182,7 +182,7 @@ Arguments: `ORG_NAME`
 | `--openai-compatible-url` | text |  |  | Base URL for OpenAI-compatible endpoints (vLLM, LiteLLM, Azure, etc.) |
 | `--no-vuln-check` | flag | off |  | Skip vulnerability lookup (OSV + web search) |
 | `--vuln-search-provider` | `perplexity` \| `gemini` \| `openai` \| `anthropic` \| `none` |  | `VULN_SEARCH_PROVIDER` | LLM provider for web-based vulnerability search |
-| `--detect-aegis` | flag | off |  | Detect Aegis SDK usage and classify the agent as governed (off by default) |
+| `--detect-zino` | flag | off |  | Detect Zino SDK usage and classify the agent as governed (off by default) |
 
 ## `quin-scanner skills`
 

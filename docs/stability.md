@@ -1,6 +1,6 @@
 # Stability and Support Policy
 
-> **Status:** this policy takes effect with `1.0.0`. `1.0.0rc1` is the release candidate: every surface below is frozen for it, and a change to one restarts the soak period. Until `1.0.0` is released, a breaking change is still possible if a problem found in the release candidate requires it, and it would be announced in the CHANGELOG.
+> **Status:** this policy takes effect with `1.0.0`. `1.0.0rc2` is the current release candidate (the soak period restarted with it): every surface below is frozen for it, and a change to one restarts the soak period. Until `1.0.0` is released, a breaking change is still possible if a problem found in the release candidate requires it, and it would be announced in the CHANGELOG.
 
 Quin follows [Semantic Versioning 2.0](https://semver.org/) for the stable surfaces listed here. Everything else is internal and may change in any release.
 
@@ -87,7 +87,7 @@ The command tree, every option, its default and its type are pinned by `tests/cl
 
 ## Config and baseline files
 
-- **`scanner-config.yaml`** keys: `llm` (`provider`, `model`, `api_key_env`, `api_key`), `output` (`format`, `max_repo_risk_signals`), `vuln_check` (`enabled`, `search_provider`, `search_model`, `osv_timeout_seconds`, `web_timeout_seconds`, `web_retries`), `scanners.enabled`, `governance.detect_aegis`. An optional `config_version` key (default `1`): a file with a newer `config_version` than the installed release understands is rejected with an error that says to upgrade. Unknown keys are ignored with a warning on stderr, so a typo is visible. A missing, unreadable or invalid config file exits 2.
+- **`scanner-config.yaml`** keys: `llm` (`provider`, `model`, `api_key_env`, `api_key`), `output` (`format`, `max_repo_risk_signals`), `vuln_check` (`enabled`, `search_provider`, `search_model`, `osv_timeout_seconds`, `web_timeout_seconds`, `web_retries`), `scanners.enabled`, `governance.detect_zino`. An optional `config_version` key (default `1`): a file with a newer `config_version` than the installed release understands is rejected with an error that says to upgrade. Unknown keys are ignored with a warning on stderr, so a typo is visible. A missing, unreadable or invalid config file exits 2.
 - **Skills baseline** (`quin-scanner skills baseline`): `version: 1`, `generated`, `entries` of `fingerprint`, `rule_id`, `skill`, `file_path`, `note`. A baseline written by any 1.x release keeps working in later 1.x releases; a baseline with a newer `version` than the tool understands is rejected with an error that says to upgrade. The fingerprint algorithm is pinned by a test, and a frozen baseline file proves old baselines keep loading.
 
 ## GitHub Action

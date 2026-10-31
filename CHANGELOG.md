@@ -9,6 +9,19 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- **Breaking: governed-agent detection now targets the Zino SDK.** This changes interfaces that were frozen for `1.0.0rc2`, so the soak period restarts. If you used the old Aegis names, rename them:
+  - the `--detect-aegis` option on `scan`, `scan-batch` and `scan-org` is now `--detect-zino`;
+  - the `governance.detect_aegis` config key is now `governance.detect_zino`;
+  - in the report, `governance.aegis_detected` is now `governance.zino_detected`, and the evidence tag `aegis-governed` is now `zino-governed`.
+
+  The scanner detects the `zino-*` packages (`zino-core`, `zino-<framework>`, `zino-secret-manager-*`, `zino-openclaw-plugin`), `zino_*` imports, integration calls (`zino_initialize`, `ZinoBaseTool`, `ZinoFunctionMiddleware`, ...) and `zino:` engine config. The HTML report's governance card, the "About Zino" panel and the promo use the new name.
+
+## [1.0.0rc2] — 2026-10-31
+
+**Second release candidate for 1.0.** Fixes the problems the `1.0.0rc1` pilot found: report and baseline files are written with LF line endings on every OS, agent names are read from real constructor arguments instead of text inside strings (and many agents the old matching missed are now found), agents defined as workflow-graph nodes in YAML are detected, Browser Use is a recognised framework, and the MCP SDK is recognised. No stable interface changed: the CLI, report schema (`schema_version` 1.0), exit codes, rule IDs, config, baseline and Action interfaces are the same as in `1.0.0rc1`. Detection results change as listed under *Detection changes*. The two-week soak period restarts with this release; `1.0.0` follows if it passes without a contract change or an open critical bug. Please [report problems](https://github.com/Gaincontrol-Pte-Ltd/quin-agent-scanner/issues).
+
 ### Added
 
 - Quality corpus: five external repositories from the 1.0.0rc1 pilot (gpt-researcher, browser-use, modelcontextprotocol/servers, ChatDev and the awesome-claude-skills collection), pinned at commit SHAs. Their snapshots record today's results including known gaps (#70, #71, #72), so the fixes that follow show up as snapshot diffs.
@@ -19,6 +32,10 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **Browser Use is a recognised framework (#70).** Self-imports (`from browser_use`), the `browser-use` dependency, and an OSV lookup entry; the lowest priority, so an application built on another framework keeps it. Side effects on the browser-use repository itself: its `from browser_use import ...` lines are now code-pattern artifacts (396 to 1275), and its own `browser-use` skill is no longer also listed as a tool (28 to 27 tools), because tools named like a known dependency are filtered.
 - **Agent nodes of YAML workflow graphs are agents (#72).** A YAML file with any name whose `graph.nodes` list contains items with `type: agent` now yields one agent per such node, named by its `id` (ChatDev defines its agents this way under `yaml_instance/`). Only files mentioning both `nodes` and `agent` are parsed, and files over 512 KB are skipped; `agents.yaml`, `crew.yaml`, `root_agent.yaml` and `flow.dag.yaml` keep their own parsers. Corpus: ChatDev goes from 0 agents to 40 (and gains the `multi-agent` tag). ChatDev's framework stays `unknown`: it has no marker file or published package to recognise it by.
 - **The MCP SDK is recognised (#71, first part).** Dependency rules for `mcp`, `fastmcp` and `@modelcontextprotocol/sdk`, and code patterns for `from mcp`, `FastMCP(`, `new McpServer(` and imports of the TypeScript SDK, all with the existing `tool-use` capability tag. A repository that builds an MCP server or client is now recognised as an AI project and its SDK usage shows up as artifacts; before, an MCP server project with no `mcp.json` was not recognised at all. Effects in the corpus: more artifacts in repositories that import the SDK (for example modelcontextprotocol/servers 10 to 81), and ChatDev gains the `tool-use` tag. No report field changes, and `mcp_servers` still lists only servers named in configuration files: listing the servers a repository *implements*, and their tools, needs a new field (schema 1.1) and is planned after 1.0. Depending on the SDK does not set `framework`: clients and multi-agent systems use it too, so the unused `mcp` and `modelcontextprotocol` entries were removed from the framework lookup rather than activated.
+
+### Changed
+
+- The locked `openai` is 2.54.0 and the CI workflows use newer versions of their actions (checkout, setup-uv, cache, setup-node). Neither affects what users install: the runtime dependency ranges are unchanged.
 
 ### Fixed
 
@@ -131,19 +148,19 @@ This changelog was not split per beta, so the sections below also list changes f
 - HTML report: new "Inference Endpoints" table at the top of the Models tab.
 - Precision guards: build output (`.next`, `.nuxt`, `coverage`, ...), minified files and very long lines are skipped; generic `base_url`/`api_url` kwargs only count with LLM context within three lines; function signatures and pass-through variables are ignored; `/messages`-style paths must be `/v1/...`.
 
-#### Aegis Governed-Agent Detection (opt-in)
+#### Zino Governed-Agent Detection (opt-in)
 - `--detect-aegis` flag on `scan`, `scan-batch` and `scan-org` (or `governance.detect_aegis: true` in the config file). Off by default; without it scan output is unchanged.
-- New `AegisScanner` (rules in `rules/aegis.yaml`) detects Aegis SDK dependencies (`aegis-core`, `aegis-<framework>`, `aegis-secret-manager-*`, `aegis-openclaw-plugin`), imports, integration calls (`aegis_initialize`, `AegisBaseTool`, `AegisFunctionMiddleware`, ...), OpenClaw/Pi/Claude hook markers, and `aegis:` engine config.
-- Report gains a `governance` object (`status`: `governed` | `declared_only` | `ungoverned` | `not_applicable`, plus evidence). Aegis evidence is kept out of `artifacts`, so AI-detection and confidence are unaffected.
+- New `AegisScanner` (rules in `rules/aegis.yaml`) detects Zino SDK dependencies (`aegis-core`, `aegis-<framework>`, `aegis-secret-manager-*`, `aegis-openclaw-plugin`), imports, integration calls (`aegis_initialize`, `AegisBaseTool`, `AegisFunctionMiddleware`, ...), OpenClaw/Pi/Claude hook markers, and `aegis:` engine config.
+- Report gains a `governance` object (`status`: `governed` | `declared_only` | `ungoverned` | `not_applicable`, plus evidence). Zino evidence is kept out of `artifacts`, so AI-detection and confidence are unaffected.
 
 #### Scan Options in Report
 - The report shows the CLI flags the scan was run with (`--no-llm`, `--no-vuln-check`, `--detect-aegis`, `--llm-provider`, `--min-confidence`, ...) in a "Scan options" strip and in `metadata.scan_options.flags`. Secrets are never listed; `--openai-compatible-url` is shown without its value and `--config` shows only the file name.
 
-#### Report UI: Aegis Governance, Standardised Artifact Types, Artifact Filters
-- HTML report shows a "Governed by Aegis" / "Not governed by Aegis" card (with the Aegis artifact count) when `--detect-aegis` is used, and the evidence rows are merged into the Artifacts tab, tagged `aegis-governed:<kind>`.
-- Artifacts tab gains a standardised **Type** column (LLM API, Agent framework, Agent, Tool, Prompt template, RAG & embeddings, Memory, MCP, Infra & config, Aegis governance), filter chips with counts, and a text search. Types are display-only, defined in `rules/artifact_types.yaml`; scanner categories and capability tags in JSON/YAML/SARIF output are unchanged.
-- "About Aegis" panel (opened from the governance card): Aegis as an Agentic AI security platform with runtime enforcement, what it does, the drop-in integration for the detected framework, and links to gaincontrol.ai.
-- When Aegis detection is off (no `--detect-aegis`) and an AI application is found, the report shows a short Aegis promo with a hint to re-run with `--detect-aegis`.
+#### Report UI: Zino Governance, Standardised Artifact Types, Artifact Filters
+- HTML report shows a "Governed by Zino" / "Not governed by Zino" card (with the Zino artifact count) when `--detect-aegis` is used, and the evidence rows are merged into the Artifacts tab, tagged `aegis-governed:<kind>`.
+- Artifacts tab gains a standardised **Type** column (LLM API, Agent framework, Agent, Tool, Prompt template, RAG & embeddings, Memory, MCP, Infra & config, Zino governance), filter chips with counts, and a text search. Types are display-only, defined in `rules/artifact_types.yaml`; scanner categories and capability tags in JSON/YAML/SARIF output are unchanged.
+- "About Zino" panel (opened from the governance card): Zino as an Agentic AI security platform with runtime enforcement, what it does, the drop-in integration for the detected framework, and links to gaincontrol.ai.
+- When Zino detection is off (no `--detect-aegis`) and an AI application is found, the report shows a short Zino promo with a hint to re-run with `--detect-aegis`.
 
 #### Risk Signal Data Model
 - `RiskIndicator.threat_id` — new optional field (`str | None`) identifying the originating threat (e.g. `"T001"`) per risk signal. Additive / backward-compatible: `to_dict()` includes the field, consumers that don't read it are unaffected. Enables downstream reports and UIs to link each signal to its threat in the taxonomy.
@@ -291,7 +308,8 @@ This changelog was not split per beta, so the sections below also list changes f
 
 ---
 
-[Unreleased]: https://github.com/Gaincontrol-Pte-Ltd/quin-agent-scanner/compare/v1.0.0rc1...HEAD
+[Unreleased]: https://github.com/Gaincontrol-Pte-Ltd/quin-agent-scanner/compare/v1.0.0rc2...HEAD
+[1.0.0rc2]: https://github.com/Gaincontrol-Pte-Ltd/quin-agent-scanner/releases/tag/v1.0.0rc2
 [1.0.0rc1]: https://github.com/Gaincontrol-Pte-Ltd/quin-agent-scanner/releases/tag/v1.0.0rc1
 [0.1.0b5]: https://github.com/Gaincontrol-Pte-Ltd/quin-agent-scanner/releases/tag/v0.1.0b5
 [0.1.0b4]: https://github.com/Gaincontrol-Pte-Ltd/quin-agent-scanner/releases/tag/v0.1.0b4

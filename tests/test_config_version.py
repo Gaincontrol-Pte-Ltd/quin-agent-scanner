@@ -31,7 +31,7 @@ vuln_check:
 scanners:
   enabled: [dependency, skills]
 governance:
-  detect_aegis: true
+  detect_zino: true
 """
 
 
@@ -104,7 +104,7 @@ def test_every_documented_key_is_known_and_does_not_warn(tmp_path, capsys, monke
     monkeypatch.setenv("SOME_KEY_VAR", "k")
     cfg = ScannerConfig.load_from_file(_config(tmp_path, FULL_CONFIG))
     assert capsys.readouterr().err == ""
-    assert cfg.detect_aegis is True and cfg.vuln_check_enabled is False
+    assert cfg.detect_zino is True and cfg.vuln_check_enabled is False
 
 
 def test_the_repo_example_config_loads_without_warnings(capsys):

@@ -20,7 +20,7 @@ _LANGUAGE_EXTENSIONS: dict[str, set[str]] = {
 _PYTHON_MANIFEST_GLOBS = ("**/requirements*.txt", "**/pyproject.toml")
 
 
-# Test and fixture files hold *examples* of Aegis code (the scanner's own tests, a sample in a test
+# Test and fixture files hold *examples* of Zino code (the scanner's own tests, a sample in a test
 # suite), not the application's integration, so they are never evidence that it is governed.
 # Same patterns as the orchestrator's; not imported from there because it imports this module.
 _TEST_PATH_RE = re.compile(
@@ -38,17 +38,17 @@ def _norm(pkg: str) -> str:
     return pkg.strip().lower().replace("_", "-")
 
 
-class AegisScanner(BaseScanner):
-    """Detects use of the Aegis SDK (identity/policy enforcement for agents).
+class ZinoScanner(BaseScanner):
+    """Detects use of the Zino SDK (identity/policy enforcement for agents).
 
-    Not part of the default scanner set — enabled with ``--detect-aegis``.
-    Findings use category ``governance`` and tag ``aegis-governed``.
+    Not part of the default scanner set — enabled with ``--detect-zino``.
+    Findings use category ``governance`` and tag ``zino-governed``.
     """
 
-    TAG = "aegis-governed"
+    TAG = "zino-governed"
 
     def __init__(self) -> None:
-        rules = load_rules("aegis.yaml")
+        rules = load_rules("zino.yaml")
         deps = rules.get("dependencies", {})
         self._deps: dict[str, list[str]] = {eco: [_norm(p) for p in pkgs] for eco, pkgs in deps.items()}
         self._integrations: dict[str, str] = rules.get("integrations", {})
@@ -59,7 +59,7 @@ class AegisScanner(BaseScanner):
         self._config: dict[str, Any] = rules.get("config", {})
 
     def name(self) -> str:
-        return "AegisScanner"
+        return "ZinoScanner"
 
     def scan(self, accessor: RepoAccessor, file_index: FileIndex) -> list[ScanFinding]:
         findings: list[ScanFinding] = []
@@ -71,7 +71,7 @@ class AegisScanner(BaseScanner):
 
     # --- helpers ---
 
-    def _is_aegis_dep(self, ecosystem: str, pkg: str) -> bool:
+    def _is_zino_dep(self, ecosystem: str, pkg: str) -> bool:
         pkg = _norm(pkg)
         for rule in self._deps.get(ecosystem, []):
             if rule.endswith("*"):
@@ -110,7 +110,7 @@ class AegisScanner(BaseScanner):
                         pkg = DependencyScanner._extract_python_pkg(line)
                     if not pkg:
                         continue
-                    if self._is_aegis_dep("python", pkg):
+                    if self._is_zino_dep("python", pkg):
                         findings.append(self._finding("dependency", path, lineno, line.strip().strip('",'), 0.9))
         for path in file_index.files_matching("**/package.json"):
             try:
@@ -121,7 +121,7 @@ class AegisScanner(BaseScanner):
             all_deps = {**(data.get("dependencies") or {}), **(data.get("devDependencies") or {})}
             lines = content.splitlines()
             for pkg, version in all_deps.items():
-                if self._is_aegis_dep("nodejs", pkg):
+                if self._is_zino_dep("nodejs", pkg):
                     lineno = next((i + 1 for i, ln in enumerate(lines) if pkg in ln), None)
                     findings.append(self._finding("dependency", path, lineno, f"{pkg}@{version}", 0.9))
         return findings
@@ -139,7 +139,7 @@ class AegisScanner(BaseScanner):
                 content = accessor.read_file(path)
             except Exception:
                 continue
-            if "aegis" not in content.lower() and "load_mcp_tools" not in content:
+            if "zino" not in content.lower() and "load_mcp_tools" not in content:
                 continue
             for lineno, line in enumerate(content.splitlines(), start=1):
                 if line.lstrip().startswith(("#", "//", "*", "/*")):
@@ -195,7 +195,7 @@ class AegisScanner(BaseScanner):
                 if req and not any(r.search(block) for r in req):
                     continue
                 lineno = content.count("\n", 0, m.start()) + 1
-                findings.append(self._finding("config", path, lineno, "aegis: (engine config)", 0.8))
+                findings.append(self._finding("config", path, lineno, "zino: (engine config)", 0.8))
         return findings
 
 
@@ -204,12 +204,12 @@ _ACTIVE_KINDS = {"import", "integration", "plugin", "config"}
 
 
 def classify_governance(is_ai_application: bool, findings: list[ScanFinding]) -> GovernanceInfo:
-    """Map Aegis evidence to a governance classification.
+    """Map Zino evidence to a governance classification.
 
     governed       - SDK imported/initialised, or a hook/plugin/config is present
-    declared_only  - Aegis is listed as a dependency but no usage was found
-    ungoverned     - AI application with no Aegis evidence
-    not_applicable - no AI application and no Aegis evidence
+    declared_only  - Zino is listed as a dependency but no usage was found
+    ungoverned     - AI application with no Zino evidence
+    not_applicable - no AI application and no Zino evidence
     """
     kinds = {f.capability_tag.split(":", 1)[-1] for f in findings}
     if kinds & _ACTIVE_KINDS:
@@ -227,7 +227,7 @@ def classify_governance(is_ai_application: bool, findings: list[ScanFinding]) ->
         if f.capability_tag.endswith(":dependency")
     })
     return GovernanceInfo(
-        aegis_detected=bool(findings),
+        zino_detected=bool(findings),
         status=status,
         evidence_kinds=sorted(kinds),
         packages=packages,

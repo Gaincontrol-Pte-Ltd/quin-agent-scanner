@@ -179,10 +179,10 @@
     },
     "governance": {
       "type": "object",
-      "description": "Present only with --detect-aegis.",
-      "required": ["aegis_detected", "status", "evidence_kinds", "packages", "evidence"],
+      "description": "Present only with --detect-zino.",
+      "required": ["zino_detected", "status", "evidence_kinds", "packages", "evidence"],
       "properties": {
-        "aegis_detected": {"type": "boolean"},
+        "zino_detected": {"type": "boolean"},
         "status": {"type": "string", "description": "governed, declared_only, ungoverned or not_applicable."},
         "evidence_kinds": {"type": "array", "items": {"type": "string"}},
         "packages": {"type": "array", "items": {"type": "string"}},

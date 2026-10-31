@@ -64,9 +64,9 @@
         "is_flag": true,
         "kind": "option",
         "multiple": false,
-        "name": "detect_aegis",
+        "name": "detect_zino",
         "opts": [
-          "--detect-aegis"
+          "--detect-zino"
         ],
         "required": false,
         "type": "boolean"
@@ -295,9 +295,9 @@
         "is_flag": true,
         "kind": "option",
         "multiple": false,
-        "name": "detect_aegis",
+        "name": "detect_zino",
         "opts": [
-          "--detect-aegis"
+          "--detect-zino"
         ],
         "required": false,
         "type": "boolean"
@@ -486,9 +486,9 @@
         "is_flag": true,
         "kind": "option",
         "multiple": false,
-        "name": "detect_aegis",
+        "name": "detect_zino",
         "opts": [
-          "--detect-aegis"
+          "--detect-zino"
         ],
         "required": false,
         "type": "boolean"

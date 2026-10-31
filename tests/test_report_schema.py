@@ -96,8 +96,8 @@ def _rich_report() -> ScanReport:
                                      line_number=None, key="base_url", resolved_from="")],
         metadata={"scan_duration_seconds": 0.1}, skills=[skill],
         file_hashes=[{"path": "a.py", "sha256": "0" * 64}],
-        governance=GovernanceInfo(aegis_detected=True, status="governed", evidence_kinds=["import"],
-                                  packages=["aegis-core"], evidence=[_finding()]),
+        governance=GovernanceInfo(zino_detected=True, status="governed", evidence_kinds=["import"],
+                                  packages=["zino-core"], evidence=[_finding()]),
     )
 
 

@@ -10,7 +10,7 @@ from quin_scanner.repo_accessor import LocalRepoAccessor
 
 BODY = "def handler(event):\n    value = event.get('value')\n    return {'ok': True, 'value': value, 'note': 'x' * 60}\n"
 
-# The same fixture is asserted in aegis_core/tests (SDK): if either side changes how it hashes, both fail.
+# The same fixture is asserted in zino_core/tests (SDK): if either side changes how it hashes, both fail.
 SHARED_FIXTURE_TEXT = "def run():\n    return 'a project file long enough to be fingerprinted by both the scanner and the SDK, line two'\n"
 SHARED_FIXTURE_SHA256 = hashlib.sha256(SHARED_FIXTURE_TEXT.encode("utf-8")).hexdigest()
 

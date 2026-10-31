@@ -47,7 +47,7 @@ Within a major schema version:
 | `metadata` | always | object (open map) | Scan duration, counts, options used, notes and errors. |
 | `skills` | always | list of object | Per-skill assessments (see below). |
 | `file_hashes` | always | list of object | `path` and `sha256` of source files. |
-| `governance` | optional | object | Aegis governance classification; present only with `--detect-aegis`. |
+| `governance` | optional | object | Zino governance classification; present only with `--detect-zino`. |
 <!-- report-fields:end -->
 
 ## Records

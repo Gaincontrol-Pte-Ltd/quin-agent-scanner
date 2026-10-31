@@ -28,7 +28,7 @@ from quin_scanner.models import (
 from quin_scanner.vuln_checker import VulnChecker, parse_framework_ref
 from quin_scanner.repo_accessor import RepoAccessor
 from quin_scanner.file_fingerprint import compute_file_fingerprint
-from quin_scanner.scanners.aegis import AegisScanner, classify_governance
+from quin_scanner.scanners.zino import ZinoScanner, classify_governance
 from quin_scanner.scanners.mcp_scanner import discover_mcp_servers
 from quin_scanner.scanners.base import BaseScanner
 from quin_scanner.scanners.ci_scanner import CIScanner
@@ -941,13 +941,13 @@ class ScanOrchestrator:
             file_count = len(file_index.all_files())
             _log(f"  {file_count} file{'s' if file_count != 1 else ''} indexed\n")
 
-        # 1b. Opt-in Aegis detection. Kept separate from the main scanner set so
+        # 1b. Opt-in Zino detection. Kept separate from the main scanner set so
         # its evidence never influences AI-application detection or confidence.
-        aegis_findings: list[ScanFinding] = []
-        if config.detect_aegis:
-            aegis_findings = AegisScanner().scan(cached_accessor, file_index)
+        zino_findings: list[ScanFinding] = []
+        if config.detect_zino:
+            zino_findings = ZinoScanner().scan(cached_accessor, file_index)
             if verbose:
-                _log(f"Aegis detection: {len(aegis_findings)} evidence item(s)\n")
+                _log(f"Zino detection: {len(zino_findings)} evidence item(s)\n")
 
         # 2. Run enabled scanner plugins in parallel
         scanners: list[BaseScanner] = []
@@ -1460,11 +1460,11 @@ class ScanOrchestrator:
         metadata["read_cache"] = tracked_accessor.cache_stats()
 
         governance = None
-        if config.detect_aegis:
+        if config.detect_zino:
             # A detected framework (langchain, crewai, ...) makes it an AI application for this purpose
-            # even when the overall AI confidence fell short: with no Aegis evidence it is ungoverned.
-            governance = classify_governance(is_ai or pp_framework != "unknown", aegis_findings)
-            metadata["aegis_detection"] = "enabled"
+            # even when the overall AI confidence fell short: with no Zino evidence it is ungoverned.
+            governance = classify_governance(is_ai or pp_framework != "unknown", zino_findings)
+            metadata["zino_detection"] = "enabled"
 
         return ScanReport(
             repo_path=accessor.repo_identifier(),
