@@ -16,7 +16,7 @@ jobs:
     name: Quality corpus
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -60,7 +60,7 @@ jobs:
 
       - name: Install uv
         if: steps.relevant.outputs.relevant == 'true'
-        uses: astral-sh/setup-uv@v4
+        uses: astral-sh/setup-uv@v7
         with:
           version: "latest"
 
@@ -74,7 +74,7 @@ jobs:
 
       - name: Cache fetched corpus repositories
         if: steps.relevant.outputs.relevant == 'true'
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: .corpus-cache
           key: corpus-${{ hashFiles('tests/corpus/manifest.yaml') }}
