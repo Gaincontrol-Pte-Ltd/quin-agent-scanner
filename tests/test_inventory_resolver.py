@@ -45,6 +45,35 @@ def test_same_name_twice_in_one_file_is_one_tool():
     assert [(t.id, t.line_number) for t in inv.tools] == [("tool:search", 3)]
 
 
+def test_extra_tools_do_not_depend_on_input_order():
+    extras = [
+        ToolUsage(tool_name="web", tool_type="skill", source_file="skills/a/SKILL.md"),
+        ToolUsage(tool_name="Web", tool_type="external_service", source_file=""),
+    ]
+    forward = resolve([], [], extras)
+    backward = resolve([], [], list(reversed(extras)))
+    assert [t.to_dict() for t in forward.tools] == [t.to_dict() for t in backward.tools]
+    assert [(t.id, t.tool_type) for t in forward.tools] == [("tool:Web", "external_service")]
+
+
+def test_two_extra_tools_with_one_name_are_one_tool():
+    # First wins after sorting by (name, type, source file).
+    extras = [
+        ToolUsage(tool_name="pdf", tool_type="skill", source_file="skills/z/SKILL.md"),
+        ToolUsage(tool_name="pdf", tool_type="skill", source_file="skills/a/SKILL.md"),
+    ]
+    assert [(t.id, t.source_file) for t in resolve([], [], extras).tools] == [("tool:pdf", "skills/a/SKILL.md")]
+
+
+def test_an_external_service_types_every_same_named_definition():
+    inv = resolve([], [tool("search", "src/a.py"), tool("search", "src/b.py")],
+                  [ToolUsage(tool_name="search", tool_type="external_service", service_category="web_search")])
+    assert [(t.id, t.tool_type, t.service_category) for t in inv.tools] == [
+        ("tool:search@src/a.py", "external_service", "web_search"),
+        ("tool:search@src/b.py", "external_service", "web_search"),
+    ]
+
+
 def test_extra_tools_are_merged_by_name():
     extras = [
         ToolUsage(tool_name="search", tool_type="external_service", service_category="web_search",
@@ -178,6 +207,11 @@ def test_instance_tools_link_to_a_same_file_definition_first():
 def test_instance_tools_link_to_a_repo_unique_name():
     inv = resolve([agent("r", "src/a.py", tools=("lookup",))], [tool("lookup", "src/tools.py", 2)])
     assert inv.agents[0].instances[0].tools[0].tool_id == "tool:lookup"
+
+
+def test_an_exact_case_tool_name_wins_over_a_casefold_match():
+    inv = resolve([agent("r", "src/c.py", tools=("search",))], [tool("Search", "src/a.py"), tool("search", "src/b.py")])
+    assert inv.agents[0].instances[0].tools[0].tool_id == "tool:search"
 
 
 def test_a_colliding_tool_name_from_other_files_stays_unresolved():

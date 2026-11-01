@@ -146,12 +146,19 @@ def _describe(instructions: InstructionsRef) -> str:
 
 
 def _link_tool(ref: str, path: str, tool_index: dict[str, list[ToolUsage]]) -> ToolUsage | None:
-    """A tool defined in the same file, else a repo-unique name, else None (unresolved)."""
+    """A tool defined in the same file, else a repo-unique name, else None (unresolved).
+
+    The exact-case name is tried first (same file, then repo-unique), then the case-insensitive one.
+    """
     candidates = tool_index.get(ref.casefold(), [])
-    same_file = [t for t in candidates if t.source_file == path]
-    if same_file:
-        return same_file[0]
-    return candidates[0] if len(candidates) == 1 else None
+    exact = [t for t in candidates if t.tool_name == ref]
+    for pool in (exact, candidates):
+        same_file = [t for t in pool if t.source_file == path]
+        if same_file:
+            return same_file[0]
+        if len(pool) == 1:
+            return pool[0]
+    return None
 
 
 def _build_agent(
@@ -249,17 +256,24 @@ def _resolve_tools(tool_sites: Iterable[ToolSite], extra_tools: Iterable[ToolUsa
                 tool_name=name, tool_type="tool_definition", source_file=path, line_number=sites[0].line,
                 id=f"tool:{name}@{path}" if collision else f"tool:{name}", scope=scope_of(path),
             ))
-    # Skills and external services: first name wins, except that an external service types a same-named definition.
-    known = {t.tool_name.casefold(): t for t in tools}
-    for extra in extra_tools:
-        existing = known.get(extra.tool_name.casefold())
-        if existing is None:
-            added = replace(extra, id=f"tool:{extra.tool_name}", scope=scope_of(extra.source_file))
-            tools.append(added)
-            known[extra.tool_name.casefold()] = added
-        elif extra.tool_type == "external_service" and existing.tool_type == "tool_definition":
-            existing.tool_type = "external_service"
-            existing.service_category = extra.service_category
+    # Skills and external services, in a fixed order: the first of a name (case-insensitive) wins, except that an
+    # external service types every same-named definition.
+    known: dict[str, list[ToolUsage]] = defaultdict(list)
+    for t in tools:
+        known[t.tool_name.casefold()].append(t)
+    ordered = sorted(extra_tools, key=lambda t: (
+        t.tool_name.casefold(), t.tool_type, t.source_file, t.tool_name, t.service_category, t.line_number or 0,
+    ))
+    for extra in ordered:
+        existing = known[extra.tool_name.casefold()]
+        if not existing:
+            existing.append(replace(extra, id=f"tool:{extra.tool_name}", scope=scope_of(extra.source_file)))
+            tools.append(existing[0])
+        elif extra.tool_type == "external_service":
+            for definition in existing:
+                if definition.tool_type == "tool_definition":
+                    definition.tool_type = "external_service"
+                    definition.service_category = extra.service_category
     return sorted(tools, key=lambda t: t.id)
 
 
