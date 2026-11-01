@@ -296,6 +296,7 @@ def _build_agent(
             multiplicity="many" if site.in_loop else "one",
             model=site.model_expr,
             tools=tools,
+            tools_known=refs is not None,
         )
         built.append((instance, site, refs))
     risk_signals, divergence_flags = _divergence(group.name or agent_id, built)

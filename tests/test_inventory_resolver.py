@@ -499,3 +499,20 @@ def test_fallback_gives_one_weak_agent_per_site():
         ("agent:@src/a.py#2", "r", "weak"),
     ]
     assert inv.tools == [] and inv.relationships == []
+
+
+def test_tools_known_is_false_only_when_the_instance_tools_are_unknown():
+    sites = agents_yaml("researcher:\n  role: R\n  tools: [web]\n", "c/agents.yaml") + python(
+        "from crewai import Agent\n"
+        "a = Agent(config=self.agents_config['researcher'])\n",
+        "c/crew.py",
+    )
+    (a,) = resolve(sites, [tool("web", "c/tools.py")]).agents
+    assert [i.tools_known for i in a.instances] == [True]  # inherited YAML tools are known
+
+    inv = resolve([
+        agent("r", "src/a.py", instructions=PROMPT, tools=("search",)),
+        agent("r", "src/b.py", instructions=PROMPT, tools=None),
+        agent("r", "src/c.py", instructions=PROMPT, tools=()),
+    ], [])
+    assert [i.tools_known for i in inv.agents[0].instances] == [True, False, True]

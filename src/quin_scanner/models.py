@@ -102,6 +102,7 @@ class AgentInstance:
     multiplicity: str = "one"            # "many" when created inside a loop or comprehension
     model: str | None = None             # redacted literal or reference ("env:MODEL", "var:settings.llm")
     tools: list[InstanceTool] = field(default_factory=list)
+    tools_known: bool = True             # False when the tools are not statically known (e.g. tools=get_tools())
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -112,6 +113,7 @@ class AgentInstance:
             "multiplicity": self.multiplicity,
             "model": self.model,
             "tools": [t.to_dict() for t in self.tools],
+            "tools_known": self.tools_known,
         }
 
 

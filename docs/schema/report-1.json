@@ -114,7 +114,8 @@
         "scope": {"type": "string"},
         "multiplicity": {"type": "string", "description": "one, or many when created inside a loop."},
         "model": {"type": ["string", "null"]},
-        "tools": {"type": "array", "items": {"$ref": "#/$defs/instanceTool"}}
+        "tools": {"type": "array", "items": {"$ref": "#/$defs/instanceTool"}},
+        "tools_known": {"type": "boolean", "description": "False when the instance's tools are not statically known (for example tools=get_tools()); absent in older reports."}
       }
     },
     "llmInferred": {

@@ -25,7 +25,7 @@ def test_agent_instance_round_trip():
     )
     assert instance.to_dict() == {
         "id": "agent:r/a.py#1", "file": "a.py", "line": 3, "scope": "production", "multiplicity": "many",
-        "model": "env:MODEL",
+        "model": "env:MODEL", "tools_known": True,
         "tools": [
             {"name": "search", "tool_id": "tool:search", "resolved": True},
             {"name": "ghost", "tool_id": None, "resolved": False},

@@ -62,7 +62,7 @@ Within a major schema version:
 
 **Agent** (1.1 additions): `id`, `identity` (`strong` or `weak`), `scope` (`production`, `test` or `example`), `flags`, `provenance` (field name → `static` or `llm`) and `instances`. An agent is identified by its literal name and instructions; every place that creates it is an instance. `tools` is the union of the instances' tools and `source_file` is the definition site. IDs never contain line numbers or prompt text: `agent:<name>`, or `agent:<name>@<definition path>` when two different agents share a name, or `agent:@<path>#<n>` when there is no literal name. Static analysis cannot count runtime objects, so an instance created inside a loop has `multiplicity: many`.
 
-**Agent instance**: `id` (`<agent id>/<path>#<n>`), `file`, `line`, `scope`, `multiplicity` (`one` or `many`), `model` (redacted literal or a reference such as `env:MODEL`), `tools` (list of `name`, `tool_id` (string or null) and `resolved`). Only explicit `tools=[...]` lists are read.
+**Agent instance**: `id` (`<agent id>/<path>#<n>`), `file`, `line`, `scope`, `multiplicity` (`one` or `many`), `model` (redacted literal or a reference such as `env:MODEL`), `tools` (list of `name`, `tool_id` (string or null) and `resolved`). `tools_known` is false when the instance's tools are not statically known (for example `tools=get_tools()`), so an empty `tools` list means no information, not no tools. Only explicit `tools=[...]` lists are read.
 
 **Tool usage** (1.1 additions): `id` (`tool:<name>`, or `tool:<name>@<path>` when two files define the name) and `scope`.
 

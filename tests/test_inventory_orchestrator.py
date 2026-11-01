@@ -326,6 +326,12 @@ def test_html_report_renders_instances_flags_and_unverified_suggestions(tmp_path
     assert "inst-diff" in html
     assert "Suggested by the LLM" in html
     assert '"llm_inferred_agents"' in html and "planner" in html
+    # data-dependent: the scanned agent id and instance files are embedded, and "planner" only because it was set
+    agent = next(a for a in report.agents if a.name == "researcher")
+    assert agent.id in html
+    assert all(i.file in html for i in agent.instances) and len(agent.instances) == 2
+    report.llm_inferred_agents = []
+    assert "planner" not in ReportGenerator.to_html(report)
 
 
 def test_production_tool_divergence_reaches_sarif(tmp_path):

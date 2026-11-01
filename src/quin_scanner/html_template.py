@@ -159,7 +159,8 @@ tr:hover td{background:#fafbfc}
 .inst-table{border-collapse:collapse;font-size:.78rem;width:100%}
 .inst-table th,.inst-table td{border-bottom:1px solid #f3f4f6;padding:4px 6px;text-align:left;white-space:nowrap}
 .inst-table .inst-diff{background:#fef3c7}
-.agents-more{margin-top:12px}
+.agent-card{min-width:0}
+.agents-more{margin-top:12px;border:1px solid var(--color-border);background:var(--color-surface);border-radius:var(--radius-md);padding:4px 10px;cursor:pointer;font-size:.8rem}
 .agents-inferred{margin-top:20px}
 .mono{font-family:var(--font-mono)}
 
@@ -238,7 +239,7 @@ tr:hover td{background:#fafbfc}
 /* ---------- Responsive ---------- */
 @media(max-width:768px){
   .hero{grid-template-columns:1fr}
-  .agent-grid{grid-template-columns:1fr}
+  .agent-grid{grid-template-columns:minmax(0,1fr)}
   .header{padding:22px 0 20px}
   .header-inner{flex-direction:column;align-items:flex-start}
   .header-meta{text-align:left;align-items:flex-start}
@@ -1051,9 +1052,11 @@ window.__REPORT_DATA__ = {{REPORT_DATA_JSON}};
     var agents=D.agents||[];
     var inferredAgents=D.llm_inferred_agents||[], inferredTools=D.llm_inferred_tools||[];
     if(!agents.length&&!inferredAgents.length&&!inferredTools.length){panel.innerHTML='<div class="empty">No agents identified.</div>';return}
+    var noVerified=!agents.length;
 
     var PAGE=50, scope="production", shown=PAGE;
-    var FLAG_LABELS={tool_divergence:"tool divergence",name_collision:"name collision",model_divergence:"model divergence",ambiguous_instance:"ambiguous instance"};
+    var FLAG_LABELS=Object.create(null);
+    FLAG_LABELS.tool_divergence="tool divergence";FLAG_LABELS.name_collision="name collision";FLAG_LABELS.model_divergence="model divergence";FLAG_LABELS.ambiguous_instance="ambiguous instance";
     var typeBadge=function(t){
       var cls="pill--gray";
       if(t==="supervisor") cls="pill--indigo";
@@ -1073,8 +1076,8 @@ window.__REPORT_DATA__ = {{REPORT_DATA_JSON}};
       var names=[];
       insts.forEach(function(i){(i.tools||[]).forEach(function(t){if(names.indexOf(t.name)<0) names.push(t.name)})});
       names.sort();
-      var prod=insts.filter(function(i){return i.scope==="production"});
-      var partial={};
+      var prod=insts.filter(function(i){return i.scope==="production"&&i.tools_known!==false});
+      var partial=Object.create(null);
       names.forEach(function(n){
         var holders=prod.filter(function(i){return hasTool(i,n)}).length;
         partial[n]=holders>0&&holders<prod.length;
@@ -1088,7 +1091,7 @@ window.__REPORT_DATA__ = {{REPORT_DATA_JSON}};
         h+='<td>'+esc(i.scope||"")+'</td><td class="mono">'+esc(i.model||"—")+'</td>';
         names.forEach(function(n){
           var t=(i.tools||[]).filter(function(x){return x.name===n})[0];
-          var mark=t?(t.resolved?"✓":'<span title="No definition found">✓?</span>'):"";
+          var mark=i.tools_known===false?'<span title="Tools not statically known">?</span>':(t?(t.resolved?"✓":'<span title="No definition found">✓?</span>'):"");
           h+='<td class="'+(partial[n]?"inst-diff":"")+'">'+mark+'</td>';
         });
         h+='</tr>';
@@ -1127,6 +1130,7 @@ window.__REPORT_DATA__ = {{REPORT_DATA_JSON}};
     }
 
     function draw(){
+      if(noVerified){panel.innerHTML='<div class="empty">No verified agents identified.</div>'+inferred();return}
       var visible=agents.filter(function(a){return scope==="all"||(a.scope||"production")===scope});
       var h='<div class="scope-filter" role="group" aria-label="Filter agents by scope">';
       [["production","Production"],["test","Test"],["example","Example"],["all","All"]].forEach(function(s){
