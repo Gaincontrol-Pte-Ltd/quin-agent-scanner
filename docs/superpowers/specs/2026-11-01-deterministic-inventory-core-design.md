@@ -78,7 +78,7 @@ class AgentSite:                       # AgentInstanceScanner
     line: int | None
     instructions: InstructionsRef
     model_expr: str | None             # redacted literal or reference, e.g. "env:MODEL", "var:settings.llm"
-    tool_refs: tuple[str, ...] | None  # None = no tools= argument; () = explicitly empty
+    tool_refs: tuple[str, ...] | None  # () = no tools passed; None = not statically known
     in_loop: bool                      # inside a for/while/comprehension
     framework_hint: str
 
