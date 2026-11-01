@@ -45,8 +45,12 @@ class ReportGenerator:
             annotate(data["governance"]["evidence"])
         data["artifact_type_order"] = type_order()
         data_json = json.dumps(data, indent=2, default=str)
-        # Escape </script> sequences to prevent XSS when embedding in a <script> tag
-        safe_json = data_json.replace("</", "<\\/")
+        # Escape < > & so no `</script>` or `<!--`/`<script` sequence can reach the HTML parser from inside the
+        # data block; U+2028/U+2029 are escaped for older JavaScript engines. JSON parsers read the escapes back.
+        safe_json = (
+            data_json.replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")
+            .replace("\u2028", "\\u2028").replace("\u2029", "\\u2029")
+        )
         rendered = HTML_TEMPLATE.replace("{{REPORT_DATA_JSON}}", safe_json)
         return rendered.replace("{{LOGO_DATA_URI}}", _logo_data_uri())
 
