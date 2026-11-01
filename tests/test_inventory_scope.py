@@ -48,3 +48,8 @@ def test_literal_instructions_hash_ignores_whitespace():
 def test_no_instructions_is_unknown():
     assert not NO_INSTRUCTIONS.is_known
     assert InstructionsRef("var", "PROMPT").is_known
+
+
+def test_literal_instructions_never_raise_on_lone_surrogates():
+    assert InstructionsRef.literal("\ud800 hi").kind == "literal"
+    assert InstructionsRef.literal("\ud800 hi") != InstructionsRef.literal("\ud801 hi")

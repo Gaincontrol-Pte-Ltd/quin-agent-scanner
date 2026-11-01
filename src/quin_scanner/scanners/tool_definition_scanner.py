@@ -65,6 +65,8 @@ _TOOL_REGISTRATION_PATTERNS = [
     (re.compile(r'(?:toolbox|tool_registry)\s*\.\s*(?:add|register)\s*\(\s*(\w+)'), "toolbox_add"),
 ]
 
+_REGISTRATION_LABELS = frozenset(label for _, label in _TOOL_REGISTRATION_PATTERNS)
+
 # Config file names that define tools
 _TOOL_CONFIG_NAMES = {"tools.yaml", "tools.yml"}
 
@@ -126,7 +128,10 @@ class ToolDefinitionScanner(BaseScanner):
                     content = accessor.read_file(path)
                     found = self._scan_code(content, path, seen)
                     if self._in_tool_dir(path):
-                        found += self._scan_tool_dir_functions(content, path, seen)
+                        try:
+                            found += self._scan_tool_dir_functions(content, path, seen)
+                        except Exception:
+                            pass   # the code findings above are kept
                 elif fname in _TOOL_CONFIG_NAMES:
                     found = self._scan_tools_yaml(accessor.read_file(path), path, seen)
                     kind = "config"
@@ -163,6 +168,8 @@ class ToolDefinitionScanner(BaseScanner):
                 if not sep or not label.endswith(")"):
                     continue                  # a tools=[...] reference
                 label = label[:-1]
+                if label in _REGISTRATION_LABELS:
+                    continue                  # a registration call references a tool; it does not define one
                 site_kind = {"tools/": "function", "agent spec": "agent_spec"}.get(label, label)
             # match_text is already redacted by ScanFinding; redacting again is idempotent and keeps that local.
             self._sites.append(ToolSite(name=redact_secrets(name.strip()), kind=site_kind, file_path=f.file_path,

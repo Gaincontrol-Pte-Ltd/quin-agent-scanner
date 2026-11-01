@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 import yaml
 
 from quin_scanner.inventory import js_sites, python_sites
-from quin_scanner.inventory.evidence import AgentSite, InstructionsRef
+from quin_scanner.inventory.evidence import AgentSite, InstructionsRef, redacted
 from quin_scanner.models import ScanFinding
 from quin_scanner.scanners.base import BaseScanner
 
@@ -162,14 +162,22 @@ class AgentInstanceScanner(BaseScanner):
 
         return findings
 
+    def _add_site(self, **fields: object) -> None:
+        """Build, redact and record one site. Evidence only: any failure skips the site, never the file's findings."""
+        try:
+            self._sites.append(redacted(AgentSite(**fields)))  # type: ignore[arg-type]
+        except Exception:
+            pass
+
     def evidence(self) -> list[AgentSite]:
         """Typed agent sites from the last scan(), test files included."""
         return list(getattr(self, "_sites", []))
 
     def _scan_code(self, content: str, path: str, seen: set[str]) -> list[ScanFinding]:
-        findings = []
+        findings: list[ScanFinding] = []
+        origins: list[tuple[str, str]] = []   # (role, kind) of each finding's regex pass, for fallback sites
 
-        def add(lineno: int, agent_name: str) -> None:
+        def add(lineno: int, agent_name: str, origin: tuple[str, str] = ("both", "constructor")) -> None:
             agent_name = agent_name.strip()
             if not agent_name or len(agent_name) > 80:
                 return
@@ -186,6 +194,7 @@ class AgentInstanceScanner(BaseScanner):
                 capability_tag="multi-agent",
                 confidence=0.85,
             ))
+            origins.append(origin)
 
         tree = python_sites.parse_python(content) if path.lower().endswith(".py") else None
         calls = _python_agent_calls(tree) if tree is not None else None
@@ -200,7 +209,7 @@ class AgentInstanceScanner(BaseScanner):
                 for m in pattern.finditer(content):
                     add(content[:m.start()].count("\n") + 1, m.group(1))
         for m in _AGENT_DECORATOR_PATTERN.finditer(content):
-            add(content[:m.start()].count("\n") + 1, m.group(1))
+            add(content[:m.start()].count("\n") + 1, m.group(1), ("definition", "decorator"))
         # Class inheritance patterns: class X(Role), class X(BaseAgent), etc.
         for pattern, conf in _AGENT_CLASS_PATTERNS:
             for m in pattern.finditer(content):
@@ -221,18 +230,22 @@ class AgentInstanceScanner(BaseScanner):
                     capability_tag="multi-agent",
                     confidence=conf,
                 ))
+                origins.append(("definition", "subclass"))
         # Evidence must never cost the file its findings: a failure here skips only the sites.
         try:
             if tree is not None:
                 self._sites.extend(python_sites.agent_sites(tree, path))
             else:
-                sites = js_sites.agent_sites(content, path) if Path(path).suffix.lower() in _JS_EXTENSIONS else []
-                covered = {(s.line, s.name) for s in sites}
+                is_js = Path(path).suffix.lower() in _JS_EXTENSIONS
+                sites = js_sites.agent_sites(content, path) if is_js else []
+                spans = js_sites.call_line_spans(content) if is_js else []
+                # A regex finding inside a call that js_sites parsed is that site (it reads only the top-level keys).
                 sites += [
-                    AgentSite(role="both", kind="constructor", name=f.match_text, file_path=path, line=f.line_number)
-                    for f in findings
-                    if (f.line_number, f.match_text) not in covered
+                    AgentSite(role=role, kind=kind, name=f.match_text, file_path=path, line=f.line_number)
+                    for f, (role, kind) in zip(findings, origins, strict=True)
+                    if not any(start <= f.line_number <= end for start, end in spans)
                 ]
+                sites = [redacted(s) for s in sites]
                 self._sites.extend(sites)
         except Exception:
             pass
@@ -261,11 +274,11 @@ class AgentInstanceScanner(BaseScanner):
                 if key in seen:
                     continue
                 seen.add(key)
-                self._sites.append(AgentSite(
+                self._add_site(
                     role="definition", kind="config_entry", name=str(agent_name), file_path=path, line=None,
                     instructions=InstructionsRef("config", str(agent_key)),
                     tool_refs=_literal_tool_refs(agent_val.get("tools")) if isinstance(agent_val, dict) else None,
-                ))
+                )
                 findings.append(ScanFinding(
                     scanner_name=self.name(),
                     category="agent_instance",
@@ -283,11 +296,11 @@ class AgentInstanceScanner(BaseScanner):
                         key = f"{path}::{agent_name}"
                         if key not in seen:
                             seen.add(key)
-                            self._sites.append(AgentSite(
+                            self._add_site(
                                 role="definition", kind="config_entry", name=str(agent_name), file_path=path,
                                 line=None, instructions=InstructionsRef("config", str(agent_name)),
                                 tool_refs=_literal_tool_refs(item.get("tools")),
-                            ))
+                            )
                             findings.append(ScanFinding(
                                 scanner_name=self.name(),
                                 category="agent_instance",
@@ -333,12 +346,12 @@ class AgentInstanceScanner(BaseScanner):
             ))
             instruction = item.get("instruction")
             model = item.get("model")
-            self._sites.append(AgentSite(
+            self._add_site(
                 role="definition", kind="config_entry", name=agent_name, file_path=path, line=None,
                 instructions=InstructionsRef.literal(instruction) if isinstance(instruction, str) else InstructionsRef(),
                 model_expr=model if isinstance(model, str) else None,
                 tool_refs=_literal_tool_refs(item.get("tools")),
-            ))
+            )
 
         _add(data, 0.90)
         sub_agents = data.get("sub_agents", [])
@@ -376,10 +389,10 @@ class AgentInstanceScanner(BaseScanner):
         if key in seen:
             return findings
         seen.add(key)
-        self._sites.append(AgentSite(
+        self._add_site(
             role="definition", kind="config_entry", name=agent_name, file_path=path, line=None,
             instructions=InstructionsRef("file", path),
-        ))
+        )
 
         # Build a descriptive match_text with role if available
         role_m = _MD_ROLE_RE.search(content)
@@ -421,9 +434,9 @@ class AgentInstanceScanner(BaseScanner):
                     key = f"{path}::{node_name}"
                     if key not in seen:
                         seen.add(key)
-                        self._sites.append(AgentSite(
+                        self._add_site(
                             role="definition", kind="graph_node", name=str(node_name), file_path=path, line=None,
-                        ))
+                        )
                         findings.append(ScanFinding(
                             scanner_name=self.name(),
                             category="agent_instance",
@@ -460,10 +473,10 @@ class AgentInstanceScanner(BaseScanner):
             seen.add(key)
             config = node.get("config") if isinstance(node.get("config"), dict) else {}
             role = config.get("role")
-            self._sites.append(AgentSite(
+            self._add_site(
                 role="definition", kind="graph_node", name=str(node_id), file_path=path, line=None,
                 instructions=InstructionsRef.literal(role) if isinstance(role, str) else InstructionsRef(),
-            ))
+            )
             findings.append(ScanFinding(
                 scanner_name=self.name(),
                 category="agent_instance",

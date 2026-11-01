@@ -81,3 +81,23 @@ def test_evidence_failure_never_costs_a_file_its_findings(tmp_path, monkeypatch)
     findings, sites = _scan(tmp_path, {"t.py": "@tool\ndef search():\n    pass\n"})
     assert [f.match_text for f in findings] == ["search (@tool)"]
     assert sites == []
+
+
+def test_registration_calls_are_findings_not_tool_sites(tmp_path):
+    files = {
+        "app.py": "toolbox.add(search)\nkernel.add_plugin(plug)\nx.register_tool('reg')\n",
+        "tools/search.py": "from x import tool\n\n@tool\ndef search(q):\n    pass\n",
+    }
+    findings, sites = _scan(tmp_path, files)
+    assert {"search (toolbox_add)", "plug (add_plugin)", "reg (register_tool)"} <= {f.match_text for f in findings}
+    assert [s.name for s in sites if s.file_path == "app.py"] == []
+    assert "search" in {s.name for s in sites}
+
+
+def test_tools_dir_failure_keeps_code_findings(tmp_path, monkeypatch):
+    def boom(self, *a, **k):
+        raise RuntimeError("x")
+
+    monkeypatch.setattr(ToolDefinitionScanner, "_scan_tool_dir_functions", boom)
+    findings, _ = _scan(tmp_path, {"tools/a.py": "@tool\ndef alpha():\n    pass\n"})
+    assert [f.match_text for f in findings] == ["alpha (@tool)"]

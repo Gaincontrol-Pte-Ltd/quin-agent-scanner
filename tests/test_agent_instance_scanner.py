@@ -233,3 +233,69 @@ def test_evidence_failure_never_costs_a_file_its_findings(tmp_path, monkeypatch)
     findings, sites = _evidence(tmp_path, {"app.py": 'a = Agent(name="r")\n'})
     assert [f.match_text for f in findings] == ["r"]
     assert sites == []
+
+
+# --- review fixes: guarded config sites, redaction, JS spans, site origins -----------------------------------------
+
+ANT = "sk-ant-api03-" + "A1b2C3d4" * 4
+GHP = "ghp_" + "a1B2c3D4" * 5
+
+
+def test_surrogate_in_adk_instruction_keeps_findings(tmp_path):
+    source = 'name: surro\ninstruction: "\\ud800 hi"\nsub_agents:\n  - name: kid\n'
+    findings, _ = _evidence(tmp_path, {"root_agent.yaml": source})
+    assert sorted(f.match_text for f in findings) == ["kid", "surro"]
+
+
+def test_surrogate_in_workflow_role_keeps_findings(tmp_path):
+    source = (
+        "graph:\n  nodes:\n    - id: Rev\n      type: agent\n      config:\n        role: \"\\ud800\"\n"
+        "    - id: Two\n      type: agent\n"
+    )
+    findings, _ = _evidence(tmp_path, {"flow.yaml": source})
+    assert sorted(f.match_text for f in findings) == ["Rev", "Two"]
+
+
+def test_config_site_failure_never_costs_findings(tmp_path, monkeypatch):
+    from quin_scanner.inventory import evidence as ev
+
+    def boom(site):
+        raise RuntimeError("x")
+
+    monkeypatch.setattr("quin_scanner.scanners.agent_instance_scanner.redacted", boom)
+    findings, sites = _evidence(tmp_path, {"config/agents.yaml": "a:\n  role: R\nb:\n  role: S\n"})
+    assert len(findings) == 2 and sites == []
+
+
+def test_config_sites_are_redacted(tmp_path):
+    files = {
+        "config/agents.yaml": f"r:\n  role: {ANT}\n  tools:\n    - {GHP}\n",
+        "root_agent.yaml": f"name: adk\nmodel: {ANT}\n",
+        "agents/x.md": f"# Agent: {GHP}\n",
+    }
+    _, sites = _evidence(tmp_path, files)
+    blob = repr(sites)
+    assert "sk-ant-api03" not in blob and "ghp_" not in blob and "[REDACTED]" in blob
+
+
+def test_js_nested_name_is_not_a_phantom_agent(tmp_path):
+    _, sites = _evidence(tmp_path, {"a.ts": 'const a = new Agent({ model: {name: "gpt"}, name: "real" });\n'})
+    assert [s.name for s in sites] == ["real"]
+
+
+def test_js_call_split_across_lines_is_one_site(tmp_path):
+    _, sites = _evidence(tmp_path, {"a.ts": 'new\n  Agent({ name: "splitline" })\n'})
+    assert [(s.name, s.line) for s in sites] == [("splitline", 1)]
+
+
+def test_regex_fallback_sites_carry_their_origin(tmp_path):
+    source = (
+        'x = Agent(name="ctor")\n@agent\ndef deco():\n    pass\nclass Plan(Role):\n    pass\n(\n'
+    )
+    _, sites = _evidence(tmp_path, {"bad.py": source})
+    got = {s.name: (s.role, s.kind) for s in sites}
+    assert got == {
+        "ctor": ("both", "constructor"),
+        "deco": ("definition", "decorator"),
+        "Plan": ("definition", "subclass"),
+    }

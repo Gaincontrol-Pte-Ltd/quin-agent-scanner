@@ -1,8 +1,11 @@
 """Typed evidence that scanners hand to the inventory resolver. Internal: never serialised into a report."""
 from __future__ import annotations
 
+import dataclasses
 import hashlib
 from dataclasses import dataclass
+
+from quin_scanner.redaction import redact_secrets
 
 
 @dataclass(frozen=True)
@@ -14,7 +17,7 @@ class InstructionsRef:
     @classmethod
     def literal(cls, text: str) -> InstructionsRef:
         normalised = " ".join(text.split())
-        return cls("literal", hashlib.sha256(normalised.encode("utf-8")).hexdigest())
+        return cls("literal", hashlib.sha256(normalised.encode("utf-8", errors="surrogatepass")).hexdigest())
 
     @property
     def is_known(self) -> bool:
@@ -46,3 +49,17 @@ class ToolSite:
     kind: str                                  # the scanner's label: "@tool", "BaseTool", "config", "function", ...
     file_path: str
     line: int | None
+
+
+def redacted(site: AgentSite) -> AgentSite:
+    """Credentials removed from every user-content string a site carries (a literal's hash is not user content)."""
+    instructions = site.instructions
+    if instructions.kind in ("file", "var", "config"):
+        instructions = InstructionsRef(instructions.kind, redact_secrets(instructions.value))
+    return dataclasses.replace(
+        site,
+        name=redact_secrets(site.name) if site.name else site.name,
+        instructions=instructions,
+        model_expr=redact_secrets(site.model_expr) if site.model_expr else site.model_expr,
+        tool_refs=None if site.tool_refs is None else tuple(redact_secrets(ref) for ref in site.tool_refs),
+    )

@@ -1,11 +1,9 @@
 """Agent sites in JavaScript/TypeScript: ``new Agent({...})`` object literals (AgentInstanceScanner's evidence)."""
 from __future__ import annotations
 
-import dataclasses
 import re
 
-from quin_scanner.inventory.evidence import NO_INSTRUCTIONS, AgentSite, InstructionsRef
-from quin_scanner.redaction import redact_secrets
+from quin_scanner.inventory.evidence import NO_INSTRUCTIONS, AgentSite, InstructionsRef, redacted
 
 _AGENT_CALL = re.compile(r"\b(?:new\s+)?(?:Agent|AssistantAgent|UserProxyAgent|ConversableAgent)\s*\(\s*\{")
 # A name, dotted name or quoted string; every item of a tools list must be one for the list to be known.
@@ -217,30 +215,29 @@ def _model(body: str, view: str) -> str | None:
     return None
 
 
-def _redacted(site: AgentSite) -> AgentSite:
-    """Credentials removed from every user-content string a site carries (a literal's hash is not user content)."""
-    instructions = site.instructions
-    if instructions.kind in ("file", "var", "config"):
-        instructions = InstructionsRef(instructions.kind, redact_secrets(instructions.value))
-    return dataclasses.replace(
-        site,
-        name=redact_secrets(site.name) if site.name else site.name,
-        instructions=instructions,
-        model_expr=redact_secrets(site.model_expr) if site.model_expr else site.model_expr,
-        tool_refs=None if site.tool_refs is None else tuple(redact_secrets(ref) for ref in site.tool_refs),
-    )
+def _calls(content: str):
+    """(call match, opening brace offset, closing brace offset) of every ``Agent({...})`` call with a balanced body."""
+    for call in _AGENT_CALL.finditer(content):
+        opening = call.end() - 1
+        closing = _matching_brace(content, opening)
+        if closing is not None:
+            yield call, opening, closing
+
+
+def call_line_spans(content: str) -> list[tuple[int, int]]:
+    """(first line, last line) of every ``Agent({...})`` call that :func:`agent_sites` parses."""
+    return [
+        (content.count("\n", 0, call.start()) + 1, content.count("\n", 0, closing) + 1)
+        for call, _, closing in _calls(content)
+    ]
 
 
 def agent_sites(content: str, path: str) -> list[AgentSite]:
     sites: list[AgentSite] = []
-    for call in _AGENT_CALL.finditer(content):
-        opening = call.end() - 1
-        closing = _matching_brace(content, opening)
-        if closing is None:
-            continue
+    for call, opening, closing in _calls(content):
         body = content[opening + 1:closing]
         view = _top_level_view(body)   # keys are read only at the object's top level, never in nested values
-        sites.append(_redacted(AgentSite(
+        sites.append(redacted(AgentSite(
             role="both", kind="constructor", name=_name(body, view),
             file_path=path, line=content.count("\n", 0, call.start()) + 1,
             instructions=_instructions(body, view), model_expr=_model(body, view), tool_refs=_tool_refs(body, view),

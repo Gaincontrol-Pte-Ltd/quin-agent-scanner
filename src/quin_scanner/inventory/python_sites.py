@@ -2,10 +2,9 @@
 from __future__ import annotations
 
 import ast
-import dataclasses
 import warnings
 
-from quin_scanner.inventory.evidence import NO_INSTRUCTIONS, AgentSite, InstructionsRef
+from quin_scanner.inventory.evidence import NO_INSTRUCTIONS, AgentSite, InstructionsRef, redacted
 from quin_scanner.redaction import redact_secrets
 
 _NAME_KEYWORDS = frozenset({"name", "agent_name"})
@@ -287,27 +286,13 @@ class _Collector(ast.NodeVisitor):
         )
 
 
-def _redacted(site: AgentSite) -> AgentSite:
-    """Credentials removed from every user-content string a site carries (a literal's hash is not user content)."""
-    instructions = site.instructions
-    if instructions.kind in ("file", "var", "config"):
-        instructions = InstructionsRef(instructions.kind, redact_secrets(instructions.value))
-    return dataclasses.replace(
-        site,
-        name=redact_secrets(site.name) if site.name else site.name,
-        instructions=instructions,
-        model_expr=redact_secrets(site.model_expr) if site.model_expr else site.model_expr,
-        tool_refs=None if site.tool_refs is None else tuple(redact_secrets(ref) for ref in site.tool_refs),
-    )
-
-
 def agent_sites(tree: ast.Module, path: str) -> list[AgentSite]:
     """Every agent definition and instance in one parsed Python file, sorted by line, with credentials redacted.
 
     A tree too deep to walk recursively (it parsed, but visiting it raises RecursionError) gives no sites.
     """
     try:
-        return [_redacted(site) for site in _all_sites(tree, path)]
+        return [redacted(site) for site in _all_sites(tree, path)]
     except RecursionError:
         return []
 

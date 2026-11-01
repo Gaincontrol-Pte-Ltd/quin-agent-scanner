@@ -1,11 +1,15 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 from quin_scanner.file_index import FileIndex
 from quin_scanner.models import ScanFinding
 from quin_scanner.repo_accessor import RepoAccessor
+
+
+if TYPE_CHECKING:
+    from quin_scanner.inventory.evidence import AgentSite, ToolSite
 
 
 class BaseScanner(ABC):
@@ -26,4 +30,4 @@ class BaseScanner(ABC):
 class EvidenceProducer(Protocol):
     """A scanner that also hands typed evidence (AgentSite, ToolSite) to the inventory after scan()."""
 
-    def evidence(self) -> list: ...
+    def evidence(self) -> list[AgentSite | ToolSite]: ...

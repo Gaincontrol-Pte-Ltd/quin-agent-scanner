@@ -133,3 +133,9 @@ def test_comments_are_fully_blanked_in_the_top_level_view():
     view = _top_level_view(text)
     assert len(view) == len(text)
     assert view.split() == ["a,", "b"]
+
+
+def test_call_line_spans_cover_each_parsed_call():
+    from quin_scanner.inventory.js_sites import call_line_spans
+
+    assert call_line_spans('new\n  Agent({\n name: "a"\n})\nAgent({ name: "b" })\n') == [(1, 4), (5, 5)]
