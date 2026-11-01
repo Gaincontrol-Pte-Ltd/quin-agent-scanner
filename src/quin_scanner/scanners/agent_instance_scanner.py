@@ -3,12 +3,13 @@ from __future__ import annotations
 
 import ast
 import re
-import warnings
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 import yaml
 
+from quin_scanner.inventory import js_sites, python_sites
+from quin_scanner.inventory.evidence import AgentSite, InstructionsRef
 from quin_scanner.models import ScanFinding
 from quin_scanner.scanners.base import BaseScanner
 
@@ -18,6 +19,7 @@ if TYPE_CHECKING:
 
 # Code extensions to scan
 _CODE_EXTENSIONS = {".py", ".ts", ".js", ".jsx", ".tsx", ".mjs"}
+_JS_EXTENSIONS = {".ts", ".js", ".jsx", ".tsx", ".mjs"}
 
 # Named agent instantiation, as regexes. Python files are parsed with ``ast`` instead (see
 # ``_python_agent_calls``); these cover TypeScript/JavaScript and Python files that do not parse.
@@ -89,49 +91,32 @@ def _is_test_path(path: str) -> bool:
     return bool(_TEST_PATH_RE.search(path))
 
 
-_NAME_KEYWORDS = frozenset({"name", "agent_name"})
+def _literal_tool_refs(value: object) -> tuple[str, ...] | None:
+    """Tool names from a YAML ``tools:`` list (strings, or mappings with a ``name``); None when absent."""
+    if not isinstance(value, list):
+        return None
+    names = [item.get("name") if isinstance(item, dict) else item for item in value]
+    return tuple(str(n) for n in names if isinstance(n, str) and n)
 
 
-def _callee_name(func: ast.expr) -> str | None:
-    if isinstance(func, ast.Name):
-        return func.id
-    if isinstance(func, ast.Attribute):
-        return func.attr
-    return None
-
-
-def _string_constant(node: ast.expr | None) -> str | None:
-    return node.value if isinstance(node, ast.Constant) and isinstance(node.value, str) else None
-
-
-def _python_agent_calls(content: str) -> list[tuple[int, str]] | None:
-    """(line, name) of every agent construction in Python source, or None if the source does not parse.
+def _python_agent_calls(tree: ast.Module) -> list[tuple[int, str]]:
+    """(line, name) of every named agent construction in a parsed Python module.
 
     A name is the literal ``name=`` (or ``agent_name=``) keyword of a call to ``...Agent(...)`` / ``GroupChatManager(...)``, or,
     for a class such as ``AssistantAgent`` that is not the bare ``Agent``, its first positional string.
     Text inside a string argument and the keywords of nested calls are not arguments of the agent.
     """
-    try:
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            tree = ast.parse(content)
-    except (SyntaxError, ValueError, RecursionError):
-        return None
     found: list[tuple[int, int, str]] = []
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call):
             continue
-        callee = _callee_name(node.func)
+        callee = python_sites.callee_name(node.func)
         if not callee:
             continue
         lowered = callee.lower()
         if lowered != "groupchatmanager" and not lowered.endswith("agent"):
             continue
-        name = next((_string_constant(kw.value) for kw in node.keywords if kw.arg in _NAME_KEYWORDS), None)
-        if name is None and callee.endswith("Agent") and callee != "Agent" and node.args:
-            positional = _string_constant(node.args[0])
-            if positional is not None and 2 <= len(positional) <= 50:
-                name = positional
+        name = python_sites.agent_name(node, callee)
         if name:
             found.append((node.lineno, node.col_offset, name))
     return [(line, name) for line, _, name in sorted(found)]
@@ -146,38 +131,40 @@ class AgentInstanceScanner(BaseScanner):
     def scan(self, accessor: "RepoAccessor", file_index: "FileIndex") -> list[ScanFinding]:
         findings: list[ScanFinding] = []
         seen: set[str] = set()
+        self._sites: list[AgentSite] = []
 
         for path in file_index.all_files():
-            if _is_test_path(path):
-                continue
-
+            # Test files give the inventory evidence (tagged scope: test) but no findings, as before.
+            is_test = _is_test_path(path)
             p = Path(path)
             fname = p.name.lower()
             suffix = p.suffix.lower()
 
             try:
                 if suffix in _CODE_EXTENSIONS:
-                    content = accessor.read_file(path)
-                    findings.extend(self._scan_code(content, path, seen))
+                    found = self._scan_code(accessor.read_file(path), path, seen)
                 elif fname in _AGENT_CONFIG_NAMES:
-                    content = accessor.read_file(path)
-                    findings.extend(self._scan_agent_yaml(content, path, seen))
+                    found = self._scan_agent_yaml(accessor.read_file(path), path, seen)
                 elif fname in _ADK_ROOT_AGENT_NAMES:
-                    content = accessor.read_file(path)
-                    findings.extend(self._scan_adk_root_agent(content, path, seen))
+                    found = self._scan_adk_root_agent(accessor.read_file(path), path, seen)
                 elif fname == "flow.dag.yaml":
-                    content = accessor.read_file(path)
-                    findings.extend(self._scan_flow_dag(content, path, seen))
+                    found = self._scan_flow_dag(accessor.read_file(path), path, seen)
                 elif suffix in _WORKFLOW_YAML_SUFFIXES:
-                    content = accessor.read_file(path)
-                    findings.extend(self._scan_workflow_graph(content, path, seen))
+                    found = self._scan_workflow_graph(accessor.read_file(path), path, seen)
                 elif suffix == ".md" and self._in_agent_dir(path):
-                    content = accessor.read_file(path)
-                    findings.extend(self._scan_agent_markdown(content, path, seen))
+                    found = self._scan_agent_markdown(accessor.read_file(path), path, seen)
+                else:
+                    continue
             except Exception:
                 continue
+            if not is_test:
+                findings.extend(found)
 
         return findings
+
+    def evidence(self) -> list[AgentSite]:
+        """Typed agent sites from the last scan(), test files included."""
+        return list(getattr(self, "_sites", []))
 
     def _scan_code(self, content: str, path: str, seen: set[str]) -> list[ScanFinding]:
         findings = []
@@ -200,7 +187,8 @@ class AgentInstanceScanner(BaseScanner):
                 confidence=0.85,
             ))
 
-        calls = _python_agent_calls(content) if path.lower().endswith(".py") else None
+        tree = python_sites.parse_python(content) if path.lower().endswith(".py") else None
+        calls = _python_agent_calls(tree) if tree is not None else None
         if calls is not None:
             for lineno, agent_name in calls:
                 add(lineno, agent_name)
@@ -233,6 +221,21 @@ class AgentInstanceScanner(BaseScanner):
                     capability_tag="multi-agent",
                     confidence=conf,
                 ))
+        # Evidence must never cost the file its findings: a failure here skips only the sites.
+        try:
+            if tree is not None:
+                self._sites.extend(python_sites.agent_sites(tree, path))
+            else:
+                sites = js_sites.agent_sites(content, path) if Path(path).suffix.lower() in _JS_EXTENSIONS else []
+                covered = {(s.line, s.name) for s in sites}
+                sites += [
+                    AgentSite(role="both", kind="constructor", name=f.match_text, file_path=path, line=f.line_number)
+                    for f in findings
+                    if (f.line_number, f.match_text) not in covered
+                ]
+                self._sites.extend(sites)
+        except Exception:
+            pass
         return findings
 
     def _scan_agent_yaml(self, content: str, path: str, seen: set[str]) -> list[ScanFinding]:
@@ -258,6 +261,11 @@ class AgentInstanceScanner(BaseScanner):
                 if key in seen:
                     continue
                 seen.add(key)
+                self._sites.append(AgentSite(
+                    role="definition", kind="config_entry", name=str(agent_name), file_path=path, line=None,
+                    instructions=InstructionsRef("config", str(agent_key)),
+                    tool_refs=_literal_tool_refs(agent_val.get("tools")) if isinstance(agent_val, dict) else None,
+                ))
                 findings.append(ScanFinding(
                     scanner_name=self.name(),
                     category="agent_instance",
@@ -275,6 +283,11 @@ class AgentInstanceScanner(BaseScanner):
                         key = f"{path}::{agent_name}"
                         if key not in seen:
                             seen.add(key)
+                            self._sites.append(AgentSite(
+                                role="definition", kind="config_entry", name=str(agent_name), file_path=path,
+                                line=None, instructions=InstructionsRef("config", str(agent_name)),
+                                tool_refs=_literal_tool_refs(item.get("tools")),
+                            ))
                             findings.append(ScanFinding(
                                 scanner_name=self.name(),
                                 category="agent_instance",
@@ -301,7 +314,8 @@ class AgentInstanceScanner(BaseScanner):
         if not isinstance(data, dict):
             return findings
 
-        def _add(agent_name: object, confidence: float) -> None:
+        def _add(item: dict, confidence: float) -> None:
+            agent_name = item.get("name")
             if not agent_name or not isinstance(agent_name, str):
                 return
             key = f"{path}::{agent_name}"
@@ -317,13 +331,21 @@ class AgentInstanceScanner(BaseScanner):
                 capability_tag="multi-agent",
                 confidence=confidence,
             ))
+            instruction = item.get("instruction")
+            model = item.get("model")
+            self._sites.append(AgentSite(
+                role="definition", kind="config_entry", name=agent_name, file_path=path, line=None,
+                instructions=InstructionsRef.literal(instruction) if isinstance(instruction, str) else InstructionsRef(),
+                model_expr=model if isinstance(model, str) else None,
+                tool_refs=_literal_tool_refs(item.get("tools")),
+            ))
 
-        _add(data.get("name"), 0.90)
+        _add(data, 0.90)
         sub_agents = data.get("sub_agents", [])
         if isinstance(sub_agents, list):
             for item in sub_agents:
                 if isinstance(item, dict):
-                    _add(item.get("name"), 0.88)
+                    _add(item, 0.88)
         return findings
 
     @staticmethod
@@ -354,6 +376,10 @@ class AgentInstanceScanner(BaseScanner):
         if key in seen:
             return findings
         seen.add(key)
+        self._sites.append(AgentSite(
+            role="definition", kind="config_entry", name=agent_name, file_path=path, line=None,
+            instructions=InstructionsRef("file", path),
+        ))
 
         # Build a descriptive match_text with role if available
         role_m = _MD_ROLE_RE.search(content)
@@ -395,6 +421,9 @@ class AgentInstanceScanner(BaseScanner):
                     key = f"{path}::{node_name}"
                     if key not in seen:
                         seen.add(key)
+                        self._sites.append(AgentSite(
+                            role="definition", kind="graph_node", name=str(node_name), file_path=path, line=None,
+                        ))
                         findings.append(ScanFinding(
                             scanner_name=self.name(),
                             category="agent_instance",
@@ -429,6 +458,12 @@ class AgentInstanceScanner(BaseScanner):
             if key in seen:
                 continue
             seen.add(key)
+            config = node.get("config") if isinstance(node.get("config"), dict) else {}
+            role = config.get("role")
+            self._sites.append(AgentSite(
+                role="definition", kind="graph_node", name=str(node_id), file_path=path, line=None,
+                instructions=InstructionsRef.literal(role) if isinstance(role, str) else InstructionsRef(),
+            ))
             findings.append(ScanFinding(
                 scanner_name=self.name(),
                 category="agent_instance",

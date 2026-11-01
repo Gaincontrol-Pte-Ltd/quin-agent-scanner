@@ -4,8 +4,11 @@ from __future__ import annotations
 import pytest
 
 from quin_scanner.file_index import FileIndex
+from quin_scanner.inventory import python_sites
+from quin_scanner.inventory.evidence import NO_INSTRUCTIONS, InstructionsRef
 from quin_scanner.repo_accessor import LocalRepoAccessor
 from quin_scanner.scanners.agent_instance_scanner import AgentInstanceScanner
+from quin_scanner.scanners.base import EvidenceProducer
 
 
 def _names(tmp_path, source: str, filename: str = "agents.py") -> list[str]:
@@ -147,3 +150,86 @@ def test_agents_yaml_and_flow_dag_keep_their_own_parsers(tmp_path):
     index = FileIndex(accessor)
     index.build()
     assert [f.match_text for f in AgentInstanceScanner().scan(accessor, index)] == ["planner"]
+
+
+# --- typed evidence for the inventory ---------------------------------------------------------------------------
+
+
+def _evidence(tmp_path, files: dict[str, str]):
+    for rel, text in files.items():
+        target = tmp_path / rel
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(text, encoding="utf-8")
+    accessor = LocalRepoAccessor(tmp_path)
+    index = FileIndex(accessor)
+    index.build()
+    scanner = AgentInstanceScanner()
+    findings = scanner.scan(accessor, index)
+    return findings, scanner.evidence()
+
+
+def test_scanner_is_an_evidence_producer():
+    assert isinstance(AgentInstanceScanner(), EvidenceProducer)
+
+
+def test_python_evidence_carries_instance_details(tmp_path):
+    findings, sites = _evidence(tmp_path, {"app.py": 'a = Agent(name="r", instructions="x", tools=[s])\n'})
+    assert [f.match_text for f in findings] == ["r"]
+    (site,) = sites
+    assert (site.name, site.file_path, site.tool_refs) == ("r", "app.py", ("s",))
+
+
+def test_test_files_give_evidence_but_no_findings(tmp_path):
+    findings, sites = _evidence(tmp_path, {"tests/test_app.py": 'a = Agent(name="r")\n'})
+    assert findings == []
+    assert [(s.name, s.file_path) for s in sites] == [("r", "tests/test_app.py")]
+
+
+def test_crew_yaml_entries_are_config_definitions(tmp_path):
+    _, sites = _evidence(tmp_path, {"config/agents.yaml": "researcher:\n  role: Senior Researcher\n  goal: g\n"})
+    (site,) = sites
+    assert (site.role, site.kind, site.name, site.instructions) == (
+        "definition", "config_entry", "Senior Researcher", InstructionsRef("config", "researcher"),
+    )
+
+
+def test_adk_root_agent_details(tmp_path):
+    source = (
+        "name: root\nmodel: gemini-2.0-flash\ninstruction: Help.\n"
+        "tools:\n  - name: google_search\nsub_agents:\n  - name: helper\n"
+    )
+    _, sites = _evidence(tmp_path, {"root_agent.yaml": source})
+    helper, root = sorted(sites, key=lambda s: s.name)
+    assert (root.model_expr, root.tool_refs, root.instructions) == (
+        "gemini-2.0-flash", ("google_search",), InstructionsRef.literal("Help."),
+    )
+    assert helper.tool_refs is None
+
+
+def test_unparseable_python_falls_back_to_regex_sites(tmp_path):
+    _, sites = _evidence(tmp_path, {"bad.py": 'agent = Agent(name="ok",\nthis is not python (\n'})
+    assert [(s.name, s.tool_refs, s.instructions) for s in sites] == [("ok", None, NO_INSTRUCTIONS)]
+
+
+def test_typescript_evidence(tmp_path):
+    _, sites = _evidence(tmp_path, {"a.ts": 'const a = new Agent({ name: "triage", tools: [x] });\n'})
+    assert [(s.name, s.tool_refs) for s in sites] == [("triage", ("x",))]
+
+
+def test_workflow_graph_and_markdown_specs(tmp_path):
+    _, sites = _evidence(tmp_path, {"flow.yaml": WORKFLOW, "agents/research.md": "# Research Agent\n**Role:** Researcher\n"})
+    assert sorted((s.kind, s.name) for s in sites) == [
+        ("config_entry", "Research Agent"),
+        ("graph_node", "Programmer Code Review"),
+        ("graph_node", "Reviewer"),
+    ]
+
+
+def test_evidence_failure_never_costs_a_file_its_findings(tmp_path, monkeypatch):
+    def boom(tree, path):
+        raise RuntimeError("evidence extraction failed")
+
+    monkeypatch.setattr(python_sites, "agent_sites", boom)
+    findings, sites = _evidence(tmp_path, {"app.py": 'a = Agent(name="r")\n'})
+    assert [f.match_text for f in findings] == ["r"]
+    assert sites == []
