@@ -100,3 +100,36 @@ def test_user_content_in_sites_is_redacted():
     key = "sk-abcdefghijklmnopqrstuvwxyz123456"
     (site,) = agent_sites(f'new Agent({{ name: "{key}", tools: ["{key}", x], model: "{key}" }});\n', "a.ts")
     assert (site.name, site.tool_refs, site.model_expr) == ("[REDACTED]", ("[REDACTED]", "x"), "[REDACTED]")
+
+
+def test_shorthand_tools_or_an_object_spread_means_tools_are_unknown():
+    a, b, c = agent_sites(
+        'new Agent({ name: "a", tools });\nnew Agent({ ...base, name: "b" });\nnew Agent({\n  name: "c",\n  tools\n});\n',
+        "a.ts",
+    )
+    assert (a.tool_refs, b.tool_refs, c.tool_refs) == (None, None, None)
+    assert b.name == "b"
+
+
+def test_key_like_text_inside_an_expression_is_not_a_key():
+    (site,) = agent_sites('new Agent({ description: x ? name : "y", name: "real" });\n', "a.ts")
+    assert site.name == "real"
+
+
+def test_null_or_undefined_tools_means_no_tools():
+    a, b = agent_sites('new Agent({ name: "a", tools: null });\nnew Agent({ name: "b", tools: undefined });\n', "a.ts")
+    assert (a.tool_refs, b.tool_refs) == ((), ())
+
+
+def test_instructions_variable_is_redacted():
+    (site,) = agent_sites('new Agent({ name: "a", instructions: AKIAABCDEFGHIJKLMNOP });\n', "a.ts")
+    assert site.instructions == InstructionsRef("var", "[REDACTED]")
+
+
+def test_comments_are_fully_blanked_in_the_top_level_view():
+    from quin_scanner.inventory.js_sites import _top_level_view
+
+    text = 'a, // x\n/* y */ b'
+    view = _top_level_view(text)
+    assert len(view) == len(text)
+    assert view.split() == ["a,", "b"]

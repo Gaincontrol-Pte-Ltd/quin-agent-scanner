@@ -12,6 +12,10 @@ _AGENT_CALL = re.compile(r"\b(?:new\s+)?(?:Agent|AssistantAgent|UserProxyAgent|C
 _TOOL_REF = re.compile(r"^\s*([A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*|'[^']+'|\"[^\"]+\")\s*$")
 _EXPR = re.compile(r"[A-Za-z_$][\w$.]*(?:\([^)]*\))?")
 _OPENERS = frozenset("{[(")
+# A key starts the object body or follows a top-level comma (so ``x ? name : y`` inside a value is not a key).
+_KEY_START = r"(?:^|,)\s*"
+_TOOLS_SHORTHAND = re.compile(rf"{_KEY_START}tools\s*(?:,|$)")
+_SPREAD = re.compile(rf"{_KEY_START}\.\.\.")
 _CLOSERS = frozenset("}])")
 
 
@@ -78,8 +82,9 @@ def _top_level_view(text: str) -> str:
         elif block_comment:
             if char == "*" and nxt == "/":
                 block_comment = False
-                view[i + 1] = " "
-                i += 1
+                view[i] = view[i + 1] = " "
+                i += 2
+                continue
         elif quote:
             if escaped:
                 escaped = False
@@ -91,8 +96,9 @@ def _top_level_view(text: str) -> str:
             quote = char
         elif char == "/" and nxt in "/*":
             line_comment, block_comment = nxt == "/", nxt == "*"
-            view[i + 1] = " "
-            i += 1
+            view[i] = view[i + 1] = " "
+            i += 2
+            continue
         elif char in _OPENERS:
             keep = depth == 0
             depth += 1
@@ -127,7 +133,7 @@ def _value(body: str, view: str, key: str) -> tuple[str, str] | None:
     ("literal", text) for a quoted string, ("template", text) for a backtick string, ("list", items) for ``[...]``,
     ("expr", text) for an identifier or call, ("other", "") for anything else; None when the key is absent.
     """
-    match = re.search(rf"(?<![\w$]){key}\s*:", view)
+    match = re.search(rf"{_KEY_START}{key}\s*:", view)
     if match is None:
         return None
     start = match.end()
@@ -163,10 +169,11 @@ def _top_level_items(text: str) -> list[str]:
 
 
 def _tool_refs(body: str, view: str) -> tuple[str, ...] | None:
-    """() when there is no ``tools:`` (or it is ``[]``/null/undefined); None unless every list item is a plain name."""
+    """() when there is no ``tools`` (or it is ``[]``/null/undefined); None for shorthand/spread or unless every item is a plain name."""
     found = _value(body, view, "tools")
     if found is None:
-        return ()
+        # ``{ tools }`` shorthand or ``{ ...base }`` may pass tools implicitly.
+        return None if _TOOLS_SHORTHAND.search(view) or _SPREAD.search(view) else ()
     kind, text = found
     if kind == "expr" and text in ("null", "undefined"):
         return ()

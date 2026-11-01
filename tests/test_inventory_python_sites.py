@@ -184,3 +184,8 @@ def test_loop_iterables_are_not_in_the_loop():
 def test_subscripted_generic_base_class_is_an_agent_definition():
     sites = _sites("class Writer(BaseAgent[Ctx]):\n    pass\n")
     assert [(s.role, s.kind, s.name) for s in sites] == [("definition", "subclass", "Writer")]
+
+
+def test_keyword_unpacking_without_tools_means_tools_are_unknown():
+    sites = _sites('a = Agent(name="a", **cfg)\nclass W(BaseAgent):\n    pass\nw = W(**cfg)\nb = Agent(name="b", tools=[t], **cfg)\n')
+    assert [(s.name, s.tool_refs) for s in sites] == [("a", None), ("W", None), ("W", None), ("b", ("t",))]

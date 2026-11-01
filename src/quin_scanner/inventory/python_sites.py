@@ -149,14 +149,15 @@ def _tool_reference(node: ast.expr) -> str | None:
 
 
 def tool_refs_of(call: ast.Call, missing: tuple[str, ...] | None) -> tuple[str, ...] | None:
-    """Names in an explicit ``tools=[...]`` (``tools=None`` gives ``()``); ``missing`` when there is no ``tools=``.
+    """Names in an explicit ``tools=[...]`` (``tools=None`` gives ``()``); ``missing`` when there is no ``tools=`` or ``**``.
 
     None (not statically known) when the value is not a literal list, or any element is a ``*spread`` or cannot be named:
     a partial list would claim tools are absent that may be passed.
     """
     kw = next((k for k in call.keywords if k.arg == "tools"), None)
     if kw is None:
-        return missing
+        # ``**kwargs`` may pass tools implicitly.
+        return None if any(k.arg is None for k in call.keywords) else missing
     if isinstance(kw.value, ast.Constant) and kw.value.value is None:
         return ()
     if not isinstance(kw.value, (ast.List, ast.Tuple, ast.Set)):
