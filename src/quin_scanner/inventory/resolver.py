@@ -380,9 +380,19 @@ def _resolve_tools(tool_sites: Iterable[ToolSite], extra_tools: Iterable[ToolUsa
     return sorted(tools, key=lambda t: t.id)
 
 
-def fallback(agent_sites: Iterable[AgentSite]) -> Inventory:
-    """Used only if resolve() raised: one weak agent per site and no tools, so the report is still produced."""
+def fallback(agent_sites: Iterable[AgentSite], extra_tools: Iterable[ToolUsage] = ()) -> Inventory:
+    """Used only if resolve() raised: one weak agent per site, so the report is still produced.
+
+    Tool definitions are dropped; skills and external services (``extra_tools``) never depended on the resolver,
+    so they are kept, one per name (case-insensitive), with IDs and scopes as resolve() gives them.
+    """
     inventory = Inventory()
+    seen: set[str] = set()
+    for extra in sorted(extra_tools, key=lambda t: (t.tool_name.casefold(), t.tool_type, t.source_file, t.tool_name)):
+        if extra.tool_name.casefold() not in seen:
+            seen.add(extra.tool_name.casefold())
+            inventory.tools.append(replace(extra, id=f"tool:{extra.tool_name}", scope=scope_of(extra.source_file)))
+    inventory.tools.sort(key=lambda t: t.id)
     per_file: dict[str, int] = defaultdict(int)
     for site in sorted(agent_sites, key=_site_key):
         per_file[site.file_path] += 1

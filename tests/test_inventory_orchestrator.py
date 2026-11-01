@@ -33,15 +33,35 @@ def test_static_scan_reports_agents_with_instances(tmp_path):
 
 
 def test_static_t006_evidence_refs_survive_files_without_findings(tmp_path):
-    """Static signals cite instance sites; they are not validated against finding paths."""
+    """Static signals cite instance sites; they are not validated against finding paths.
+
+    The CrewAI call in other.py has no name= and passes no tools, so no scanner reports a finding there,
+    yet it is an instance of the YAML agent and the T006 signal cites it.
+    """
     report = _scan(tmp_path, {
-        "src/a.py": "from fw import Agent, tool\n@tool\ndef search():\n    pass\n"
-                    "r = Agent(name='researcher', instructions='Find.', tools=[search])\n",
-        "src/admin.py": "from fw import Agent\nfrom ops import shell_exec\n"
-                        "r = Agent(name='researcher', instructions='Find.', tools=[search, shell_exec])\n",
+        "src/p/config/agents.yaml": "writer:\n  role: Writer\n  goal: Write\n  backstory: b\n",
+        "src/p/crew.py": "from crewai import Agent\nclass C:\n    def w(self):\n"
+                         "        return Agent(config=self.agents_config['writer'], tools=[search])\n",
+        "src/p/other.py": "from crewai import Agent\nclass D:\n    def w(self):\n"
+                          "        return Agent(config=self.agents_config['writer'], tools=[])\n",
     })
-    (signal,) = report.agents[0].risk_signals
-    assert [r.file_path for r in signal.evidence_refs] == ["src/a.py", "src/admin.py"]
+    assert "src/p/other.py" not in {f.file_path for f in report.artifacts}
+    (agent,) = report.agents
+    (signal,) = agent.risk_signals
+    assert [(r.file_path, r.line_number) for r in signal.evidence_refs] == [("src/p/crew.py", 4), ("src/p/other.py", 4)]
+
+
+def test_agent_skills_are_instance_tools_linked_to_a_skill(tmp_path):
+    report = _scan(tmp_path, {
+        ".claude/skills/x/SKILL.md": "---\nname: x\ndescription: Does x.\n---\n# X\n",
+        "src/a.py": "from fw import Agent, tool\n@tool\ndef search():\n    pass\n"
+                    "r = Agent(name='a', tools=['x', search])\n",
+    }, enabled_scanners=["agent_instance", "tool_definition", "skills"])
+    (agent,) = report.agents
+    assert (agent.skills, agent.tools, agent.provenance.get("skills")) == (["x"], ["search"], "static")
+    # Instance tools and relationships are unchanged: the skill is still a linked tool of the instance.
+    assert [(t.name, t.tool_id) for t in agent.instances[0].tools] == [("x", "tool:x"), ("search", "tool:search")]
+    assert sorted(e.tool_name for e in report.agent_tool_relationships) == ["search", "x"]
 
 
 def test_no_cap_on_agents(tmp_path):
@@ -68,9 +88,29 @@ def test_an_inventory_error_does_not_lose_the_report(tmp_path, monkeypatch):
         raise RuntimeError("boom")
 
     monkeypatch.setattr(orchestrator, "resolve_inventory", broken)
-    report = _scan(tmp_path, {"src/a.py": "r = Agent(name='researcher')\n"})
+    report = _scan(tmp_path, {
+        "src/a.py": "r = Agent(name='researcher')\n",
+        ".claude/skills/x/SKILL.md": "---\nname: x\ndescription: Does x.\n---\n# X\n",
+        "requirements.txt": "chromadb==0.4.0\n",
+    }, enabled_scanners=["agent_instance", "tool_definition", "skills", "dependency"])
     assert [(a.id, a.name) for a in report.agents] == [("agent:@src/a.py#1", "researcher")]
     assert report.metadata["inventory_error"] == "RuntimeError: boom"
+    # Skills and external services never depended on the resolver, so they survive its failure.
+    assert [(t.id, t.tool_type, t.scope) for t in report.tool_usages] == [
+        ("tool:chromadb", "external_service", "production"), ("tool:x", "skill", "production"),
+    ]
+
+
+def test_an_evidence_error_does_not_lose_the_report(tmp_path, monkeypatch):
+    from quin_scanner.scanners.tool_definition_scanner import ToolDefinitionScanner
+
+    def broken(self):
+        raise RuntimeError("bad evidence")
+
+    monkeypatch.setattr(ToolDefinitionScanner, "evidence", broken)
+    report = _scan(tmp_path, {"src/a.py": "r = Agent(name='researcher')\n"})
+    assert [a.id for a in report.agents] == ["agent:@src/a.py#1"]
+    assert report.metadata["inventory_error"] == "RuntimeError: bad evidence"
 
 
 class _SynthesisStub:

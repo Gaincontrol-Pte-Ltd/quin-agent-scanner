@@ -15,6 +15,7 @@ from quin_scanner.llm.synthesis_agent import SynthesisAgent
 from quin_scanner.risk_taxonomy import get_control_label
 from quin_scanner.rules.kri_predicates import CLOUD_LLM_PROVIDERS, EvidenceFacts
 from quin_scanner.models import (
+    AgentProfile,
     ClassificationResult,
     EvidenceRef,
     InfraProfile,
@@ -609,25 +610,43 @@ def _skill_tool_usages(skill_scanner: SkillScanner | None) -> list[ToolUsage]:
 def _build_inventory(
     scanners: list[BaseScanner], skill_scanner: SkillScanner | None, tool_services: list[ToolUsage],
 ) -> tuple[Inventory, str | None]:
-    """Resolve the scanners' typed evidence into the inventory; on an internal error, weak agents and no tools.
+    """Resolve the scanners' typed evidence into the inventory; on an internal error, weak agents and no tool definitions.
 
-    Paths need no normalising here: the scanners take them from the FileIndex, which already uses ``/``.
+    Any failure (collecting evidence, listing skills, resolving) costs detail, never the report: the fallback keeps
+    every agent site collected so far, plus the skills and external services. Paths need no normalising here: the
+    scanners take them from the FileIndex, which already uses ``/``.
     """
     agent_sites: list[AgentSite] = []
     tool_sites: list[ToolSite] = []
-    for scanner in scanners:
-        if isinstance(scanner, EvidenceProducer):
-            for item in scanner.evidence():
-                if isinstance(item, AgentSite):
-                    agent_sites.append(item)
-                elif isinstance(item, ToolSite):
-                    tool_sites.append(item)
-    extras = _skill_tool_usages(skill_scanner) + list(tool_services)
+    extras: list[ToolUsage] = list(tool_services)
     try:
+        for scanner in scanners:
+            if isinstance(scanner, EvidenceProducer):
+                for item in scanner.evidence():
+                    if isinstance(item, AgentSite):
+                        agent_sites.append(item)
+                    elif isinstance(item, ToolSite):
+                        tool_sites.append(item)
+        extras = _skill_tool_usages(skill_scanner) + extras
         return resolve_inventory(agent_sites, tool_sites, extras), None
     except Exception as exc:  # noqa: BLE001 - a resolver bug costs detail, never the report
         _log(f"inventory resolution failed: {exc}")
-        return fallback_inventory(agent_sites), f"{type(exc).__name__}: {exc}"
+        return fallback_inventory(agent_sites, extras), f"{type(exc).__name__}: {exc}"
+
+
+def _split_agent_skills(agents: list[AgentProfile], tools: list[ToolUsage]) -> None:
+    """An agent's skills are its instance tools whose linked tool is a skill (plan clarification 15).
+
+    Keyed on the linked tool ID, not the name, so an unresolved reference never becomes a skill. Instance tools
+    and relationships are left as they are.
+    """
+    skill_ids = {t.id for t in tools if t.tool_type == "skill"}
+    for agent in agents:
+        names = {it.name for inst in agent.instances for it in inst.tools if it.tool_id in skill_ids}
+        if names:
+            agent.skills = sorted(names)
+            agent.tools = [n for n in agent.tools if n not in names]
+            agent.provenance["skills"] = "static"
 
 
 # Directories that indicate a file is a skill / playbook / instruction set
@@ -1310,6 +1329,7 @@ class ScanOrchestrator:
         pp_agents = agent_inventory.agents
         pp_tool_usages = agent_inventory.tools
         _classify_tool_usages(pp_tool_usages, mcp_servers)
+        _split_agent_skills(pp_agents, pp_tool_usages)
         llm_inferred_agents: list[LLMInferredItem] = []
         llm_inferred_tools: list[LLMInferredItem] = []
 
