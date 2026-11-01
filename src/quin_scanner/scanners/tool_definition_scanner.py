@@ -7,7 +7,9 @@ from typing import TYPE_CHECKING
 
 import yaml
 
+from quin_scanner.inventory.evidence import ToolSite
 from quin_scanner.models import ScanFinding
+from quin_scanner.redaction import redact_secrets
 from quin_scanner.scanners.base import BaseScanner
 
 if TYPE_CHECKING:
@@ -109,34 +111,66 @@ class ToolDefinitionScanner(BaseScanner):
     def scan(self, accessor: "RepoAccessor", file_index: "FileIndex") -> list[ScanFinding]:
         findings: list[ScanFinding] = []
         seen: set[str] = set()
+        self._sites: list[ToolSite] = []
 
         for path in file_index.all_files():
-            if _is_test_path(path):
-                continue
-
+            # Test files give the inventory evidence (tagged scope: test) but no findings, as before.
+            is_test = _is_test_path(path)
             p = Path(path)
             fname = p.name.lower()
             suffix = p.suffix.lower()
+            kind: str | None = None  # None: findings carry a "name (label)" text; else every finding is this kind
 
             try:
                 if suffix in _CODE_EXTENSIONS:
                     content = accessor.read_file(path)
-                    findings.extend(self._scan_code(content, path, seen))
+                    found = self._scan_code(content, path, seen)
                     if self._in_tool_dir(path):
-                        findings.extend(self._scan_tool_dir_functions(content, path, seen))
+                        found += self._scan_tool_dir_functions(content, path, seen)
                 elif fname in _TOOL_CONFIG_NAMES:
-                    content = accessor.read_file(path)
-                    findings.extend(self._scan_tools_yaml(content, path, seen))
+                    found = self._scan_tools_yaml(accessor.read_file(path), path, seen)
+                    kind = "config"
                 elif fname == "flow.dag.yaml":
-                    content = accessor.read_file(path)
-                    findings.extend(self._scan_flow_dag(content, path, seen))
+                    found = self._scan_flow_dag(accessor.read_file(path), path, seen)
+                    kind = "graph_node"
                 elif suffix == ".md" and self._in_agent_dir(path):
-                    content = accessor.read_file(path)
-                    findings.extend(self._scan_md_tools_required(content, path, seen))
+                    found = self._scan_md_tools_required(accessor.read_file(path), path, seen)
+                else:
+                    continue
             except Exception:
                 continue
+            if not is_test:
+                findings.extend(found)
+            try:
+                self._sites_from(found, kind)
+            except Exception:
+                pass  # evidence is best effort: it never costs a file its findings
 
         return findings
+
+    def _sites_from(self, found: list[ScanFinding], kind: str | None) -> None:
+        """Tool definitions among one file's findings; bare names from tools=[...] lists are references, not definitions.
+
+        ``kind`` is set by the caller for tools.yaml / flow.dag.yaml, whose findings are bare names on line 0; the kind
+        comes from which parser produced them, never from the text or the line number. Code and agent-spec findings
+        end in ``(label)``; a bare name there is a ``tools=[...]`` reference.
+        """
+        for f in found:
+            if kind is not None:
+                name, site_kind = f.match_text, kind
+            else:
+                name, sep, label = f.match_text.rpartition(" (")
+                if not sep or not label.endswith(")"):
+                    continue                  # a tools=[...] reference
+                label = label[:-1]
+                site_kind = {"tools/": "function", "agent spec": "agent_spec"}.get(label, label)
+            # match_text is already redacted by ScanFinding; redacting again is idempotent and keeps that local.
+            self._sites.append(ToolSite(name=redact_secrets(name.strip()), kind=site_kind, file_path=f.file_path,
+                                        line=f.line_number or None))
+
+    def evidence(self) -> list[ToolSite]:
+        """Typed tool definition sites from the last scan(), test files included, sorted by location."""
+        return sorted(getattr(self, "_sites", []), key=lambda s: (s.file_path, s.line or 0, s.name))
 
     def _scan_code(self, content: str, path: str, seen: set[str]) -> list[ScanFinding]:
         findings = []
