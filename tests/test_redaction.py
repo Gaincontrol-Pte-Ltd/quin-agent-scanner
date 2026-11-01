@@ -12,7 +12,8 @@ from quin_scanner.redaction import redact_secrets
 
 OPENAI = "sk-proj-UATfake1234567890abcdefghijklmnop"
 ANTHROPIC = "sk-ant-api03-UATfake1234567890abcdefghijklmnopqrstuv"
-GOOGLE = "AIzaSyUATfake1234567890abcdefghijklmnop"  # AIza + 35 characters
+# Built from two parts so the file holds no complete key-shaped literal (GitHub secret scanning flags it).
+GOOGLE = "AIza" + "SyUATfake1234567890abcdefghijklmnop"  # AIza + 35 characters
 GITHUB = "ghp_UATfake1234567890abcdefghijklmnopqr12"
 AWS = "AKIAUATFAKE123456789"
 SLACK = "xoxb-1234567890-abcdefghijkl"
