@@ -326,3 +326,14 @@ def test_html_report_renders_instances_flags_and_unverified_suggestions(tmp_path
     assert "inst-diff" in html
     assert "Suggested by the LLM" in html
     assert '"llm_inferred_agents"' in html and "planner" in html
+
+
+def test_production_tool_divergence_reaches_sarif(tmp_path):
+    from quin_scanner.report import ReportGenerator
+
+    report = _scan(tmp_path, {
+        "src/a.py": "r = Agent(name='researcher', instructions='Find.', tools=[search])\n",
+        "src/b.py": "r = Agent(name='researcher', instructions='Find.', tools=[search, shell_exec])\n",
+    })
+    sarif = json.loads(ReportGenerator.to_sarif(report))
+    assert "T006" in [result["ruleId"] for result in sarif["runs"][0]["results"]]
