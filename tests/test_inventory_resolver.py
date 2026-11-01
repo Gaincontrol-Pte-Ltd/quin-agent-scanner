@@ -160,3 +160,97 @@ def test_output_is_sorted_and_independent_of_input_order():
     backward = resolve(list(reversed(sites)), [])
     assert [a.to_dict() for a in forward.agents] == [a.to_dict() for a in backward.agents]
     assert [a.id for a in forward.agents] == ["agent:@src/c.py#1", "agent:a", "agent:b"]
+
+
+# --- instance tools, relationships and divergence ---------------------------------------------
+
+
+def test_instance_tools_link_to_a_same_file_definition_first():
+    inv = resolve([agent("r", "src/a.py", 5, tools=("search", "ghost"))],
+                  [tool("search", "src/a.py", 2), tool("search", "src/b.py", 1)])
+    (instance,) = inv.agents[0].instances
+    assert [t.to_dict() for t in instance.tools] == [
+        {"name": "search", "tool_id": "tool:search@src/a.py", "resolved": True},
+        {"name": "ghost", "tool_id": None, "resolved": False},
+    ]
+
+
+def test_instance_tools_link_to_a_repo_unique_name():
+    inv = resolve([agent("r", "src/a.py", tools=("lookup",))], [tool("lookup", "src/tools.py", 2)])
+    assert inv.agents[0].instances[0].tools[0].tool_id == "tool:lookup"
+
+
+def test_a_colliding_tool_name_from_other_files_stays_unresolved():
+    inv = resolve([agent("r", "src/a.py", tools=("search",))], [tool("search", "src/b.py"), tool("search", "src/c.py")])
+    assert inv.agents[0].instances[0].tools[0].resolved is False
+
+
+def test_relationships_are_built_from_instances():
+    inv = resolve([agent("researcher", "agent.py", 5, tools=("lookup_customer",))],
+                  [tool("lookup_customer", "agent.py", 2)])
+    assert [r.to_dict() for r in inv.relationships] == [{
+        "agent_name": "researcher", "tool_name": "lookup_customer", "source_file": "agent.py", "line_number": 5,
+        "tool_source_file": "agent.py", "tool_line_number": 2, "evidence": "explicit_tools_argument",
+        "agent_id": "agent:researcher", "instance_id": "agent:researcher/agent.py#1",
+        "tool_id": "tool:lookup_customer",
+    }]
+    assert inv.agents[0].tools == ["lookup_customer"]
+
+
+def test_production_tool_divergence_is_a_t006_risk_signal():
+    inv = resolve([
+        agent("r", "src/a.py", 1, instructions=PROMPT, tools=("search",)),
+        agent("r", "src/admin.py", 1, instructions=PROMPT, tools=("search", "shell_exec")),
+    ], [])
+    (a,) = inv.agents
+    assert a.flags == ["tool_divergence"]
+    (signal,) = a.risk_signals
+    assert (signal.threat_id, signal.severity, signal.recommended_controls) == (
+        "T006", "medium", ["C003: Access Control & Least Privilege"],
+    )
+    assert "shell_exec" in signal.signal
+    assert [(r.file_path, r.line_number) for r in signal.evidence_refs] == [("src/a.py", 1), ("src/admin.py", 1)]
+
+
+def test_divergence_only_in_test_code_is_a_flag_without_a_signal():
+    inv = resolve([
+        agent("r", "src/a.py", instructions=PROMPT, tools=("search",)),
+        agent("r", "tests/test_a.py", instructions=PROMPT, tools=("search", "fake")),
+    ], [])
+    (a,) = inv.agents
+    assert a.flags == ["tool_divergence"]
+    assert a.risk_signals == []
+
+
+def test_unknown_tool_lists_do_not_count_as_divergence():
+    inv = resolve([
+        agent("r", "src/a.py", instructions=PROMPT, tools=("search",)),
+        agent("r", "src/b.py", instructions=PROMPT, tools=None),
+    ], [])
+    assert inv.agents[0].flags == []
+
+
+def test_model_divergence_is_informational_and_loops_are_marked():
+    inv = resolve([
+        agent("r", "src/a.py", instructions=PROMPT, model="gpt-4o", in_loop=True),
+        agent("r", "src/b.py", instructions=PROMPT, model="env:MODEL"),
+    ], [])
+    (a,) = inv.agents
+    assert a.flags == ["model_divergence"]
+    assert a.risk_signals == []
+    assert [i.multiplicity for i in a.instances] == ["many", "one"]
+
+
+def test_provenance_and_digest_instructions():
+    inv = resolve([agent("r", instructions=InstructionsRef("file", "prompts/r.md"))], [])
+    assert inv.agents[0].provenance == {"name": "static", "tools": "static"}
+    assert inv.instructions == {"agent:r": "file:prompts/r.md"}
+
+
+def test_fallback_gives_one_weak_agent_per_site():
+    inv = fallback([agent("r", "src/a.py", 3), agent(None, "src/a.py", 1)])
+    assert [(a.id, a.name, a.identity) for a in inv.agents] == [
+        ("agent:@src/a.py#1", "", "weak"),
+        ("agent:@src/a.py#2", "r", "weak"),
+    ]
+    assert inv.tools == [] and inv.relationships == []

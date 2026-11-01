@@ -145,36 +145,95 @@ def _describe(instructions: InstructionsRef) -> str:
     return f"{instructions.kind}:{instructions.value}"
 
 
+def _link_tool(ref: str, path: str, tool_index: dict[str, list[ToolUsage]]) -> ToolUsage | None:
+    """A tool defined in the same file, else a repo-unique name, else None (unresolved)."""
+    candidates = tool_index.get(ref.casefold(), [])
+    same_file = [t for t in candidates if t.source_file == path]
+    if same_file:
+        return same_file[0]
+    return candidates[0] if len(candidates) == 1 else None
+
+
 def _build_agent(
     group: _Group, agent_id: str, tool_index: dict[str, list[ToolUsage]],
 ) -> tuple[AgentProfile, list[AgentToolRelationship]]:
     instance_sites = [s for s in group.sites if s.role in ("instance", "both")] or list(group.sites)
     per_file: dict[str, int] = defaultdict(int)
-    instances: list[AgentInstance] = []
+    pairs: list[tuple[AgentInstance, AgentSite]] = []
+    relationships: list[AgentToolRelationship] = []
     for site in instance_sites:
         per_file[site.file_path] += 1
-        instances.append(AgentInstance(
-            id=f"{agent_id}/{site.file_path}#{per_file[site.file_path]}",
+        instance_id = f"{agent_id}/{site.file_path}#{per_file[site.file_path]}"
+        tools: list[InstanceTool] = []
+        for ref in site.tool_refs or ():
+            linked = _link_tool(ref, site.file_path, tool_index)
+            tools.append(InstanceTool(name=ref, tool_id=linked.id if linked else None, resolved=linked is not None))
+            relationships.append(AgentToolRelationship(
+                agent_name=group.name or "",
+                tool_name=ref,
+                source_file=site.file_path,
+                line_number=site.line,
+                tool_source_file=linked.source_file if linked else "",
+                tool_line_number=linked.line_number if linked else None,
+                agent_id=agent_id,
+                instance_id=instance_id,
+                tool_id=linked.id if linked else None,
+            ))
+        instance = AgentInstance(
+            id=instance_id,
             file=site.file_path,
             line=site.line,
             scope=scope_of(site.file_path),
             multiplicity="many" if site.in_loop else "one",
             model=site.model_expr,
-        ))
+            tools=tools,
+        )
+        pairs.append((instance, site))
+    flags = set(group.flags)
+    risk_signals = _divergence(group.name or agent_id, pairs, flags)
     scopes = {scope_of(s.file_path) for s in group.sites}
+    instances = [instance for instance, _ in pairs]
     agent = AgentProfile(
         name=group.name or "",
         agent_type="unknown",
         goal="",
+        risk_signals=risk_signals,
+        tools=sorted({t.name for instance in instances for t in instance.tools}),
         source_file=_definition(group).file_path,
         id=agent_id,
         identity="strong" if group.name else "weak",
         scope=min(scopes, key=_SCOPE_RANK.__getitem__),
-        flags=sorted(group.flags),
+        flags=sorted(flags),
         provenance={"name": "static", "tools": "static"},
         instances=instances,
     )
-    return agent, []
+    return agent, relationships
+
+
+def _divergence(
+    label: str, pairs: list[tuple[AgentInstance, AgentSite]], flags: set[str],
+) -> list[RiskIndicator]:
+    """Flags for instances that differ; a T006 signal when production instances are given different tools."""
+    known = [(instance, frozenset(site.tool_refs)) for instance, site in pairs if site.tool_refs is not None]
+    if len({tools for _, tools in known}) > 1:
+        flags.add("tool_divergence")
+    if len({site.model_expr for _, site in pairs if site.model_expr}) > 1:
+        flags.add("model_divergence")
+    production = [(instance, tools) for instance, tools in known if instance.scope == "production"]
+    tool_sets = {tools for _, tools in production}
+    if len(tool_sets) < 2:
+        return []
+    differing = sorted(frozenset.union(*tool_sets) - frozenset.intersection(*tool_sets))
+    return [RiskIndicator(
+        signal=f"Instances of agent '{label}' are given different tools: {', '.join(differing)}",
+        recommended_controls=[get_control_label("C003")],
+        threat_id="T006",
+        severity="medium",
+        evidence_refs=[
+            EvidenceRef(file_path=instance.file, line_number=instance.line, scanner="AgentInstanceScanner")
+            for instance, _ in production
+        ],
+    )]
 
 
 def _resolve_tools(tool_sites: Iterable[ToolSite], extra_tools: Iterable[ToolUsage]) -> list[ToolUsage]:
@@ -206,4 +265,13 @@ def _resolve_tools(tool_sites: Iterable[ToolSite], extra_tools: Iterable[ToolUsa
 
 def fallback(agent_sites: Iterable[AgentSite]) -> Inventory:
     """Used only if resolve() raised: one weak agent per site and no tools, so the report is still produced."""
-    raise NotImplementedError  # completed in Task 9
+    inventory = Inventory()
+    per_file: dict[str, int] = defaultdict(int)
+    for site in sorted(agent_sites, key=_site_key):
+        per_file[site.file_path] += 1
+        inventory.agents.append(AgentProfile(
+            name=site.name or "", agent_type="unknown", goal="", source_file=site.file_path,
+            id=f"agent:@{site.file_path}#{per_file[site.file_path]}", identity="weak",
+            scope=scope_of(site.file_path), provenance={"name": "static"},
+        ))
+    return inventory
