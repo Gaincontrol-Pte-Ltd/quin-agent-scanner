@@ -27,9 +27,9 @@ def test_scan_links_agent_to_explicitly_configured_tool(tmp_path):
         "tool_source_file": "agent.py",
         "tool_line_number": 2,
         "evidence": "explicit_tools_argument",
-        "agent_id": "",
-        "instance_id": "",
-        "tool_id": None,
+        "agent_id": "agent:researcher",
+        "instance_id": "agent:researcher/agent.py#1",
+        "tool_id": "tool:lookup_customer",
     }]
 
 
@@ -61,9 +61,9 @@ def test_scan_links_imported_tool_definition_in_another_file(tmp_path):
         "tool_source_file": "tools.py",
         "tool_line_number": 2,
         "evidence": "explicit_tools_argument",
-        "agent_id": "",
-        "instance_id": "",
-        "tool_id": None,
+        "agent_id": "agent:researcher",
+        "instance_id": "agent:researcher/agent.py#1",
+        "tool_id": "tool:lookup_customer",
     }]
 
 
@@ -87,7 +87,7 @@ def test_scan_links_javascript_agent_object_tool_reference(tmp_path):
         "tool_source_file": "",
         "tool_line_number": None,
         "evidence": "explicit_tools_argument",
-        "agent_id": "",
-        "instance_id": "",
+        "agent_id": "agent:researcher",
+        "instance_id": "agent:researcher/agent.ts#1",
         "tool_id": None,
     }]

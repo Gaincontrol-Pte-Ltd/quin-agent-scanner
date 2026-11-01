@@ -18,19 +18,22 @@ from quin_scanner.models import (
     ClassificationResult,
     EvidenceRef,
     InfraProfile,
+    LLMInferredItem,
     MCPServer,
     RiskIndicator,
     ScanFinding,
     ScanReport,
     SynthesisResult,
+    ToolUsage,
     Vulnerability,
 )
+from quin_scanner.inventory import AgentSite, Inventory, ToolSite, fallback_inventory, resolve_inventory
 from quin_scanner.vuln_checker import VulnChecker, parse_framework_ref
 from quin_scanner.repo_accessor import RepoAccessor
 from quin_scanner.file_fingerprint import compute_file_fingerprint
 from quin_scanner.scanners.zino import ZinoScanner, classify_governance
 from quin_scanner.scanners.mcp_scanner import discover_mcp_servers
-from quin_scanner.scanners.base import BaseScanner
+from quin_scanner.scanners.base import BaseScanner, EvidenceProducer
 from quin_scanner.scanners.ci_scanner import CIScanner
 from quin_scanner.scanners.code_pattern import CodePatternScanner
 from quin_scanner.scanners.config_scanner import ConfigScanner
@@ -53,7 +56,6 @@ from quin_scanner.scanners.skills.baseline import (
 )
 from quin_scanner.scanners.skills.llm_review import review_skills
 from quin_scanner.scanners.skills.promotion import promote_skill_findings
-from quin_scanner.agent_tool_relationships import discover_agent_tool_relationships
 
 _print_lock = threading.Lock()
 
@@ -587,57 +589,45 @@ def _extract_tool_services(findings: list[ScanFinding]) -> list:
     return services
 
 
-# Model name patterns for the hallucination filter.
-# Only include prefixes specific enough to avoid false positives on tool names.
-_MODEL_NAME_PREFIXES = (
-    "gpt-", "gpt4",
-    "claude-", "claude3", "claude4",
-    "dall-e", "dalle",
-    "llama-", "llama2", "llama3", "llama4",
-    "gemini-", "gemma-",
-    "mistral-", "mixtral-",
-    "command-r",  # Cohere (not generic "command-")
-    "text-embedding-", "text-davinci-",
-    "whisper-",
-    "stable-diffusion",
-    "qwen-", "deepseek-",
-)
-
-
-def _looks_like_model_name(name: str) -> bool:
-    """Return True if the name looks like an LLM model identifier."""
-    lower = name.lower().strip()
-    return any(lower.startswith(p) for p in _MODEL_NAME_PREFIXES)
-
-
-def _filter_hallucinated_tools(
-    tool_usages: list,
-    model_usages: list,
-    dep_findings: list[ScanFinding],
-) -> list:
-    """Remove tool_usages that are actually model names or raw dependency package names."""
-    model_names = {m.model_name.lower() for m in model_usages}
-    # Collect raw dependency package names (normalised)
-    dep_names: set[str] = set()
-    for f in dep_findings:
-        raw = f.match_text.strip().lower()
-        pkg = re.split(r"[=><~!\[;,\s]", raw, maxsplit=1)[0]
-        if pkg:
-            dep_names.add(pkg)
-
-    filtered = []
-    for t in tool_usages:
-        name_lower = t.tool_name.lower().strip()
-        # Skip model names
-        if name_lower in model_names:
+def _skill_tool_usages(skill_scanner: SkillScanner | None) -> list[ToolUsage]:
+    """Discovered Agent Skills as tool usages (tool_type="skill"), one per name (case-insensitive)."""
+    if skill_scanner is None:
+        return []
+    from quin_scanner.scanners.skills.discovery import is_pseudo_record
+    usages: list[ToolUsage] = []
+    seen: set[str] = set()
+    for assessment in skill_scanner.assessments:
+        record = assessment.record
+        if is_pseudo_record(record) or record.name.lower() in seen:
             continue
-        if _looks_like_model_name(name_lower):
-            continue
-        # Skip raw dependency names unless they're already typed as external_service
-        if name_lower in dep_names and t.tool_type != "external_service":
-            continue
-        filtered.append(t)
-    return filtered
+        seen.add(record.name.lower())
+        usages.append(ToolUsage(tool_name=record.name, tool_type="skill", source_file=record.skill_md_path,
+                                line_number=None))
+    return usages
+
+
+def _build_inventory(
+    scanners: list[BaseScanner], skill_scanner: SkillScanner | None, tool_services: list[ToolUsage],
+) -> tuple[Inventory, str | None]:
+    """Resolve the scanners' typed evidence into the inventory; on an internal error, weak agents and no tools.
+
+    Paths need no normalising here: the scanners take them from the FileIndex, which already uses ``/``.
+    """
+    agent_sites: list[AgentSite] = []
+    tool_sites: list[ToolSite] = []
+    for scanner in scanners:
+        if isinstance(scanner, EvidenceProducer):
+            for item in scanner.evidence():
+                if isinstance(item, AgentSite):
+                    agent_sites.append(item)
+                elif isinstance(item, ToolSite):
+                    tool_sites.append(item)
+    extras = _skill_tool_usages(skill_scanner) + list(tool_services)
+    try:
+        return resolve_inventory(agent_sites, tool_sites, extras), None
+    except Exception as exc:  # noqa: BLE001 - a resolver bug costs detail, never the report
+        _log(f"inventory resolution failed: {exc}")
+        return fallback_inventory(agent_sites), f"{type(exc).__name__}: {exc}"
 
 
 # Directories that indicate a file is a skill / playbook / instruction set
@@ -1055,9 +1045,6 @@ class ScanOrchestrator:
         # Preserve every raw scanner observation for complete inventory, even
         # when report artifacts are later deduplicated or LLM context is capped.
         inventory = [finding.to_dict() for finding in all_findings]
-        agent_tool_relationships = discover_agent_tool_relationships(
-            tracked_accessor, file_index, all_findings
-        )
         coverage = {
             **file_index.coverage(),
             **tracked_accessor.coverage(),
@@ -1088,6 +1075,9 @@ class ScanOrchestrator:
         ) or _extract_mcp_servers(all_findings)
         infra = _extract_infra(all_findings)
         tool_services = _extract_tool_services(all_findings)
+
+        # 4b. The inventory of record: agents with instances, tools and agent-tool links from static evidence only.
+        agent_inventory, inventory_error = _build_inventory(scanners, skill_scanner, tool_services)
 
         # 5. Identify model usage
         if verbose:
@@ -1259,6 +1249,8 @@ class ScanOrchestrator:
             metadata["llm_errors"] = llm_errors
         if config.no_llm:
             metadata["analysis"] = "static-only"
+        if inventory_error:
+            metadata["inventory_error"] = inventory_error
 
         # ── Deterministic post-processing ──────────────────────────────────────
         # Apply after synthesis so these rules fill gaps when the LLM left fields
@@ -1309,125 +1301,17 @@ class ScanOrchestrator:
             except Exception as _exc:  # noqa: BLE001
                 _log(f"vuln check failed for {pp_framework}: {_exc}")
 
-        # Rule 2: agents — fall back to AgentInstanceScanner findings when empty
-        pp_agents = synthesis.agents if synthesis else []
-        if not pp_agents:
-            all_agent_instances = [
-                f for f in all_findings if f.scanner_name == "AgentInstanceScanner"
-            ]
-            if all_agent_instances:
-                from quin_scanner.models import AgentProfile
-                pp_agents = [
-                    AgentProfile(
-                        name=f.match_text,
-                        agent_type="unknown",
-                        goal="",
-                        source_file=f.file_path,
-                    )
-                    for f in all_agent_instances[:50]
-                ]
+        # Signals cite these paths; LLM evidence refs must point at a file that produced a finding.
+        _scanned_paths: set[str] = {f.file_path for f in all_findings if f.file_path}
 
-        # Rule 3: tool_usages — fall back to ToolDefinitionScanner findings when empty
-        pp_tool_usages = synthesis.tool_usages if synthesis else []
-        if not pp_tool_usages:
-            all_tool_defs = [
-                f for f in all_findings if f.scanner_name == "ToolDefinitionScanner"
-            ]
-            if all_tool_defs:
-                from quin_scanner.models import ToolUsage
-                pp_tool_usages = [
-                    ToolUsage(
-                        tool_name=f.match_text.split(" (")[0],
-                        source_file=f.file_path,
-                        line_number=f.line_number,
-                    )
-                    for f in all_tool_defs[:100]
-                ]
-
-        # Rule 3a-0: surface discovered Agent Skills as ToolUsage(tool_type="skill")
-        if skill_scanner is not None:
-            from quin_scanner.models import ToolUsage
-            from quin_scanner.scanners.skills.discovery import is_pseudo_record
-            _known_names = {t.tool_name.lower() for t in pp_tool_usages}
-            for _a in skill_scanner.assessments:
-                _rec = _a.record
-                if is_pseudo_record(_rec) or _rec.name.lower() in _known_names:
-                    continue
-                _known_names.add(_rec.name.lower())
-                pp_tool_usages.append(ToolUsage(
-                    tool_name=_rec.name,
-                    tool_type="skill",
-                    source_file=_rec.skill_md_path,
-                    line_number=None,
-                ))
-
-        # Rule 3a: classify tool_usages as skill / mcp_tool / tool_definition
+        # Rule 2: the inventory of record. Agents (with instances), tools and agent-tool links come from static
+        # evidence only (inventory/resolver.py); no caps. The LLM may enrich them by ID; it never adds, renames
+        # or removes items.
+        pp_agents = agent_inventory.agents
+        pp_tool_usages = agent_inventory.tools
         _classify_tool_usages(pp_tool_usages, mcp_servers)
-
-        # Rule 3a-ii: cross-check AgentProfile tools[] / skills[] against classification
-        _classified_skills = {t.tool_name.lower() for t in pp_tool_usages if t.tool_type == "skill"}
-        _classified_tools = {t.tool_name.lower() for t in pp_tool_usages if t.tool_type in ("tool_definition", "external_service")}
-        for _agent in pp_agents:
-            _new_tools: list[str] = []
-            for t in _agent.tools:
-                if t.lower() in _classified_skills:
-                    if t not in _agent.skills:
-                        _agent.skills.append(t)
-                else:
-                    _new_tools.append(t)
-            _agent.tools = _new_tools
-            _new_skills: list[str] = []
-            for s in _agent.skills:
-                if s.lower() in _classified_tools:
-                    if s not in _agent.tools:
-                        _agent.tools.append(s)
-                else:
-                    _new_skills.append(s)
-            _agent.skills = _new_skills
-
-        # Rule 3b: filter hallucinated tools — remove model names and raw deps
-        dep_findings = [f for f in all_findings if f.scanner_name == "DependencyScanner"]
-        pp_tool_usages = _filter_hallucinated_tools(pp_tool_usages, model_usages, dep_findings)
-
-        # Rule 3b-ii: filter agent-level tools[] for the same hallucinated names
-        model_names_lower = {m.model_name.lower() for m in model_usages}
-        dep_names_lower: set[str] = set()
-        for _f in dep_findings:
-            _raw = _f.match_text.strip().lower()
-            _pkg = re.split(r"[=><~!\[;,\s]", _raw, maxsplit=1)[0]
-            if _pkg:
-                dep_names_lower.add(_pkg)
-        for _agent in pp_agents:
-            _agent.tools = [
-                t for t in _agent.tools
-                if t.lower() not in model_names_lower
-                and not _looks_like_model_name(t)
-                and t.lower() not in dep_names_lower
-            ]
-
-        # Rule 3c: merge external service tools (from tool_services.yaml)
-        pp_tool_usages.extend(tool_services)
-
-        # Rule 4: deduplicate tool_usages
-        # First pass: by tool_name — prefer external_service over tool_definition
-        # (avoids duplicates when synthesis returns a tool that's also a service dep)
-        _best_by_name: dict[str, object] = {}
-        for _t in pp_tool_usages:
-            _name_key = _t.tool_name.lower()
-            _existing = _best_by_name.get(_name_key)
-            if _existing is None:
-                _best_by_name[_name_key] = _t
-            elif _t.tool_type == "external_service" and _existing.tool_type != "external_service":
-                _best_by_name[_name_key] = _t
-        # Second pass: by (name, source_file, line_number) for remaining dups
-        _seen_tools: set[tuple] = set()
-        _deduped_tools: list = []
-        for _t in _best_by_name.values():
-            _key = (_t.tool_name.lower(), _t.source_file, _t.line_number)
-            if _key not in _seen_tools:
-                _seen_tools.add(_key)
-                _deduped_tools.append(_t)
-        pp_tool_usages = _deduped_tools
+        llm_inferred_agents: list[LLMInferredItem] = []
+        llm_inferred_tools: list[LLMInferredItem] = []
 
         # Rule 5: summary — generate a deterministic fallback when synthesis returned empty
         pp_summary = (synthesis.summary if synthesis else "") or ""
@@ -1442,14 +1326,12 @@ class ScanOrchestrator:
                 pp_summary = f"AI application with detected capabilities: {tags_str}."
         # ── End post-processing ────────────────────────────────────────────────
 
-        # Validate evidence_refs against actual scanner findings before any
+        # Validate the LLM's repo-level evidence_refs against actual scanner findings before any
         # signal-level processing — drops file paths the LLM hallucinated so
         # downstream consumers (HTML report deep-links) only see real paths.
-        _scanned_paths: set[str] = {f.file_path for f in all_findings if f.file_path}
+        # Static agent signals (T006) are not validated: they cite instance sites, which may have no finding.
         if synthesis:
             _validate_evidence_refs(synthesis.risk_signals, _scanned_paths)
-        for _a in pp_agents:
-            _validate_evidence_refs(getattr(_a, "risk_signals", []), _scanned_paths)
 
         # Repo-level risk signals from synthesis, with dedup against per-agent signals.
         pp_risk_signals = _dedup_repo_signals(
@@ -1535,7 +1417,9 @@ class ScanOrchestrator:
             vulnerabilities=pp_vulnerabilities,
             artifacts=all_findings,
             model_usages=model_usages,
-            agent_tool_relationships=agent_tool_relationships,
+            agent_tool_relationships=agent_inventory.relationships,
+            llm_inferred_agents=llm_inferred_agents,
+            llm_inferred_tools=llm_inferred_tools,
             inventory=inventory,
             coverage=coverage,
             llm_endpoints=llm_endpoints,
