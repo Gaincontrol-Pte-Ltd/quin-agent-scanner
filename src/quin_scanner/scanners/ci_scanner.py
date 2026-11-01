@@ -64,7 +64,7 @@ class CIScanner(BaseScanner):
         for glob in _CI_GLOBS:
             ci_paths.update(file_index.files_matching(glob))
 
-        for path in ci_paths:
+        for path in sorted(ci_paths):  # a set: sorted, or the report order depends on the per-process hash seed
             try:
                 content = accessor.read_file(path)
             except Exception:

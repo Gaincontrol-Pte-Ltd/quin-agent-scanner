@@ -188,6 +188,10 @@ class LocalRepoAccessor(RepoAccessor):
     def read_file(self, path: str) -> str:
         return (self.repo_path / path).read_text(encoding="utf-8", errors="replace")
 
+    def file_size(self, path: str) -> int:
+        """Size in bytes without reading the file, so oversized files can be skipped before they are read."""
+        return (self.repo_path / path).stat().st_size
+
     def file_exists(self, path: str) -> bool:
         return (self.repo_path / path).is_file()
 
@@ -445,6 +449,11 @@ class GitCloneAccessor(RepoAccessor):
         if not self._local_accessor:
             self.setup(verbose=self.verbose)
         return self._local_accessor.read_file(path)
+
+    def file_size(self, path: str) -> int:
+        if not self._local_accessor:
+            self.setup(verbose=self.verbose)
+        return self._local_accessor.file_size(path)
 
     def file_exists(self, path: str) -> bool:
         if not self._local_accessor:

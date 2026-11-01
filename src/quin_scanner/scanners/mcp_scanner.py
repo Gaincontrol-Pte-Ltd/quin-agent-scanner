@@ -104,7 +104,7 @@ class MCPScanner(BaseScanner):
         for glob in _MCP_CONFIG_GLOBS:
             mcp_paths.update(file_index.files_matching(glob))
 
-        for path in mcp_paths:
+        for path in sorted(mcp_paths):
             findings.extend(self._scan_mcp_config(accessor, path))
         return findings
 

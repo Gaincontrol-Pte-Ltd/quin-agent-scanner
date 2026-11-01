@@ -17,7 +17,7 @@ Within a major schema version:
 - Paths are repo-relative and use `/` as the separator. `line_number` is 1-based or `null`.
 - `confidence` is a number from 0.0 to 1.0.
 - Severities are `critical`, `high`, `medium`, `low` or `info`. Skill verdicts are `SAFE`, `CAUTION` or `HIGH_RISK`.
-- `metadata` and `coverage` are **open maps**: their keys depend on the flags used and the scanners that ran (for example `skills_*` coverage keys appear only when the skills scanner ran). Keys documented here are stable; other keys are informational and may change.
+- `metadata` and `coverage` are **open maps**: their keys depend on the flags used and the scanners that ran (for example `skills_*` coverage keys appear only when the skills scanner ran, and `files_skipped_too_large` only when a file over 10 MiB was skipped). Keys documented here are stable; other keys are informational and may change.
 
 ## Top-level report fields
 
