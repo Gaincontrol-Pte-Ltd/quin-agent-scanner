@@ -310,3 +310,19 @@ def test_digest_lists_skills_and_uncategorised_tools_first():
     assert digest.tools[0]["id"] == "tool:zz"
     assert "tool:zz" in digest.tool_ids and "tool:c29" not in digest.tool_ids
     assert (digest.unlisted_agents, digest.unlisted_tools) == (0, 1)
+
+
+def test_html_report_renders_instances_flags_and_unverified_suggestions(tmp_path):
+    from quin_scanner.models import LLMInferredItem
+    from quin_scanner.report import ReportGenerator
+
+    report = _scan(tmp_path, {
+        "src/a.py": "r = Agent(name='researcher', instructions='Find.', tools=[search])\n",
+        "src/b.py": "r = Agent(name='researcher', instructions='Find.', tools=[search, shell_exec])\n",
+    })
+    report.llm_inferred_agents = [LLMInferredItem(name="planner", evidence="factory", file="src/a.py")]
+    html = ReportGenerator.to_html(report)
+    assert "inst-table" in html
+    assert "inst-diff" in html
+    assert "Suggested by the LLM" in html
+    assert '"llm_inferred_agents"' in html and "planner" in html
