@@ -242,13 +242,24 @@ class LLMInferredItem:
 
 
 @dataclass
+class AgentEnrichment:
+    """What the LLM may add to a verified agent, merged by its ID."""
+    agent_type: str = "unknown"
+    goal: str = ""
+    capabilities: list[str] = field(default_factory=list)
+    risk_signals: list[RiskIndicator] = field(default_factory=list)
+
+
+@dataclass
 class SynthesisResult:
     """Internal result from SynthesisAgent — not serialised directly."""
     is_ai_application: bool
     framework: str
     summary: str
-    agents: list[AgentProfile] = field(default_factory=list)
-    tool_usages: list[ToolUsage] = field(default_factory=list)
+    enrichment: dict[str, AgentEnrichment] = field(default_factory=dict)    # agent id → fields
+    tool_enrichment: dict[str, str] = field(default_factory=dict)           # tool id → service_category
+    suggested_agents: list[LLMInferredItem] = field(default_factory=list)
+    suggested_tools: list[LLMInferredItem] = field(default_factory=list)
     risk_signals: list[RiskIndicator] = field(default_factory=list)  # repo-level risks
     confidence_adjustment: float = 0.0   # -0.1 to +0.1, applied to static confidence
 

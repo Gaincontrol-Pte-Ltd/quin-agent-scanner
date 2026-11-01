@@ -649,6 +649,65 @@ def _split_agent_skills(agents: list[AgentProfile], tools: list[ToolUsage]) -> N
             agent.provenance["skills"] = "static"
 
 
+# Agents and tools listed to the synthesis LLM; agents beyond the bound get no enrichment (spec §7).
+_LLM_INVENTORY_CAP = 30
+
+
+def _inventory_digest(agent_inventory: Inventory) -> tuple[list[dict], list[dict], int]:
+    """The inventory as the LLM sees it, production first then by ID; and how many agents did not fit."""
+    agents = sorted(agent_inventory.agents, key=lambda a: (a.scope != "production", a.id))
+    tools = sorted(agent_inventory.tools, key=lambda t: (t.scope != "production", t.id))
+    agent_digest = [
+        {"id": a.id, "name": a.name, "scope": a.scope, "instances": len(a.instances),
+         "instructions": agent_inventory.instructions.get(a.id, "none"), "tools": a.tools, "file": a.source_file}
+        for a in agents[:_LLM_INVENTORY_CAP]
+    ]
+    tool_digest = [
+        {"id": t.id, "name": t.tool_name, "type": t.tool_type, "category": t.service_category,
+         "file": t.source_file, "line": t.line_number}
+        for t in tools[:_LLM_INVENTORY_CAP]
+    ]
+    return agent_digest, tool_digest, max(0, len(agents) - _LLM_INVENTORY_CAP)
+
+
+def _apply_enrichment(
+    agents: list[AgentProfile], tools: list[ToolUsage], synthesis: SynthesisResult, scanned_paths: set[str],
+) -> int:
+    """Merge LLM enrichment into verified items by ID; return how many IDs did not exist.
+
+    Only agent_type, goal and capabilities (each when the LLM supplied a value and the field is not static) and
+    appended per-agent risk signals reach an agent; only an empty service_category reaches a tool. Names, tools,
+    instances, scope, flags and the static signals are never touched. The LLM's evidence refs are validated
+    before its signals are appended, so the static T006 refs are left alone.
+    """
+    by_id = {a.id: a for a in agents}
+    unknown = 0
+    for agent_id, fields in synthesis.enrichment.items():
+        agent = by_id.get(agent_id)
+        if agent is None:
+            unknown += 1
+            continue
+        supplied = {
+            "agent_type": fields.agent_type if fields.agent_type != "unknown" else None,
+            "goal": fields.goal or None,
+            "capabilities": list(fields.capabilities) or None,
+        }
+        for name, value in supplied.items():
+            if value is not None and agent.provenance.get(name) != "static":
+                setattr(agent, name, value)
+                agent.provenance[name] = "llm"
+        _validate_evidence_refs(fields.risk_signals, scanned_paths)
+        agent.risk_signals.extend(fields.risk_signals)
+    tools_by_id = {t.id: t for t in tools}
+    for tool_id, category in synthesis.tool_enrichment.items():
+        tool = tools_by_id.get(tool_id)
+        if tool is None:
+            unknown += 1
+        elif not tool.service_category:
+            tool.service_category = category
+    return unknown
+
+
 # Directories that indicate a file is a skill / playbook / instruction set
 _SKILL_DIR_NAMES = frozenset({"skills", "playbooks", "recipes", "instructions", "agents"})
 
@@ -1097,6 +1156,9 @@ class ScanOrchestrator:
 
         # 4b. The inventory of record: agents with instances, tools and agent-tool links from static evidence only.
         agent_inventory, inventory_error = _build_inventory(scanners, skill_scanner, tool_services)
+        # Classify tool types and split agent skills now, so the synthesis LLM sees the inventory as reported.
+        _classify_tool_usages(agent_inventory.tools, mcp_servers)
+        _split_agent_skills(agent_inventory.agents, agent_inventory.tools)
 
         # 5. Identify model usage
         if verbose:
@@ -1128,6 +1190,7 @@ class ScanOrchestrator:
         classification: ClassificationResult | None = None
         llm_errors: list[str] = []
         skills_provider = None
+        llm_unenriched_agents = 0
         if not config.no_llm:
             summaries = _pre_summarise(all_findings)
             provider = config.provider_factory()
@@ -1158,28 +1221,6 @@ class ScanOrchestrator:
             if verbose:
                 _log("\nRunning synthesis analysis (pass 2)...")
 
-            # Extract structured hints from new scanners for the evidence bundle.
-            # Cap at 30 each — large repos (199+ tools) cause synthesis JSON truncation.
-            _EVIDENCE_CAP = 30
-            agent_instances = [
-                {
-                    "name": f.match_text,
-                    "source_file": f.file_path,
-                    "line": f.line_number,
-                    "confidence": f.confidence,
-                }
-                for f in all_findings if f.scanner_name == "AgentInstanceScanner"
-            ][:_EVIDENCE_CAP]
-            tool_definitions = [
-                {
-                    "name": f.match_text.split(" (")[0],
-                    "decorator": f.match_text.split(" (")[1].rstrip(")") if " (" in f.match_text else "",
-                    "source_file": f.file_path,
-                    "line": f.line_number,
-                }
-                for f in all_findings if f.scanner_name == "ToolDefinitionScanner"
-            ][:_EVIDENCE_CAP]
-
             _synthesis_step = [0]
             _SYNTHESIS_STEPS = 3  # building evidence, calling LLM, parsing result
 
@@ -1187,25 +1228,16 @@ class ScanOrchestrator:
                 _synthesis_step[0] += 1
                 _progress_bar("Synthesis  ", _synthesis_step[0], _SYNTHESIS_STEPS)
 
-            # Build external services evidence for the synthesis prompt
-            external_services = [
-                {
-                    "name": t.tool_name,
-                    "category": t.service_category,
-                    "source_file": t.source_file,
-                    "line": t.line_number,
-                }
-                for t in tool_services
-            ][:_EVIDENCE_CAP]
-
+            agent_digest, tool_digest, llm_unenriched_agents = _inventory_digest(agent_inventory)
             evidence_facts = EvidenceFacts(
                 system_types=frozenset(classification.system_types if classification else []),
                 capability_tags=frozenset(capability_tags),
                 mcp_servers_count=len(mcp_servers),
-                agent_instances_count=len(agent_instances),
-                tool_definitions_count=len(tool_definitions),
+                agent_instances_count=len(agent_inventory.agents),
+                tool_definitions_count=sum(1 for t in agent_inventory.tools if t.tool_type == "tool_definition"),
                 external_service_categories=frozenset(
-                    s["category"] for s in external_services if s.get("category")
+                    t.service_category for t in agent_inventory.tools
+                    if t.tool_type == "external_service" and t.service_category
                 ),
                 cloud_llm_count=sum(
                     1 for m in model_usages
@@ -1220,9 +1252,8 @@ class ScanOrchestrator:
                     capability_tags=capability_tags,
                     on_progress=_synthesis_progress if verbose else None,
                     framework_candidate=framework_candidate,
-                    agent_instances=agent_instances or None,
-                    tool_definitions=tool_definitions or None,
-                    external_services=external_services or None,
+                    agent_inventory=agent_digest or None,
+                    tool_inventory=tool_digest or None,
                     classification=classification,
                     evidence_facts=evidence_facts,
                 )
@@ -1235,10 +1266,10 @@ class ScanOrchestrator:
                 if synthesis.is_ai_application:
                     is_ai = True
                 if verbose:
-                    n_agents = len(synthesis.agents)
+                    n_enriched = len(synthesis.enrichment)
                     n_risks = len(synthesis.risk_signals)
-                    agent_risks = sum(len(a.risk_signals) for a in synthesis.agents)
-                    _log(f"  framework: {synthesis.framework}  |  {n_agents} agent{'s' if n_agents != 1 else ''} identified")
+                    agent_risks = sum(len(e.risk_signals) for e in synthesis.enrichment.values())
+                    _log(f"  framework: {synthesis.framework}  |  {n_enriched} agent{'s' if n_enriched != 1 else ''} enriched")
                     _log(f"  risks: {n_risks} system-wide, {agent_risks} agent-specific")
             except Exception as e:
                 err = f"SynthesisAgent: {type(e).__name__}: {e}"
@@ -1270,6 +1301,8 @@ class ScanOrchestrator:
             metadata["analysis"] = "static-only"
         if inventory_error:
             metadata["inventory_error"] = inventory_error
+        if llm_unenriched_agents:
+            metadata["llm_unenriched_agents"] = llm_unenriched_agents
 
         # ── Deterministic post-processing ──────────────────────────────────────
         # Apply after synthesis so these rules fill gaps when the LLM left fields
@@ -1328,10 +1361,14 @@ class ScanOrchestrator:
         # or removes items.
         pp_agents = agent_inventory.agents
         pp_tool_usages = agent_inventory.tools
-        _classify_tool_usages(pp_tool_usages, mcp_servers)
-        _split_agent_skills(pp_agents, pp_tool_usages)
         llm_inferred_agents: list[LLMInferredItem] = []
         llm_inferred_tools: list[LLMInferredItem] = []
+        if synthesis:
+            unknown_ids = _apply_enrichment(pp_agents, pp_tool_usages, synthesis, _scanned_paths)
+            if unknown_ids:
+                metadata["llm_unknown_ids"] = unknown_ids
+            llm_inferred_agents = list(synthesis.suggested_agents)
+            llm_inferred_tools = list(synthesis.suggested_tools)
 
         # Rule 5: summary — generate a deterministic fallback when synthesis returned empty
         pp_summary = (synthesis.summary if synthesis else "") or ""

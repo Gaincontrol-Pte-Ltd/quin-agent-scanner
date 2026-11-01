@@ -6,7 +6,7 @@ import json
 import pytest
 
 from quin_scanner.llm.base import parse_llm_json
-from quin_scanner.llm.synthesis_agent import _parse_synthesis_response, _parse_risk_signals
+from quin_scanner.llm.synthesis_agent import _build_evidence_block, _parse_synthesis_response, _parse_risk_signals
 from quin_scanner.llm.classification_agent import _parse_classification_response
 
 
@@ -51,40 +51,28 @@ class TestParseSynthesisResponse:
             "is_ai_application": True,
             "framework": "LangChain",
             "summary": "An AI app using LangChain.",
-            "agents": [
-                {
-                    "name": "Researcher",
+            "enrichment": {
+                "agent:researcher": {
                     "agent_type": "worker",
                     "goal": "Research topics",
                     "capabilities": ["web-search"],
                     "risk_signals": [{"signal": "Has internet access", "recommended_controls": ["C001: Control"]}],
-                    "skills": ["research-skill"],
-                    "tools": ["google_search"],
-                    "source_file": "agent.py",
                 }
-            ],
-            "tool_usages": [
-                {
-                    "tool_name": "google_search",
-                    "tool_type": "tool_definition",
-                    "service_category": "web_search",
-                    "source_file": "tools.py",
-                    "line_number": 10,
-                }
-            ],
-            "risk_signals": [
-                {"signal": "No observability", "recommended_controls": ["C005: Monitoring"]}
-            ],
+            },
+            "tool_enrichment": {"tool:google_search": {"service_category": "web_search"}},
+            "suggested_agents": [{"name": "planner", "evidence": "built by make_planner()", "file": "agents.py"}],
+            "suggested_tools": [{"name": "browse", "evidence": "registered at runtime", "file": "tools.py"}],
+            "risk_signals": [{"signal": "No observability", "recommended_controls": ["C005: Monitoring"]}],
         }
         result = _parse_synthesis_response(json.dumps(data))
         assert result.is_ai_application is True
         assert result.framework == "LangChain"
-        assert len(result.agents) == 1
-        assert result.agents[0].name == "Researcher"
-        assert result.agents[0].tools == ["google_search"]
-        assert result.agents[0].skills == ["research-skill"]
-        assert len(result.tool_usages) == 1
-        assert result.tool_usages[0].service_category == "web_search"
+        enrichment = result.enrichment["agent:researcher"]
+        assert (enrichment.agent_type, enrichment.goal, enrichment.capabilities) == ("worker", "Research topics", ["web-search"])
+        assert [s.signal for s in enrichment.risk_signals] == ["Has internet access"]
+        assert result.tool_enrichment == {"tool:google_search": "web_search"}
+        assert [(i.name, i.file) for i in result.suggested_agents] == [("planner", "agents.py")]
+        assert [i.name for i in result.suggested_tools] == ["browse"]
         assert len(result.risk_signals) == 1
 
     def test_markdown_fenced_response(self):
@@ -103,23 +91,32 @@ class TestParseSynthesisResponse:
         result = _parse_synthesis_response("totally broken {{{ json")
         assert result.is_ai_application is False
         assert result.framework == "unknown"
-        assert result.agents == []
+        assert result.enrichment == {}
 
     def test_empty_string_returns_fallback(self):
         result = _parse_synthesis_response("")
         assert result.is_ai_application is False
 
-    def test_invalid_tool_type_defaults(self):
+    def test_malformed_enrichment_is_ignored(self):
         data = {
-            "is_ai_application": True,
-            "framework": "unknown",
-            "summary": "",
-            "tool_usages": [
-                {"tool_name": "mytool", "tool_type": "invalid_type", "service_category": "other"}
-            ],
+            "is_ai_application": True, "framework": "unknown", "summary": "",
+            "enrichment": {"agent:a": "not an object", "agent:b": {"agent_type": "boss", "capabilities": ["x", 3]}},
+            "tool_enrichment": ["not", "a", "dict"],
+            "suggested_agents": [{"name": ""}, "x", {"name": "ok"}],
         }
         result = _parse_synthesis_response(json.dumps(data))
-        assert result.tool_usages[0].tool_type == "tool_definition"
+        assert list(result.enrichment) == ["agent:b"]
+        assert result.enrichment["agent:b"].agent_type == "unknown"
+        assert result.enrichment["agent:b"].capabilities == ["x"]
+        assert result.tool_enrichment == {}
+        assert [i.name for i in result.suggested_agents] == ["ok"]
+
+    def test_old_style_agents_and_tool_usages_are_ignored(self):
+        data = {"is_ai_application": True, "framework": "x", "summary": "",
+                "agents": [{"name": "invented"}], "tool_usages": [{"tool_name": "gpt-4o"}]}
+        result = _parse_synthesis_response(json.dumps(data))
+        assert result.enrichment == {}
+        assert result.suggested_agents == []
 
     def test_framework_null_becomes_unknown(self):
         data = {"is_ai_application": True, "framework": None, "summary": ""}
@@ -318,3 +315,15 @@ class TestParseClassificationResponse:
         data = {"system_types": "standard_ai", "relevant_threats": "T001"}
         result = _parse_classification_response(json.dumps(data))
         assert result is None
+
+
+def test_evidence_block_lists_the_inventory_by_id():
+    block = _build_evidence_block(
+        [], [], [],
+        agent_inventory=[{"id": "agent:r", "name": "r", "scope": "production", "instances": 2,
+                          "instructions": "literal", "tools": ["search"], "file": "a.py"}],
+        tool_inventory=[{"id": "tool:search", "name": "search", "type": "tool_definition", "category": "",
+                         "file": "t.py", "line": 3}],
+    )
+    assert 'id=agent:r name="r" scope=production instances=2 instructions=literal tools=[search] file=a.py' in block
+    assert 'id=tool:search name="search" type=tool_definition at t.py:3' in block

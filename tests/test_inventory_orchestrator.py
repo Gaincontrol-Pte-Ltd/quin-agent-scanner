@@ -1,6 +1,8 @@
 """End to end: the report's agents, tools and relationships come from the inventory."""
 from __future__ import annotations
 
+import json
+
 from quin_scanner.config import ScannerConfig
 from quin_scanner.orchestrator import ScanOrchestrator
 from quin_scanner.repo_accessor import LocalRepoAccessor
@@ -144,3 +146,91 @@ def test_llm_scan_still_reports_the_inventory(tmp_path, monkeypatch):
     assert [e.instance_id for e in report.agent_tool_relationships] == ["agent:researcher/src/a.py#1"]
     (signal,) = [s for s in report.risk_signals if s.signal == "repo-level"]
     assert [r.file_path for r in signal.evidence_refs] == ["src/a.py"]  # LLM refs are still validated
+
+
+def test_the_llm_enriches_by_id_and_cannot_change_the_inventory(tmp_path, monkeypatch):
+    prompts: list[str] = []
+    synthesis = {
+        "is_ai_application": True, "framework": "x", "summary": "s",
+        "enrichment": {
+            "agent:researcher": {"agent_type": "worker", "goal": "Finds facts", "capabilities": ["search"]},
+            "agent:ghost": {"goal": "invented"},
+        },
+        "tool_enrichment": {"tool:search": {"service_category": "web_search"}},
+        "suggested_agents": [{"name": "planner", "evidence": "factory", "file": "src/a.py"}],
+        "agents": [{"name": "invented"}],
+    }
+
+    class Stub:
+        def generate(self, prompt):
+            prompts.append(prompt)
+            if "AGENT INVENTORY" in prompt:
+                return json.dumps(synthesis)
+            return '{"system_types": ["agentic_ai"], "relevant_threats": []}'
+
+    monkeypatch.setattr(ScannerConfig, "provider_factory", lambda self: Stub())
+    report = _scan(
+        tmp_path,
+        {"src/a.py": "@tool\ndef search():\n    pass\nr = Agent(name='researcher', tools=[search])\n"},
+        no_llm=False, llm_provider="openai", llm_api_key="x",
+    )
+    (agent,) = report.agents
+    assert (agent.id, agent.goal, agent.agent_type, agent.capabilities) == (
+        "agent:researcher", "Finds facts", "worker", ["search"],
+    )
+    assert agent.provenance == {
+        "name": "static", "tools": "static", "agent_type": "llm", "goal": "llm", "capabilities": "llm",
+    }
+    assert report.tool_usages[0].service_category == "web_search"
+    assert report.metadata["llm_unknown_ids"] == 1
+    assert [i.name for i in report.llm_inferred_agents] == ["planner"]
+    assert "id=agent:researcher" in next(p for p in prompts if "AGENT INVENTORY" in p)
+
+
+def test_enrichment_never_overwrites_static_facts():
+    from quin_scanner.models import (
+        AgentEnrichment, AgentProfile, EvidenceRef, RiskIndicator, SynthesisResult, ToolUsage,
+    )
+    from quin_scanner.orchestrator import _apply_enrichment
+
+    static_signal = RiskIndicator(signal="T006", recommended_controls=[], threat_id="T006",
+                                  evidence_refs=[EvidenceRef(file_path="no_finding.py", line_number=1)])
+    agent = AgentProfile(name="r", agent_type="unknown", goal="", id="agent:r", tools=["search"],
+                         risk_signals=[static_signal], provenance={"name": "static", "tools": "static", "goal": "static"})
+    agent.goal = "From YAML"
+    tools = [ToolUsage(tool_name="search", tool_type="tool_definition", service_category="", id="tool:search"),
+             ToolUsage(tool_name="api", tool_type="external_service", service_category="api_integration", id="tool:api")]
+    llm_signal = RiskIndicator(signal="llm", recommended_controls=[], threat_id="T001",
+                               evidence_refs=[EvidenceRef(file_path="invented.py"), EvidenceRef(file_path="src/a.py")])
+    synthesis = SynthesisResult(
+        is_ai_application=True, framework="x", summary="",
+        enrichment={"agent:r": AgentEnrichment(agent_type="worker", goal="LLM goal", capabilities=[],
+                                               risk_signals=[llm_signal])},
+        tool_enrichment={"tool:search": "web_search", "tool:api": "database", "tool:ghost": "other"},
+    )
+    assert _apply_enrichment([agent], tools, synthesis, {"src/a.py"}) == 1
+    assert (agent.name, agent.tools, agent.goal, agent.agent_type, agent.capabilities) == (
+        "r", ["search"], "From YAML", "worker", [],
+    )
+    assert agent.provenance == {"name": "static", "tools": "static", "goal": "static", "agent_type": "llm"}
+    assert agent.risk_signals == [static_signal, llm_signal]
+    assert [r.file_path for r in static_signal.evidence_refs] == ["no_finding.py"]
+    assert [r.file_path for r in llm_signal.evidence_refs] == ["src/a.py"]
+    assert [t.service_category for t in tools] == ["web_search", "api_integration"]
+
+
+def test_agents_beyond_the_llm_cap_are_counted_as_unenriched(tmp_path, monkeypatch):
+    prompts: list[str] = []
+
+    class Stub:
+        def generate(self, prompt):
+            prompts.append(prompt)
+            return '{"is_ai_application": true, "framework": "x", "summary": "s"}'
+
+    monkeypatch.setattr(ScannerConfig, "provider_factory", lambda self: Stub())
+    code = "".join(f"a{i:02d} = Agent(name='agent{i:02d}')\n" for i in range(32))
+    report = _scan(tmp_path, {"src/a.py": code}, no_llm=False)
+    assert len(report.agents) == 32
+    assert report.metadata["llm_unenriched_agents"] == 2
+    synthesis_prompt = next(p for p in prompts if "--- AGENT INVENTORY" in p)
+    assert "id=agent:agent29" in synthesis_prompt and "id=agent:agent30" not in synthesis_prompt
