@@ -504,7 +504,7 @@ In `$defs.agent.properties`, add:
 "instances": {"type": "array", "items": {"$ref": "#/$defs/agentInstance"}}
 ```
 
-and append `"id", "identity", "scope", "flags", "provenance", "instances"` to `$defs.agent.required`.
+Do **not** add them to `$defs.agent.required`: 1.x only adds optional fields, so a 1.0 report must still validate (they are always emitted anyway).
 
 Add three new definitions to `$defs`:
 
@@ -542,7 +542,7 @@ Add three new definitions to `$defs`:
 }
 ```
 
-In `$defs.toolUsage.properties` add `"id": {"type": "string"}` and `"scope": {"type": "string"}`, and append `"id", "scope"` to its `required`.
+In `$defs.toolUsage.properties` add `"id": {"type": "string"}` and `"scope": {"type": "string"}`, (not in `required`).
 
 In `$defs.relationship.properties` add:
 
@@ -552,7 +552,7 @@ In `$defs.relationship.properties` add:
 "tool_id": {"type": ["string", "null"]}
 ```
 
-and append `"agent_id", "instance_id", "tool_id"` to its `required`.
+(not in `required`).
 
 In the top-level `properties` add:
 
@@ -561,7 +561,7 @@ In the top-level `properties` add:
 "llm_inferred_tools": {"type": "array", "items": {"$ref": "#/$defs/llmInferred"}, "description": "Tools the LLM suggested with no code evidence; not part of the inventory."}
 ```
 
-and append `"llm_inferred_agents", "llm_inferred_tools"` to the top-level `required`.
+(not in the top-level `required`). The three new `$defs` are new records, so they do list all their fields as required.
 
 - [ ] **Step 8: Update `docs/schema/README.md`**
 

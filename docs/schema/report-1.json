@@ -7,7 +7,7 @@
   "required": [
     "schema_version", "repo_path", "scan_timestamp", "is_ai_application", "confidence", "capability_tags",
     "framework", "summary", "agents", "tool_usages", "risk_signals", "mcp_servers", "infra", "vulnerabilities",
-    "artifacts", "model_usages", "agent_tool_relationships", "llm_inferred_agents", "llm_inferred_tools", "inventory", "coverage", "llm_endpoints",
+    "artifacts", "model_usages", "agent_tool_relationships", "inventory", "coverage", "llm_endpoints",
     "metadata", "skills", "file_hashes"
   ],
   "properties": {
@@ -77,7 +77,7 @@
     },
     "agent": {
       "type": "object",
-      "required": ["name", "agent_type", "goal", "capabilities", "risk_signals", "skills", "tools", "source_file", "id", "identity", "scope", "flags", "provenance", "instances"],
+      "required": ["name", "agent_type", "goal", "capabilities", "risk_signals", "skills", "tools", "source_file"],
       "properties": {
         "name": {"type": "string"},
         "agent_type": {"type": "string"},
@@ -128,7 +128,7 @@
     },
     "toolUsage": {
       "type": "object",
-      "required": ["tool_name", "tool_type", "service_category", "source_file", "line_number", "id", "scope"],
+      "required": ["tool_name", "tool_type", "service_category", "source_file", "line_number"],
       "properties": {
         "tool_name": {"type": "string"},
         "tool_type": {"type": "string", "description": "tool_definition, external_service, skill or mcp_tool."},
@@ -185,7 +185,7 @@
     },
     "relationship": {
       "type": "object",
-      "required": ["agent_name", "tool_name", "source_file", "line_number", "tool_source_file", "tool_line_number", "evidence", "agent_id", "instance_id", "tool_id"],
+      "required": ["agent_name", "tool_name", "source_file", "line_number", "tool_source_file", "tool_line_number", "evidence"],
       "properties": {
         "agent_name": {"type": "string"},
         "tool_name": {"type": "string"},
