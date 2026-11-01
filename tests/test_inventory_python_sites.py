@@ -117,3 +117,70 @@ def test_literal_model_text_is_redacted():
 
 def test_unparseable_source_gives_none():
     assert parse_python("this is not python (\n") is None
+
+
+# ── Review fixes ─────────────────────────────────────────────────────────────
+
+def test_deeply_nested_expression_gives_no_sites_instead_of_recursion_error():
+    tree = parse_python("x = " + "+".join(["a"] * 1000) + "\n")
+    assert tree is not None
+    assert agent_sites(tree, "deep.py") == []
+
+
+@pytest.mark.parametrize(
+    ("tools", "expected"),
+    [
+        ('[*BASE, x]', None),
+        ('[x, Tool(name="t"), get_tool("u")]', None),
+        ('[x, lambda: 1]', None),
+        ("[search.run, x]", ("search.run", "x")),
+        ("[make().run]", None),
+        ("None", ()),
+        ("[]", ()),
+    ],
+)
+def test_tool_lists_are_known_only_when_every_element_is_named(tools, expected):
+    (site,) = _sites(f'a = Agent(name="a", tools={tools})\n')
+    assert site.tool_refs == expected
+
+
+def test_user_content_in_sites_is_redacted():
+    key = "sk-abcdefghijklmnopqrstuvwxyz123456"
+    a, b = _sites(
+        f'a = Agent(name="{key}", instructions=open("prompts/{key}.md").read(), tools=["{key}", x])\n'
+        f'b = Agent(name="b", config=self.agents_config["{key}"])\n'
+    )
+    assert a.name == "[REDACTED]"
+    assert a.instructions == InstructionsRef("file", "prompts/[REDACTED].md")
+    assert a.tool_refs == ("[REDACTED]", "x")
+    assert b.instructions == InstructionsRef("config", "[REDACTED]")
+
+
+def test_a_function_defined_in_a_loop_is_not_itself_in_a_loop():
+    sites = _sites(
+        "for i in range(3):\n"
+        "    def make():\n"
+        '        return Agent(name="inner")\n'
+        "    class K:\n"
+        '        a = Agent(name="cls")\n'
+        '    f = lambda: Agent(name="lam")\n'
+    )
+    assert [(s.name, s.in_loop) for s in sites] == [("inner", False), ("cls", False), ("lam", False)]
+
+
+def test_loop_iterables_are_not_in_the_loop():
+    sites = _sites(
+        'for a in [Agent(name="it")]:\n'
+        "    pass\n"
+        "else:\n"
+        '    Agent(name="els")\n'
+        'xs = [Agent(name="el") for t in [Agent(name="first")] for u in [Agent(name="second")]]\n'
+    )
+    assert sorted((s.name, s.in_loop) for s in sites) == [
+        ("el", True), ("els", False), ("first", False), ("it", False), ("second", True),
+    ]
+
+
+def test_subscripted_generic_base_class_is_an_agent_definition():
+    sites = _sites("class Writer(BaseAgent[Ctx]):\n    pass\n")
+    assert [(s.role, s.kind, s.name) for s in sites] == [("definition", "subclass", "Writer")]

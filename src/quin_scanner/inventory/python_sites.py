@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import ast
+import dataclasses
 import warnings
 
 from quin_scanner.inventory.evidence import NO_INSTRUCTIONS, AgentSite, InstructionsRef
@@ -125,9 +126,20 @@ def model_of(call: ast.Call) -> str | None:
     return next((_expression(kw.value) for kw in call.keywords if kw.arg in _MODEL_KEYWORDS), None)
 
 
-def _tool_reference(node: ast.expr) -> str | None:
+def _name_chain(node: ast.expr) -> str | None:
+    """``search.run`` → ``"search.run"``; None unless the whole expression is names and attributes."""
     if isinstance(node, ast.Name):
         return node.id
+    if isinstance(node, ast.Attribute):
+        base = _name_chain(node.value)
+        return f"{base}.{node.attr}" if base else None
+    return None
+
+
+def _tool_reference(node: ast.expr) -> str | None:
+    chain = _name_chain(node)
+    if chain:
+        return chain
     text = string_constant(node)
     if text is not None:
         return text
@@ -137,14 +149,25 @@ def _tool_reference(node: ast.expr) -> str | None:
 
 
 def tool_refs_of(call: ast.Call, missing: tuple[str, ...] | None) -> tuple[str, ...] | None:
-    """Names in an explicit ``tools=[...]``; ``missing`` when there is no ``tools=``; None when it is not a literal list."""
+    """Names in an explicit ``tools=[...]`` (``tools=None`` gives ``()``); ``missing`` when there is no ``tools=``.
+
+    None (not statically known) when the value is not a literal list, or any element is a ``*spread`` or cannot be named:
+    a partial list would claim tools are absent that may be passed.
+    """
     kw = next((k for k in call.keywords if k.arg == "tools"), None)
     if kw is None:
         return missing
+    if isinstance(kw.value, ast.Constant) and kw.value.value is None:
+        return ()
     if not isinstance(kw.value, (ast.List, ast.Tuple, ast.Set)):
         return None
-    refs = (_tool_reference(element) for element in kw.value.elts)
-    return tuple(ref.strip() for ref in refs if ref and ref.strip())
+    refs = []
+    for element in kw.value.elts:
+        ref = None if isinstance(element, ast.Starred) else _tool_reference(element)
+        if ref is None or not ref.strip():
+            return None
+        refs.append(ref.strip())
+    return tuple(refs)
 
 
 def _agent_functions(tree: ast.Module) -> dict[str, int]:
@@ -159,11 +182,16 @@ def _agent_functions(tree: ast.Module) -> dict[str, int]:
     return found
 
 
+def _base_name(base: ast.expr) -> str | None:
+    """``BaseAgent`` and ``BaseAgent[Ctx]`` (a subscripted generic) both name ``BaseAgent``."""
+    return callee_name(base.value if isinstance(base, ast.Subscript) else base)
+
+
 def _agent_classes(tree: ast.Module) -> dict[str, int]:
     return {
         node.name: node.lineno
         for node in ast.walk(tree)
-        if isinstance(node, ast.ClassDef) and any(callee_name(base) in _AGENT_BASES for base in node.bases)
+        if isinstance(node, ast.ClassDef) and any(_base_name(base) in _AGENT_BASES for base in node.bases)
     }
 
 
@@ -177,17 +205,47 @@ class _Collector(ast.NodeVisitor):
         self._loops = 0
         self._enclosing: list[str | None] = []   # innermost last; None for functions that are not @agent
 
-    def _loop(self, node: ast.AST) -> None:
+    def _visit_all(self, nodes: list) -> None:
+        for node in nodes:
+            self.visit(node)
+
+    def _in_loop(self, nodes: list) -> None:
         self._loops += 1
-        self.generic_visit(node)
+        self._visit_all(nodes)
         self._loops -= 1
 
-    visit_For = visit_AsyncFor = visit_While = _loop
-    visit_ListComp = visit_SetComp = visit_DictComp = visit_GeneratorExp = _loop
+    def visit_For(self, node: ast.For | ast.AsyncFor) -> None:
+        # The iterable is evaluated once and ``else:`` runs once: only the body repeats.
+        self._visit_all([node.target, node.iter])
+        self._in_loop(node.body)
+        self._visit_all(node.orelse)
+
+    visit_AsyncFor = visit_For
+
+    def visit_While(self, node: ast.While) -> None:
+        self._in_loop([node.test, *node.body])
+        self._visit_all(node.orelse)
+
+    def _comprehension(self, node: ast.ListComp | ast.SetComp | ast.DictComp | ast.GeneratorExp) -> None:
+        # Only the first generator's iterable is evaluated once, outside the comprehension's loop.
+        first, *rest = node.generators
+        self.visit(first.iter)
+        elements = [node.key, node.value] if isinstance(node, ast.DictComp) else [node.elt]
+        self._in_loop([first.target, *first.ifs, *rest, *elements])
+
+    visit_ListComp = visit_SetComp = visit_DictComp = visit_GeneratorExp = _comprehension
+
+    def _new_scope(self, node: ast.AST) -> None:
+        # A function or class defined inside a loop body is not itself in a loop.
+        saved, self._loops = self._loops, 0
+        self.generic_visit(node)
+        self._loops = saved
+
+    visit_Lambda = visit_ClassDef = _new_scope
 
     def visit_FunctionDef(self, node: ast.FunctionDef | ast.AsyncFunctionDef) -> None:
         self._enclosing.append(node.name if node.name in self.functions else None)
-        self.generic_visit(node)
+        self._new_scope(node)
         self._enclosing.pop()
 
     visit_AsyncFunctionDef = visit_FunctionDef
@@ -228,8 +286,32 @@ class _Collector(ast.NodeVisitor):
         )
 
 
+def _redacted(site: AgentSite) -> AgentSite:
+    """Credentials removed from every user-content string a site carries (a literal's hash is not user content)."""
+    instructions = site.instructions
+    if instructions.kind in ("file", "var", "config"):
+        instructions = InstructionsRef(instructions.kind, redact_secrets(instructions.value))
+    return dataclasses.replace(
+        site,
+        name=redact_secrets(site.name) if site.name else site.name,
+        instructions=instructions,
+        model_expr=redact_secrets(site.model_expr) if site.model_expr else site.model_expr,
+        tool_refs=None if site.tool_refs is None else tuple(redact_secrets(ref) for ref in site.tool_refs),
+    )
+
+
 def agent_sites(tree: ast.Module, path: str) -> list[AgentSite]:
-    """Every agent definition and instance in one parsed Python file, sorted by line."""
+    """Every agent definition and instance in one parsed Python file, sorted by line, with credentials redacted.
+
+    A tree too deep to walk recursively (it parsed, but visiting it raises RecursionError) gives no sites.
+    """
+    try:
+        return [_redacted(site) for site in _all_sites(tree, path)]
+    except RecursionError:
+        return []
+
+
+def _all_sites(tree: ast.Module, path: str) -> list[AgentSite]:
     classes = _agent_classes(tree)
     functions = _agent_functions(tree)
     collector = _Collector(path, classes, functions)
