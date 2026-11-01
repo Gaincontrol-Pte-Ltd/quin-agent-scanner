@@ -127,6 +127,7 @@ Deterministic, no I/O, no LLM. Input: `AgentSite`s, `ToolSite`s, the static tool
    - Sites whose instructions are `none` or dynamic join the single same-name group if exactly one exists; otherwise they join none and are flagged `ambiguous_instance`.
    - Sites with no literal name → one agent each, `identity: weak`.
    - Definition ↔ instance links, same file only:
+     (A definition site whose instructions are unknown joins only a same-named agent with a site in its own file (D9); an instance site may join across files.)
      - subclass name ↔ `ClassName(...)` calls;
      - CrewAI config key ↔ `agents_config['key']` or `@agent def key`;
      - decorated function ↔ calls of that function.
