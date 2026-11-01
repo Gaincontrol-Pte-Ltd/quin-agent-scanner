@@ -4,6 +4,7 @@ import json
 from collections.abc import Callable
 
 from quin_scanner.llm.base import BaseLLMProvider
+from quin_scanner.redaction import redact_secrets
 from quin_scanner.models import (
     AgentEnrichment,
     ClassificationResult,
@@ -15,6 +16,28 @@ from quin_scanner.models import (
 )
 from quin_scanner.risk_taxonomy import build_threat_reference, filter_threats
 from quin_scanner.rules.kri_predicates import EvidenceFacts
+
+# Tool service categories: the prompt lists them and the parser accepts only these, from this one tuple.
+SERVICE_CATEGORIES: tuple[tuple[str, str], ...] = (
+    ("web_search", "search engines, SERP queries (e.g. google_search, tavily_search)"),
+    ("web_browsing", "page fetching, scraping, crawling (e.g. browse_url, scrape_page)"),
+    ("code_execution", "running code, sandboxes, REPLs (e.g. execute_code, run_python)"),
+    ("vector_database", "vector store operations (e.g. query_vectors, upsert_embeddings)"),
+    ("database", "SQL/NoSQL/graph DB operations (e.g. run_query, neo4j_search)"),
+    ("communication", "messaging, email, notifications (e.g. send_slack, send_email)"),
+    ("document_processing", "PDF/DOCX parsing, OCR (e.g. parse_pdf, extract_text)"),
+    ("image_generation", "image creation/editing (e.g. text_to_image, generate_image)"),
+    ("voice_audio", "TTS, STT, audio processing (e.g. text_to_speech, transcribe)"),
+    ("embeddings", "text-to-embedding operations (e.g. text_to_embedding, embed_text)"),
+    ("data_processing", "data transformation, feature engineering, analytics"),
+    ("file_operations", "file read/write/management (e.g. read_file, write_file)"),
+    ("api_integration", "external HTTP/REST API calls (e.g. http_request, call_api)"),
+    ("orchestration", "planning, routing, delegation (e.g. plan, delegate_task)"),
+    ("tool_management", "tool registration, schema management (e.g. register_tool)"),
+    ("testing", "test helpers, validation tools (e.g. validate, run_test)"),
+    ("other", "only if none of the above categories fit"),
+)
+_VALID_SERVICE_CATEGORIES = frozenset(name for name, _ in SERVICE_CATEGORIES)
 
 _SYSTEM_PROMPT = """\
 You are an AI application analyst. Given scanner evidence from a repository, produce a \
@@ -142,23 +165,7 @@ Rules:
 
 - tool_enrichment: for inventory tools, classify service_category by what the tool DOES (infer from its
   name and context) into one of:
-  * "web_search" — search engines, SERP queries (e.g. google_search, tavily_search)
-  * "web_browsing" — page fetching, scraping, crawling (e.g. browse_url, scrape_page)
-  * "code_execution" — running code, sandboxes, REPLs (e.g. execute_code, run_python)
-  * "vector_database" — vector store operations (e.g. query_vectors, upsert_embeddings)
-  * "database" — SQL/NoSQL/graph DB operations (e.g. run_query, neo4j_search)
-  * "communication" — messaging, email, notifications (e.g. send_slack, send_email)
-  * "document_processing" — PDF/DOCX parsing, OCR (e.g. parse_pdf, extract_text)
-  * "image_generation" — image creation/editing (e.g. text_to_image, generate_image)
-  * "voice_audio" — TTS, STT, audio processing (e.g. text_to_speech, transcribe)
-  * "embeddings" — text-to-embedding operations (e.g. text_to_embedding, embed_text)
-  * "data_processing" — data transformation, feature engineering, analytics
-  * "file_operations" — file read/write/management (e.g. read_file, write_file)
-  * "api_integration" — external HTTP/REST API calls (e.g. http_request, call_api)
-  * "orchestration" — planning, routing, delegation (e.g. plan, delegate_task)
-  * "tool_management" — tool registration, schema management (e.g. register_tool)
-  * "testing" — test helpers, validation tools (e.g. validate, run_test)
-  * "other" — only if none of the above categories fit
+<<SERVICE_CATEGORIES>>
   Do not include tools that already show a category in the TOOL INVENTORY.
 
 - suggested_agents / suggested_tools: agents or tools you believe exist but that are NOT in the
@@ -181,7 +188,10 @@ Rules:
   there is a training loop or fine-tuning API call. Do NOT include "voice-ai" unless
   there are audio/speech API calls. Do NOT include "embeddings" unless embedding APIs
   or vector stores are explicitly used.
-"""
+""".replace(
+    "<<SERVICE_CATEGORIES>>\n",
+    "".join(f'  * "{name}" — {description}\n' for name, description in SERVICE_CATEGORIES),
+)
 
 
 def _build_evidence_block(
@@ -211,9 +221,10 @@ def _build_evidence_block(
         lines.append("\n--- AGENT INVENTORY (verified; enrich by id, never rename or add) ---")
         for a in agent_inventory:
             tools = ", ".join(a["tools"]) or "none"
+            skills = ", ".join(a.get("skills") or []) or "none"
             lines.append(
                 f"  - id={a['id']} name=\"{a['name']}\" scope={a['scope']} instances={a['instances']} "
-                f"instructions={a['instructions']} tools=[{tools}] file={a['file']}"
+                f"instructions={a['instructions']} tools=[{tools}] skills=[{skills}] file={a['file']}"
             )
 
     if tool_inventory:
@@ -301,16 +312,33 @@ def _parse_risk_signals(raw_signals: list) -> list[RiskIndicator]:
 _VALID_AGENT_TYPES = {"supervisor", "utility", "worker", "unknown"}
 
 
+# Free text from the LLM is capped by truncation (after redaction, so a cut never exposes part of a secret).
+_MAX_GOAL = 500
+_MAX_NAME = 200
+_MAX_EVIDENCE = 500
+_MAX_FILE = 500
+
+
+def _clean_text(value: object, limit: int) -> str:
+    """A string field from the LLM: non-strings become empty, secrets are redacted, the result is capped."""
+    if not isinstance(value, str):
+        return ""
+    return redact_secrets(value.strip())[:limit]
+
+
 def _parse_suggestions(raw: object) -> list[LLMInferredItem]:
     if not isinstance(raw, list):
         return []
     items: list[LLMInferredItem] = []
     for item in raw:
-        if isinstance(item, dict) and str(item.get("name") or "").strip():
+        if not isinstance(item, dict):
+            continue
+        name = _clean_text(item.get("name"), _MAX_NAME)
+        if name:
             items.append(LLMInferredItem(
-                name=str(item["name"]).strip(),
-                evidence=str(item.get("evidence") or ""),
-                file=str(item.get("file") or ""),
+                name=name,
+                evidence=_clean_text(item.get("evidence"), _MAX_EVIDENCE),
+                file=_clean_text(item.get("file"), _MAX_FILE),
             ))
     return items
 
@@ -352,7 +380,7 @@ def _parse_synthesis_response(raw: str) -> SynthesisResult:
             raw_signals = fields.get("risk_signals")
             enrichment[str(agent_id)] = AgentEnrichment(
                 agent_type=agent_type if isinstance(agent_type, str) and agent_type in _VALID_AGENT_TYPES else "unknown",
-                goal=str(fields.get("goal") or ""),
+                goal=_clean_text(fields.get("goal"), _MAX_GOAL),
                 capabilities=[c for c in raw_capabilities if isinstance(c, str)] if isinstance(raw_capabilities, list) else [],
                 risk_signals=_parse_risk_signals(raw_signals if isinstance(raw_signals, list) else []),
             )
@@ -361,8 +389,9 @@ def _parse_synthesis_response(raw: str) -> SynthesisResult:
     raw_tools = data.get("tool_enrichment")
     if isinstance(raw_tools, dict):
         for tool_id, fields in raw_tools.items():
-            if isinstance(fields, dict) and fields.get("service_category"):
-                tool_enrichment[str(tool_id)] = str(fields["service_category"])
+            category = fields.get("service_category") if isinstance(fields, dict) else None
+            if isinstance(category, str) and category in _VALID_SERVICE_CATEGORIES:
+                tool_enrichment[str(tool_id)] = category
 
     return SynthesisResult(
         is_ai_application=bool(data.get("is_ai_application", False)),

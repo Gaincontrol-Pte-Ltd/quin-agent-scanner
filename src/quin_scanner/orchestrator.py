@@ -6,6 +6,7 @@ import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
+from typing import NamedTuple
 from datetime import datetime, timezone
 
 from quin_scanner.config import ScannerConfig
@@ -653,27 +654,59 @@ def _split_agent_skills(agents: list[AgentProfile], tools: list[ToolUsage]) -> N
 _LLM_INVENTORY_CAP = 30
 
 
-def _inventory_digest(agent_inventory: Inventory) -> tuple[list[dict], list[dict], int]:
-    """The inventory as the LLM sees it, production first then by ID; and how many agents did not fit."""
+class _Digest(NamedTuple):
+    """The inventory as listed to the synthesis LLM, and what did not fit."""
+    agents: list[dict]
+    tools: list[dict]
+    agent_ids: frozenset[str]
+    tool_ids: frozenset[str]
+    unlisted_agents: int
+    unlisted_tools: int
+
+
+def _inventory_digest(agent_inventory: Inventory) -> _Digest:
+    """The inventory as the LLM sees it, up to the cap each.
+
+    Agents: production first, then by ID. Tools: those without a category first (only they can gain one), then
+    production first, then by ID. Only the listed IDs may be enriched.
+    """
     agents = sorted(agent_inventory.agents, key=lambda a: (a.scope != "production", a.id))
-    tools = sorted(agent_inventory.tools, key=lambda t: (t.scope != "production", t.id))
+    tools = sorted(agent_inventory.tools, key=lambda t: (bool(t.service_category), t.scope != "production", t.id))
+    listed_agents = agents[:_LLM_INVENTORY_CAP]
+    listed_tools = tools[:_LLM_INVENTORY_CAP]
     agent_digest = [
         {"id": a.id, "name": a.name, "scope": a.scope, "instances": len(a.instances),
-         "instructions": agent_inventory.instructions.get(a.id, "none"), "tools": a.tools, "file": a.source_file}
-        for a in agents[:_LLM_INVENTORY_CAP]
+         "instructions": agent_inventory.instructions.get(a.id, "none"), "tools": a.tools, "skills": a.skills,
+         "file": a.source_file}
+        for a in listed_agents
     ]
     tool_digest = [
         {"id": t.id, "name": t.tool_name, "type": t.tool_type, "category": t.service_category,
          "file": t.source_file, "line": t.line_number}
-        for t in tools[:_LLM_INVENTORY_CAP]
+        for t in listed_tools
     ]
-    return agent_digest, tool_digest, max(0, len(agents) - _LLM_INVENTORY_CAP)
+    return _Digest(
+        agents=agent_digest,
+        tools=tool_digest,
+        agent_ids=frozenset(a.id for a in listed_agents),
+        tool_ids=frozenset(t.id for t in listed_tools),
+        unlisted_agents=len(agents) - len(listed_agents),
+        unlisted_tools=len(tools) - len(listed_tools),
+    )
 
 
 def _apply_enrichment(
-    agents: list[AgentProfile], tools: list[ToolUsage], synthesis: SynthesisResult, scanned_paths: set[str],
-) -> int:
-    """Merge LLM enrichment into verified items by ID; return how many IDs did not exist.
+    agents: list[AgentProfile],
+    tools: list[ToolUsage],
+    synthesis: SynthesisResult,
+    scanned_paths: set[str],
+    listed_agent_ids: frozenset[str] | set[str],
+    listed_tool_ids: frozenset[str] | set[str],
+) -> tuple[int, int]:
+    """Merge LLM enrichment into the items listed to it, by ID.
+
+    Returns (unknown, unlisted): IDs not in the inventory, and IDs in the inventory that were not listed to the
+    LLM (it cannot know them from the prompt, so they are not applied).
 
     Only agent_type, goal and capabilities (each when the LLM supplied a value and the field is not static) and
     appended per-agent risk signals reach an agent; only an empty service_category reaches a tool. Names, tools,
@@ -681,11 +714,14 @@ def _apply_enrichment(
     before its signals are appended, so the static T006 refs are left alone.
     """
     by_id = {a.id: a for a in agents}
-    unknown = 0
+    unknown = unlisted = 0
     for agent_id, fields in synthesis.enrichment.items():
         agent = by_id.get(agent_id)
         if agent is None:
             unknown += 1
+            continue
+        if agent_id not in listed_agent_ids:
+            unlisted += 1
             continue
         supplied = {
             "agent_type": fields.agent_type if fields.agent_type != "unknown" else None,
@@ -703,9 +739,11 @@ def _apply_enrichment(
         tool = tools_by_id.get(tool_id)
         if tool is None:
             unknown += 1
+        elif tool_id not in listed_tool_ids:
+            unlisted += 1
         elif not tool.service_category:
             tool.service_category = category
-    return unknown
+    return unknown, unlisted
 
 
 # Directories that indicate a file is a skill / playbook / instruction set
@@ -1190,7 +1228,7 @@ class ScanOrchestrator:
         classification: ClassificationResult | None = None
         llm_errors: list[str] = []
         skills_provider = None
-        llm_unenriched_agents = 0
+        digest: _Digest | None = None
         if not config.no_llm:
             summaries = _pre_summarise(all_findings)
             provider = config.provider_factory()
@@ -1228,7 +1266,7 @@ class ScanOrchestrator:
                 _synthesis_step[0] += 1
                 _progress_bar("Synthesis  ", _synthesis_step[0], _SYNTHESIS_STEPS)
 
-            agent_digest, tool_digest, llm_unenriched_agents = _inventory_digest(agent_inventory)
+            digest = _inventory_digest(agent_inventory)
             evidence_facts = EvidenceFacts(
                 system_types=frozenset(classification.system_types if classification else []),
                 capability_tags=frozenset(capability_tags),
@@ -1252,8 +1290,8 @@ class ScanOrchestrator:
                     capability_tags=capability_tags,
                     on_progress=_synthesis_progress if verbose else None,
                     framework_candidate=framework_candidate,
-                    agent_inventory=agent_digest or None,
-                    tool_inventory=tool_digest or None,
+                    agent_inventory=digest.agents or None,
+                    tool_inventory=digest.tools or None,
                     classification=classification,
                     evidence_facts=evidence_facts,
                 )
@@ -1301,8 +1339,10 @@ class ScanOrchestrator:
             metadata["analysis"] = "static-only"
         if inventory_error:
             metadata["inventory_error"] = inventory_error
-        if llm_unenriched_agents:
-            metadata["llm_unenriched_agents"] = llm_unenriched_agents
+        if digest is not None and digest.unlisted_agents:
+            metadata["llm_unenriched_agents"] = digest.unlisted_agents
+        if digest is not None and digest.unlisted_tools:
+            metadata["llm_unlisted_tools"] = digest.unlisted_tools
 
         # ── Deterministic post-processing ──────────────────────────────────────
         # Apply after synthesis so these rules fill gaps when the LLM left fields
@@ -1363,10 +1403,14 @@ class ScanOrchestrator:
         pp_tool_usages = agent_inventory.tools
         llm_inferred_agents: list[LLMInferredItem] = []
         llm_inferred_tools: list[LLMInferredItem] = []
-        if synthesis:
-            unknown_ids = _apply_enrichment(pp_agents, pp_tool_usages, synthesis, _scanned_paths)
+        if synthesis and digest is not None:
+            unknown_ids, unlisted_ids = _apply_enrichment(
+                pp_agents, pp_tool_usages, synthesis, _scanned_paths, digest.agent_ids, digest.tool_ids,
+            )
             if unknown_ids:
                 metadata["llm_unknown_ids"] = unknown_ids
+            if unlisted_ids:
+                metadata["llm_unlisted_ids"] = unlisted_ids
             llm_inferred_agents = list(synthesis.suggested_agents)
             llm_inferred_tools = list(synthesis.suggested_tools)
 

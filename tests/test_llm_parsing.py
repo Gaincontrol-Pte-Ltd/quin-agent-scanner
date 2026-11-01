@@ -321,9 +321,47 @@ def test_evidence_block_lists_the_inventory_by_id():
     block = _build_evidence_block(
         [], [], [],
         agent_inventory=[{"id": "agent:r", "name": "r", "scope": "production", "instances": 2,
-                          "instructions": "literal", "tools": ["search"], "file": "a.py"}],
+                          "instructions": "literal", "tools": ["search"], "skills": [], "file": "a.py"}],
         tool_inventory=[{"id": "tool:search", "name": "search", "type": "tool_definition", "category": "",
                          "file": "t.py", "line": 3}],
     )
-    assert 'id=agent:r name="r" scope=production instances=2 instructions=literal tools=[search] file=a.py' in block
+    assert ('id=agent:r name="r" scope=production instances=2 instructions=literal tools=[search] skills=[none] '
+            'file=a.py') in block
     assert 'id=tool:search name="search" type=tool_definition at t.py:3' in block
+
+
+def test_service_category_must_be_a_listed_category():
+    from quin_scanner.llm.synthesis_agent import SERVICE_CATEGORIES, _SYSTEM_PROMPT
+    data = {"is_ai_application": True, "framework": "x", "summary": "",
+            "tool_enrichment": {"tool:a": {"service_category": "web_search"},
+                                "tool:b": {"service_category": "ransomware"},
+                                "tool:c": {"service_category": ["web_search"]}}}
+    result = _parse_synthesis_response(json.dumps(data))
+    assert result.tool_enrichment == {"tool:a": "web_search"}
+    assert len(SERVICE_CATEGORIES) == 17
+    for name, _ in SERVICE_CATEGORIES:
+        assert f'* "{name}" —' in _SYSTEM_PROMPT
+
+
+def test_goal_and_suggestions_are_strings_capped_and_redacted():
+    secret = "sk-proj-" + "A" * 40
+    data = {
+        "is_ai_application": True, "framework": "x", "summary": "",
+        "enrichment": {"agent:a": {"goal": ["not", "a", "string"]},
+                       "agent:b": {"goal": "g" * 900},
+                       "agent:c": {"goal": f"uses key {secret}"}},
+        "suggested_agents": [
+            {"name": 42, "evidence": "x", "file": "a.py"},
+            {"name": "n" * 300, "evidence": 7, "file": ["a.py"]},
+            {"name": "planner", "evidence": f"key {secret} " + "e" * 900, "file": "f" * 900},
+        ],
+    }
+    result = _parse_synthesis_response(json.dumps(data))
+    assert result.enrichment["agent:a"].goal == ""
+    assert result.enrichment["agent:b"].goal == "g" * 500
+    assert secret not in result.enrichment["agent:c"].goal and "REDACTED" in result.enrichment["agent:c"].goal
+    long_name, planner = result.suggested_agents
+    assert (long_name.name, long_name.evidence, long_name.file) == ("n" * 200, "", "")
+    assert secret not in planner.evidence and "REDACTED" in planner.evidence
+    assert len(planner.evidence) == 500 and len(planner.file) == 500
+

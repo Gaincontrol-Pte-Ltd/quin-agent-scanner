@@ -164,7 +164,7 @@ def test_the_llm_enriches_by_id_and_cannot_change_the_inventory(tmp_path, monkey
     class Stub:
         def generate(self, prompt):
             prompts.append(prompt)
-            if "AGENT INVENTORY" in prompt:
+            if "--- AGENT INVENTORY" in prompt:
                 return json.dumps(synthesis)
             return '{"system_types": ["agentic_ai"], "relevant_threats": []}'
 
@@ -184,7 +184,7 @@ def test_the_llm_enriches_by_id_and_cannot_change_the_inventory(tmp_path, monkey
     assert report.tool_usages[0].service_category == "web_search"
     assert report.metadata["llm_unknown_ids"] == 1
     assert [i.name for i in report.llm_inferred_agents] == ["planner"]
-    assert "id=agent:researcher" in next(p for p in prompts if "AGENT INVENTORY" in p)
+    assert "id=agent:researcher" in next(p for p in prompts if "--- AGENT INVENTORY" in p)
 
 
 def test_enrichment_never_overwrites_static_facts():
@@ -208,7 +208,8 @@ def test_enrichment_never_overwrites_static_facts():
                                                risk_signals=[llm_signal])},
         tool_enrichment={"tool:search": "web_search", "tool:api": "database", "tool:ghost": "other"},
     )
-    assert _apply_enrichment([agent], tools, synthesis, {"src/a.py"}) == 1
+    listed = ({"agent:r"}, {"tool:search", "tool:api"})
+    assert _apply_enrichment([agent], tools, synthesis, {"src/a.py"}, *listed) == (1, 0)
     assert (agent.name, agent.tools, agent.goal, agent.agent_type, agent.capabilities) == (
         "r", ["search"], "From YAML", "worker", [],
     )
@@ -234,3 +235,78 @@ def test_agents_beyond_the_llm_cap_are_counted_as_unenriched(tmp_path, monkeypat
     assert report.metadata["llm_unenriched_agents"] == 2
     synthesis_prompt = next(p for p in prompts if "--- AGENT INVENTORY" in p)
     assert "id=agent:agent29" in synthesis_prompt and "id=agent:agent30" not in synthesis_prompt
+
+
+def _routing_stub(synthesis: dict, prompts: list[str]):
+    class Stub:
+        def generate(self, prompt):
+            prompts.append(prompt)
+            if "--- AGENT INVENTORY" in prompt:
+                return json.dumps(synthesis)
+            return '{"system_types": ["agentic_ai"], "relevant_threats": []}'
+    return Stub()
+
+
+def test_enrichment_of_items_not_listed_to_the_llm_is_ignored(tmp_path, monkeypatch):
+    synthesis = {
+        "is_ai_application": True, "framework": "x", "summary": "s",
+        "enrichment": {"agent:p31": {"goal": "beyond the cap"}, "agent:p00": {"goal": "listed"},
+                       "agent:ghost": {"goal": "invented"}},
+        "tool_enrichment": {"tool:t31": {"service_category": "web_search"},
+                            "tool:t00": {"service_category": "database"}},
+    }
+    prompts: list[str] = []
+    monkeypatch.setattr(ScannerConfig, "provider_factory", lambda self: _routing_stub(synthesis, prompts))
+    tools = "".join(f"@tool\ndef t{i:02d}():\n    pass\n" for i in range(32))
+    agents = "".join(f"a{i:02d} = Agent(name='p{i:02d}')\n" for i in range(32))
+    report = _scan(tmp_path, {"src/t.py": tools, "src/a.py": agents}, no_llm=False)
+    goals = {a.id: a.goal for a in report.agents}
+    assert goals["agent:p00"] == "listed" and goals["agent:p31"] == ""
+    categories = {t.id: t.service_category for t in report.tool_usages}
+    assert categories["tool:t00"] == "database" and categories["tool:t31"] == ""
+    assert report.metadata["llm_unknown_ids"] == 1
+    assert report.metadata["llm_unlisted_ids"] == 2
+    assert report.metadata["llm_unenriched_agents"] == 2
+    assert report.metadata["llm_unlisted_tools"] == 2
+
+
+def test_the_llm_sees_production_agents_first(tmp_path, monkeypatch):
+    prompts: list[str] = []
+    synthesis = {"is_ai_application": True, "framework": "x", "summary": "s",
+                 "enrichment": {"agent:aaa": {"goal": "a test agent"}}}
+    monkeypatch.setattr(ScannerConfig, "provider_factory", lambda self: _routing_stub(synthesis, prompts))
+    agents = "".join(f"a{i:02d} = Agent(name='p{i:02d}')\n" for i in range(30))
+    report = _scan(tmp_path, {"src/a.py": agents, "tests/test_a.py": "x = Agent(name='aaa')\n"}, no_llm=False)
+    prompt = next(p for p in prompts if "--- AGENT INVENTORY" in p)
+    assert "id=agent:p29" in prompt and "id=agent:aaa" not in prompt
+    assert {a.id: a.goal for a in report.agents}["agent:aaa"] == ""
+    assert report.metadata["llm_unlisted_ids"] == 1
+
+
+def test_the_llm_sees_the_final_tool_type(tmp_path, monkeypatch):
+    prompts: list[str] = []
+    synthesis = {"is_ai_application": True, "framework": "x", "summary": "s"}
+    monkeypatch.setattr(ScannerConfig, "provider_factory", lambda self: _routing_stub(synthesis, prompts))
+    report = _scan(tmp_path, {
+        ".mcp.json": '{"mcpServers": {"github": {"command": "npx"}}}',
+        "src/a.py": "@tool\ndef github():\n    pass\nr = Agent(name='r', tools=[github])\n",
+    }, no_llm=False, enabled_scanners=["agent_instance", "tool_definition", "mcp"])
+    assert [(t.id, t.tool_type) for t in report.tool_usages if t.tool_name == "github"] == [("tool:github", "mcp_tool")]
+    prompt = next(p for p in prompts if "--- AGENT INVENTORY" in p)
+    assert 'name="github" type=mcp_tool' in prompt
+
+
+def test_digest_lists_skills_and_uncategorised_tools_first():
+    from quin_scanner.inventory import Inventory
+    from quin_scanner.models import AgentProfile, ToolUsage
+    from quin_scanner.orchestrator import _inventory_digest
+
+    agent = AgentProfile(name="r", agent_type="unknown", goal="", id="agent:r", tools=["search"], skills=["x"])
+    tools = [ToolUsage(tool_name=f"c{i:02d}", tool_type="external_service", service_category="database",
+                       id=f"tool:c{i:02d}") for i in range(30)]
+    tools.append(ToolUsage(tool_name="zz", tool_type="tool_definition", service_category="", id="tool:zz"))
+    digest = _inventory_digest(Inventory(agents=[agent], tools=tools))
+    assert digest.agents[0]["skills"] == ["x"]
+    assert digest.tools[0]["id"] == "tool:zz"
+    assert "tool:zz" in digest.tool_ids and "tool:c29" not in digest.tool_ids
+    assert (digest.unlisted_agents, digest.unlisted_tools) == (0, 1)
