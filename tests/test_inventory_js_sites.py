@@ -135,7 +135,9 @@ def test_comments_are_fully_blanked_in_the_top_level_view():
     assert view.split() == ["a,", "b"]
 
 
-def test_call_line_spans_cover_each_parsed_call():
-    from quin_scanner.inventory.js_sites import call_line_spans
+def test_call_spans_are_character_offsets_of_each_parsed_call():
+    from quin_scanner.inventory.js_sites import call_spans
 
-    assert call_line_spans('new\n  Agent({\n name: "a"\n})\nAgent({ name: "b" })\n') == [(1, 4), (5, 5)]
+    text = 'new\n  Agent({ name: "a" })\nAgent({ name: "b" })\n'
+    spans = call_spans(text)
+    assert [text[a:b + 1] for a, b in spans] == ['new\n  Agent({ name: "a" }', 'Agent({ name: "b" }']

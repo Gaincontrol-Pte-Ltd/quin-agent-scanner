@@ -299,3 +299,24 @@ def test_regex_fallback_sites_carry_their_origin(tmp_path):
         "deco": ("definition", "decorator"),
         "Plan": ("definition", "subclass"),
     }
+
+
+def test_js_agents_sharing_a_line_with_a_parsed_call_are_not_hidden(tmp_path):
+    source = (
+        'const x = new Agent({name:"a"}); const y = new AssistantAgent("bee", {});\n'
+        'const z = new Agent({\n  name: "c",\n});  const w = new UserProxyAgent("dee");\n'
+    )
+    findings, sites = _evidence(tmp_path, {"a.ts": source})
+    assert sorted(f.match_text for f in findings) == ["a", "bee", "c", "dee"]
+    assert sorted(s.name for s in sites) == ["a", "bee", "c", "dee"]
+
+
+def test_tool_ref_failure_never_costs_findings(tmp_path, monkeypatch):
+    def boom(value):
+        raise RuntimeError("x")
+
+    monkeypatch.setattr("quin_scanner.scanners.agent_instance_scanner._literal_tool_refs", boom)
+    files = {"config/agents.yaml": "a:\n  tools: [t]\n", "root_agent.yaml": "name: adk\ntools: [t]\n"}
+    findings, sites = _evidence(tmp_path, files)
+    assert sorted(f.match_text for f in findings) == ["a", "adk"]
+    assert sites == []

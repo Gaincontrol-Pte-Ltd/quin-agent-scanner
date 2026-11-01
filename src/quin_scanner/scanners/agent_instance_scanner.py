@@ -91,6 +91,9 @@ def _is_test_path(path: str) -> bool:
     return bool(_TEST_PATH_RE.search(path))
 
 
+_NO_TOOLS = object()   # sentinel: no ``tools`` value to read
+
+
 def _literal_tool_refs(value: object) -> tuple[str, ...] | None:
     """Tool names from a YAML ``tools:`` list (strings, or mappings with a ``name``); None when absent."""
     if not isinstance(value, list):
@@ -162,9 +165,17 @@ class AgentInstanceScanner(BaseScanner):
 
         return findings
 
-    def _add_site(self, **fields: object) -> None:
-        """Build, redact and record one site. Evidence only: any failure skips the site, never the file's findings."""
+    def _add_site(self, *, literal: object = None, tools: object = _NO_TOOLS, **fields: object) -> None:
+        """Build, redact and record one site from raw values. Evidence only: any failure skips the site, never the findings.
+
+        ``literal`` is raw instruction text (hashed when it is a string); ``tools`` is a raw YAML ``tools:`` value
+        (``_NO_TOOLS`` leaves ``tool_refs`` unknown). Everything evidence-related is evaluated inside the guard.
+        """
         try:
+            if isinstance(literal, str):
+                fields["instructions"] = InstructionsRef.literal(literal)
+            if tools is not _NO_TOOLS:
+                fields["tool_refs"] = _literal_tool_refs(tools)
             self._sites.append(redacted(AgentSite(**fields)))  # type: ignore[arg-type]
         except Exception:
             pass
@@ -175,9 +186,9 @@ class AgentInstanceScanner(BaseScanner):
 
     def _scan_code(self, content: str, path: str, seen: set[str]) -> list[ScanFinding]:
         findings: list[ScanFinding] = []
-        origins: list[tuple[str, str]] = []   # (role, kind) of each finding's regex pass, for fallback sites
+        origins: list[tuple[str, str, int]] = []   # (role, kind, match offset) of each finding, for fallback sites
 
-        def add(lineno: int, agent_name: str, origin: tuple[str, str] = ("both", "constructor")) -> None:
+        def add(lineno: int, agent_name: str, offset: int, origin: tuple[str, str] = ("both", "constructor")) -> None:
             agent_name = agent_name.strip()
             if not agent_name or len(agent_name) > 80:
                 return
@@ -194,22 +205,22 @@ class AgentInstanceScanner(BaseScanner):
                 capability_tag="multi-agent",
                 confidence=0.85,
             ))
-            origins.append(origin)
+            origins.append((*origin, offset))
 
         tree = python_sites.parse_python(content) if path.lower().endswith(".py") else None
         calls = _python_agent_calls(tree) if tree is not None else None
         if calls is not None:
             for lineno, agent_name in calls:
-                add(lineno, agent_name)
+                add(lineno, agent_name, -1)
         else:
             # Scan full content (not per-line): the patterns are compiled with re.DOTALL specifically to
             # match constructor calls formatted with one kwarg per line (Agent(\n  name="...",\n  ...\n)),
             # the dominant style for well-formatted code. A per-line search would defeat DOTALL entirely.
             for pattern in _AGENT_CODE_PATTERNS:
                 for m in pattern.finditer(content):
-                    add(content[:m.start()].count("\n") + 1, m.group(1))
+                    add(content[:m.start()].count("\n") + 1, m.group(1), m.start())
         for m in _AGENT_DECORATOR_PATTERN.finditer(content):
-            add(content[:m.start()].count("\n") + 1, m.group(1), ("definition", "decorator"))
+            add(content[:m.start()].count("\n") + 1, m.group(1), m.start(), ("definition", "decorator"))
         # Class inheritance patterns: class X(Role), class X(BaseAgent), etc.
         for pattern, conf in _AGENT_CLASS_PATTERNS:
             for m in pattern.finditer(content):
@@ -230,7 +241,7 @@ class AgentInstanceScanner(BaseScanner):
                     capability_tag="multi-agent",
                     confidence=conf,
                 ))
-                origins.append(("definition", "subclass"))
+                origins.append(("definition", "subclass", m.start()))
         # Evidence must never cost the file its findings: a failure here skips only the sites.
         try:
             if tree is not None:
@@ -238,12 +249,12 @@ class AgentInstanceScanner(BaseScanner):
             else:
                 is_js = Path(path).suffix.lower() in _JS_EXTENSIONS
                 sites = js_sites.agent_sites(content, path) if is_js else []
-                spans = js_sites.call_line_spans(content) if is_js else []
+                spans = js_sites.call_spans(content) if is_js else []
                 # A regex finding inside a call that js_sites parsed is that site (it reads only the top-level keys).
                 sites += [
                     AgentSite(role=role, kind=kind, name=f.match_text, file_path=path, line=f.line_number)
-                    for f, (role, kind) in zip(findings, origins, strict=True)
-                    if not any(start <= f.line_number <= end for start, end in spans)
+                    for f, (role, kind, offset) in zip(findings, origins, strict=True)
+                    if not any(start <= offset <= end for start, end in spans)
                 ]
                 sites = [redacted(s) for s in sites]
                 self._sites.extend(sites)
@@ -277,7 +288,7 @@ class AgentInstanceScanner(BaseScanner):
                 self._add_site(
                     role="definition", kind="config_entry", name=str(agent_name), file_path=path, line=None,
                     instructions=InstructionsRef("config", str(agent_key)),
-                    tool_refs=_literal_tool_refs(agent_val.get("tools")) if isinstance(agent_val, dict) else None,
+                    tools=agent_val.get("tools") if isinstance(agent_val, dict) else _NO_TOOLS,
                 )
                 findings.append(ScanFinding(
                     scanner_name=self.name(),
@@ -299,7 +310,7 @@ class AgentInstanceScanner(BaseScanner):
                             self._add_site(
                                 role="definition", kind="config_entry", name=str(agent_name), file_path=path,
                                 line=None, instructions=InstructionsRef("config", str(agent_name)),
-                                tool_refs=_literal_tool_refs(item.get("tools")),
+                                tools=item.get("tools"),
                             )
                             findings.append(ScanFinding(
                                 scanner_name=self.name(),
@@ -348,9 +359,9 @@ class AgentInstanceScanner(BaseScanner):
             model = item.get("model")
             self._add_site(
                 role="definition", kind="config_entry", name=agent_name, file_path=path, line=None,
-                instructions=InstructionsRef.literal(instruction) if isinstance(instruction, str) else InstructionsRef(),
+                literal=instruction,
                 model_expr=model if isinstance(model, str) else None,
-                tool_refs=_literal_tool_refs(item.get("tools")),
+                tools=item.get("tools"),
             )
 
         _add(data, 0.90)
@@ -475,7 +486,7 @@ class AgentInstanceScanner(BaseScanner):
             role = config.get("role")
             self._add_site(
                 role="definition", kind="graph_node", name=str(node_id), file_path=path, line=None,
-                instructions=InstructionsRef.literal(role) if isinstance(role, str) else InstructionsRef(),
+                literal=role,
             )
             findings.append(ScanFinding(
                 scanner_name=self.name(),

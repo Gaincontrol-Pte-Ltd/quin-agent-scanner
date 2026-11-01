@@ -224,12 +224,9 @@ def _calls(content: str):
             yield call, opening, closing
 
 
-def call_line_spans(content: str) -> list[tuple[int, int]]:
-    """(first line, last line) of every ``Agent({...})`` call that :func:`agent_sites` parses."""
-    return [
-        (content.count("\n", 0, call.start()) + 1, content.count("\n", 0, closing) + 1)
-        for call, _, closing in _calls(content)
-    ]
+def call_spans(content: str) -> list[tuple[int, int]]:
+    """(start, closing brace) character offsets of every ``Agent({...})`` call that :func:`agent_sites` parses."""
+    return [(call.start(), closing) for call, _, closing in _calls(content)]
 
 
 def agent_sites(content: str, path: str) -> list[AgentSite]:
