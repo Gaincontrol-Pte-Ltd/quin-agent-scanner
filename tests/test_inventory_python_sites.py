@@ -189,3 +189,10 @@ def test_subscripted_generic_base_class_is_an_agent_definition():
 def test_keyword_unpacking_without_tools_means_tools_are_unknown():
     sites = _sites('a = Agent(name="a", **cfg)\nclass W(BaseAgent):\n    pass\nw = W(**cfg)\nb = Agent(name="b", tools=[t], **cfg)\n')
     assert [(s.name, s.tool_refs) for s in sites] == [("a", None), ("W", None), ("W", None), ("b", ("t",))]
+
+
+def test_a_crewai_config_constructor_without_tools_has_unknown_tools():
+    # The agents.yaml entry may list the tools; the resolver inherits them (plan clarification 13).
+    (site,) = _sites("r = Agent(config=self.agents_config['r'])\n")
+    assert site.instructions == InstructionsRef("config", "r")
+    assert site.tool_refs is None

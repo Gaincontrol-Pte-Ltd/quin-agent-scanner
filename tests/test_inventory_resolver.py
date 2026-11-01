@@ -1,11 +1,15 @@
 """The inventory resolver: one test per rule in spec §6."""
 from __future__ import annotations
 
+import ast
+
 import pytest
 
+from quin_scanner.inventory import python_sites
 from quin_scanner.inventory.evidence import NO_INSTRUCTIONS, AgentSite, InstructionsRef, ToolSite
 from quin_scanner.inventory.resolver import fallback, resolve
 from quin_scanner.models import ToolUsage
+from quin_scanner.scanners.agent_instance_scanner import AgentInstanceScanner
 
 PROMPT = InstructionsRef.literal("Find facts.")
 OTHER = InstructionsRef.literal("Write prose.")
@@ -19,6 +23,24 @@ def agent(name, path="src/app.py", line=1, *, role="both", kind="constructor",
 
 def tool(name, path="src/tools.py", line=1, kind="@tool"):
     return ToolSite(name=name, kind=kind, file_path=path, line=line)
+
+
+def config_entry(name, path, key, tools=None):
+    return agent(name, path, None, role="definition", kind="config_entry",
+                 instructions=InstructionsRef("config", key), tools=tools)
+
+
+def python(source, path):
+    """Real scanner evidence for one Python file."""
+    return python_sites.agent_sites(ast.parse(source), path)
+
+
+def agents_yaml(content, path):
+    """Real scanner evidence for one agents.yaml file."""
+    scanner = AgentInstanceScanner()
+    scanner._sites = []
+    scanner._scan_agent_yaml(content, path, set())
+    return scanner.evidence()
 
 
 # --- tools ------------------------------------------------------------------------------------
@@ -158,6 +180,134 @@ def test_config_key_links_a_code_instance_to_its_yaml_definition():
     assert [i.file for i in a.instances] == ["src/crew.py"]
 
 
+def test_one_config_key_in_two_crews_links_each_instance_to_its_own_yaml():
+    crew = (
+        "from crewai import Agent\n"
+        "from crewai.project import agent\n"
+        "class C:\n"
+        "    @agent\n"
+        "    def researcher(self) -> Agent:\n"
+        "        return Agent(config=self.agents_config['researcher'], tools=[%s])\n"
+    )
+    sites = (
+        agents_yaml("researcher:\n  role: Market Researcher\n  goal: g\n", "crewA/config/agents.yaml")
+        + agents_yaml("researcher:\n  role: Code Researcher\n  goal: g\n", "crewB/config/agents.yaml")
+        + python(crew % "web_search", "crewA/crew.py")
+        + python(crew % "git", "crewB/crew.py")
+    )
+    inv = resolve(sites, [])
+    assert [(a.id, a.source_file, a.flags, a.risk_signals) for a in inv.agents] == [
+        ("agent:Code Researcher", "crewB/config/agents.yaml", [], []),
+        ("agent:Market Researcher", "crewA/config/agents.yaml", [], []),
+    ]
+    assert [[(i.file, [t.name for t in i.tools]) for i in a.instances] for a in inv.agents] == [
+        [("crewB/crew.py", ["git"])],
+        [("crewA/crew.py", ["web_search"])],
+    ]
+
+
+def test_a_config_key_tied_between_two_yamls_is_left_unlinked_and_ambiguous():
+    key = InstructionsRef("config", "researcher")
+    inv = resolve([
+        config_entry("Market Researcher", "crewA/config/agents.yaml", "researcher"),
+        config_entry("Code Researcher", "crewB/config/agents.yaml", "researcher"),
+        agent("researcher", "app/main.py", 4, instructions=key),
+    ], [])
+    assert [(a.id, a.source_file, a.flags) for a in inv.agents] == [
+        ("agent:Code Researcher", "crewB/config/agents.yaml", []),
+        ("agent:Market Researcher", "crewA/config/agents.yaml", []),
+        ("agent:researcher", "app/main.py", ["ambiguous_instance"]),
+    ]
+
+
+def test_one_config_key_and_name_in_two_dirs_are_two_agents():
+    key = InstructionsRef("config", "r")
+    inv = resolve([
+        config_entry("R", "a/config/agents.yaml", "r"),
+        config_entry("R", "b/config/agents.yaml", "r"),
+        agent("r", "a/crew.py", 3, instructions=key),
+        agent("r", "b/crew.py", 3, instructions=key),
+    ], [])
+    assert [(a.id, a.flags, [i.file for i in a.instances]) for a in inv.agents] == [
+        ("agent:R@a/config/agents.yaml", ["name_collision"], ["a/crew.py"]),
+        ("agent:R@b/config/agents.yaml", ["name_collision"], ["b/crew.py"]),
+    ]
+
+
+def test_the_definition_site_is_the_source_even_when_a_both_site_sorts_first():
+    inv = resolve([
+        config_entry("Senior R", "crew/config/agents.yaml", "r"),
+        agent("r", "app/main.py", 4, instructions=InstructionsRef("config", "r")),
+    ], [])
+    (a,) = inv.agents
+    assert (a.id, a.source_file, [i.file for i in a.instances]) == (
+        "agent:Senior R", "crew/config/agents.yaml", ["app/main.py"],
+    )
+
+
+def test_a_config_instance_without_tools_inherits_the_yaml_tools():
+    sites = agents_yaml("researcher:\n  role: R\n  tools: [web]\n", "c/agents.yaml") + python(
+        "from crewai import Agent\n"
+        "@agent\n"
+        "def researcher(self):\n"
+        "    return Agent(config=self.agents_config['researcher'])\n",
+        "c/crew.py",
+    )
+    inv = resolve(sites, [tool("web", "c/tools.py")])
+    (a,) = inv.agents
+    assert [[(t.name, t.tool_id) for t in i.tools] for i in a.instances] == [[("web", "tool:web")]]
+    assert (a.tools, a.flags) == (["web"], [])
+    assert [(r.tool_name, r.source_file, r.tool_id) for r in inv.relationships] == [("web", "c/crew.py", "tool:web")]
+
+
+def test_inherited_yaml_tools_count_for_divergence():
+    key = InstructionsRef("config", "r")
+    inv = resolve([
+        config_entry("R", "c/agents.yaml", "r", tools=("web",)),
+        agent("r", "c/a.py", instructions=key, tools=None),
+        agent("r", "c/b.py", instructions=key, tools=("web", "shell")),
+    ], [])
+    (a,) = inv.agents
+    assert a.flags == ["tool_divergence"]
+    assert [s.threat_id for s in a.risk_signals] == ["T006"]
+
+
+def test_subclass_definitions_link_to_constructors_in_their_own_file_only():
+    source = (
+        "from autogen import AssistantAgent\n"
+        "class Researcher(AssistantAgent):\n"
+        "    pass\n"
+        "r = Researcher(system_message='%s')\n"
+    )
+    inv = resolve(python(source % "X", "a.py") + python(source % "Y", "b.py"), [])
+    assert [(a.id, a.source_file, a.flags, [(i.file, i.line) for i in a.instances]) for a in inv.agents] == [
+        ("agent:Researcher@a.py", "a.py", ["name_collision"], [("a.py", 4)]),
+        ("agent:Researcher@b.py", "b.py", ["name_collision"], [("b.py", 4)]),
+    ]
+
+
+def test_a_definition_does_not_join_a_same_named_agent_in_another_file():
+    inv = resolve([
+        agent("Researcher", "a.py", 2, role="definition", kind="subclass", tools=None),
+        agent("Researcher", "b.py", 5, instructions=PROMPT),
+    ], [])
+    assert [(a.id, a.source_file, [i.file for i in a.instances]) for a in inv.agents] == [
+        ("agent:Researcher@a.py", "a.py", ["a.py"]),
+        ("agent:Researcher@b.py", "b.py", ["b.py"]),
+    ]
+
+
+def test_same_named_definitions_in_two_files_are_two_agents():
+    inv = resolve([
+        agent("W", "a.py", 2, role="definition", kind="subclass", tools=None),
+        agent("W", "b.py", 2, role="definition", kind="subclass", tools=None),
+    ], [])
+    assert [(a.id, a.flags) for a in inv.agents] == [
+        ("agent:W@a.py", ["name_collision"]),
+        ("agent:W@b.py", ["name_collision"]),
+    ]
+
+
 def test_a_definition_without_instances_is_its_own_instance():
     (a,) = resolve([agent("Writer", "src/w.py", 1, role="definition", kind="subclass", tools=None)], []).agents
     assert [i.id for i in a.instances] == ["agent:Writer/src/w.py#1"]
@@ -171,9 +321,18 @@ def test_a_definition_without_instances_is_its_own_instance():
         (["examples/b.py"], "example"),
     ],
 )
-def test_agent_scope_is_production_if_any_site_is(paths, scope):
+def test_agent_scope_is_production_if_any_instance_is(paths, scope):
     (a,) = resolve([agent("r", p, instructions=PROMPT) for p in paths], []).agents
     assert a.scope == scope
+
+
+def test_agent_scope_comes_from_instances_not_the_definition():
+    inv = resolve([
+        config_entry("R", "src/agents.yaml", "r"),
+        agent("x", "tests/test_c.py", 3, instructions=InstructionsRef("config", "r")),
+    ], [])
+    (a,) = inv.agents
+    assert (a.source_file, a.scope) == ("src/agents.yaml", "test")
 
 
 def test_ids_do_not_depend_on_line_numbers():
@@ -189,6 +348,16 @@ def test_output_is_sorted_and_independent_of_input_order():
     backward = resolve(list(reversed(sites)), [])
     assert [a.to_dict() for a in forward.agents] == [a.to_dict() for a in backward.agents]
     assert [a.id for a in forward.agents] == ["agent:@src/c.py#1", "agent:a", "agent:b"]
+
+
+def test_sites_that_tie_on_file_line_and_name_do_not_depend_on_input_order():
+    for name in (None, "r"):
+        sites = [agent(name, "a.py", 3, tools=("x",)), agent(name, "a.py", 3, tools=("y",)),
+                 agent(name, "a.py", 3, tools=None), agent(name, "a.py", 3, model="m")]
+        forward = resolve(sites, [])
+        backward = resolve(list(reversed(sites)), [])
+        assert [a.to_dict() for a in forward.agents] == [a.to_dict() for a in backward.agents]
+        assert [r.to_dict() for r in forward.relationships] == [r.to_dict() for r in backward.relationships]
 
 
 # --- instance tools, relationships and divergence ---------------------------------------------

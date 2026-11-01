@@ -280,9 +280,11 @@ class _Collector(ast.NodeVisitor):
             name = name or enclosing
         if name is None and callee not in _ANONYMOUS_CONSTRUCTORS and instructions.kind != "config":
             return None
+        # CrewAI ``config=`` may list the tools in agents.yaml, so no ``tools=`` there means unknown, not none.
+        passes_config = any(kw.arg == "config" for kw in node.keywords)
         return AgentSite(
             role="both", kind="constructor", name=name, instructions=instructions,
-            model_expr=model_of(node), tool_refs=tool_refs_of(node, missing=()), **common,
+            model_expr=model_of(node), tool_refs=tool_refs_of(node, missing=None if passes_config else ()), **common,
         )
 
 
