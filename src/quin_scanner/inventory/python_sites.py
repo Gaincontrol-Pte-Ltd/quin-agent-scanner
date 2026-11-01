@@ -170,6 +170,10 @@ def tool_refs_of(call: ast.Call, missing: tuple[str, ...] | None) -> tuple[str, 
     return tuple(refs)
 
 
+def _passes_tools(call: ast.Call) -> bool:
+    return any(kw.arg == "tools" for kw in call.keywords)
+
+
 def _agent_functions(tree: ast.Module) -> dict[str, int]:
     """Functions decorated with ``@agent`` (CrewAI and similar), with the decorator's line."""
     found: dict[str, int] = {}
@@ -265,7 +269,7 @@ class _Collector(ast.NodeVisitor):
             return AgentSite(
                 role="instance", kind="constructor", name=agent_name(node, callee) or callee,
                 instructions=instructions_of(node), model_expr=model_of(node),
-                tool_refs=tool_refs_of(node, missing=None), **common,
+                tool_refs=tool_refs_of(node, missing=None), tools_given=_passes_tools(node), **common,
             )
         if isinstance(node.func, ast.Name) and callee in self.functions:
             return AgentSite(role="instance", kind="decorator", name=callee, **common)
@@ -284,7 +288,8 @@ class _Collector(ast.NodeVisitor):
         passes_config = any(kw.arg == "config" for kw in node.keywords)
         return AgentSite(
             role="both", kind="constructor", name=name, instructions=instructions,
-            model_expr=model_of(node), tool_refs=tool_refs_of(node, missing=None if passes_config else ()), **common,
+            model_expr=model_of(node), tool_refs=tool_refs_of(node, missing=None if passes_config else ()),
+            tools_given=_passes_tools(node), **common,
         )
 
 

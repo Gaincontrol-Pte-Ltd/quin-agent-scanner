@@ -196,3 +196,12 @@ def test_a_crewai_config_constructor_without_tools_has_unknown_tools():
     (site,) = _sites("r = Agent(config=self.agents_config['r'])\n")
     assert site.instructions == InstructionsRef("config", "r")
     assert site.tool_refs is None
+
+
+def test_tools_given_records_any_tools_keyword():
+    a, b, c = _sites(
+        "a = Agent(config=self.agents_config['r'])\n"
+        "b = Agent(config=self.agents_config['r'], tools=self.tools)\n"
+        "c = Agent(name='c', tools=[x])\n"
+    )
+    assert [(s.tool_refs, s.tools_given) for s in (a, b, c)] == [(None, False), (None, True), (("x",), True)]

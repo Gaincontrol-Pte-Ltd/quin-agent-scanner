@@ -38,6 +38,7 @@ class AgentSite:
     instructions: InstructionsRef = NO_INSTRUCTIONS
     model_expr: str | None = None              # redacted literal or reference, e.g. "env:MODEL", "var:settings.llm"
     tool_refs: tuple[str, ...] | None = None   # () = no tools passed; None = not statically known
+    tools_given: bool = False                  # a tools keyword/key was present (literal or not)
     in_loop: bool = False                      # inside a for/while/comprehension (Python only)
     framework_hint: str = ""
 

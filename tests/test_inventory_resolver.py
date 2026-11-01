@@ -260,6 +260,48 @@ def test_a_config_instance_without_tools_inherits_the_yaml_tools():
     assert [(r.tool_name, r.source_file, r.tool_id) for r in inv.relationships] == [("web", "c/crew.py", "tool:web")]
 
 
+def test_an_explicit_non_literal_tools_argument_does_not_inherit_yaml_tools():
+    sites = agents_yaml("researcher:\n  role: R\n  tools: [web]\n", "c/agents.yaml") + python(
+        "from crewai import Agent\n"
+        "a = Agent(config=self.agents_config['researcher'], tools=self.tools)\n",
+        "c/crew.py",
+    )
+    (a,) = resolve(sites, [tool("web", "c/tools.py")]).agents
+    assert [i.tools for i in a.instances] == [[]]
+    assert a.tools == []
+
+
+CREW = "from crewai import Agent\nr = Agent(config=self.agents_config['researcher'])\n"
+
+
+def test_nested_crews_link_each_instance_to_its_own_yaml():
+    sites = (
+        agents_yaml("researcher:\n  role: Outer R\n  tools: [web]\n", "src/p/config/agents.yaml")
+        + agents_yaml("researcher:\n  role: Inner R\n", "src/p/sub/config/agents.yaml")
+        + python(CREW, "src/p/crew.py")
+        + python(CREW, "src/p/sub/crew.py")
+    )
+    inv = resolve(sites, [])
+    assert [(a.id, a.flags, [(i.file, [t.name for t in i.tools]) for i in a.instances]) for a in inv.agents] == [
+        ("agent:Inner R", [], [("src/p/sub/crew.py", [])]),
+        ("agent:Outer R", [], [("src/p/crew.py", ["web"])]),
+    ]
+
+
+def test_flow_crews_link_each_instance_to_its_own_yaml():
+    sites = (
+        agents_yaml("researcher:\n  role: A R\n", "src/flow/crews/a/config/agents.yaml")
+        + agents_yaml("researcher:\n  role: B R\n", "src/flow/crews/b/config/agents.yaml")
+        + python(CREW, "src/flow/crews/a/crew.py")
+        + python(CREW, "src/flow/crews/b/crew.py")
+    )
+    inv = resolve(sites, [])
+    assert [(a.id, a.flags, [i.file for i in a.instances]) for a in inv.agents] == [
+        ("agent:A R", [], ["src/flow/crews/a/crew.py"]),
+        ("agent:B R", [], ["src/flow/crews/b/crew.py"]),
+    ]
+
+
 def test_inherited_yaml_tools_count_for_divergence():
     key = InstructionsRef("config", "r")
     inv = resolve([

@@ -141,3 +141,12 @@ def test_call_spans_are_character_offsets_of_each_parsed_call():
     text = 'new\n  Agent({ name: "a" })\nAgent({ name: "b" })\n'
     spans = call_spans(text)
     assert [text[a:b + 1] for a, b in spans] == ['new\n  Agent({ name: "a" }', 'Agent({ name: "b" }']
+
+
+@pytest.mark.parametrize(
+    ("body", "given"),
+    [('name: "a"', False), ('name: "a", tools', True), ('name: "a", tools: TOOLS', True), ('name: "a", tools: [x]', True)],
+)
+def test_tools_given_records_a_tools_key(body, given):
+    (site,) = agent_sites(f"const a = new Agent({{ {body} }});\n", "a.ts")
+    assert site.tools_given is given

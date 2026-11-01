@@ -320,3 +320,8 @@ def test_tool_ref_failure_never_costs_findings(tmp_path, monkeypatch):
     findings, sites = _evidence(tmp_path, files)
     assert sorted(f.match_text for f in findings) == ["a", "adk"]
     assert sites == []
+
+
+def test_yaml_config_sites_record_whether_a_tools_key_is_present(tmp_path):
+    _, sites = _evidence(tmp_path, {"config/agents.yaml": "a:\n  role: A\n  tools: TOOLS\nb:\n  role: B\n"})
+    assert sorted((s.name, s.tool_refs, s.tools_given) for s in sites) == [("A", None, True), ("B", None, False)]

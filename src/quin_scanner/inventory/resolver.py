@@ -60,7 +60,7 @@ def _site_key(site: AgentSite) -> tuple:
     return (
         site.file_path, site.line or 0, site.line is None, site.name or "", site.kind, site.role,
         site.instructions.kind, site.instructions.value,
-        site.tool_refs is None, site.tool_refs or (),
+        site.tool_refs is None, site.tool_refs or (), site.tools_given,
         site.model_expr or "", site.model_expr is None, site.in_loop, site.framework_hint,
     )
 
@@ -121,8 +121,9 @@ def _add(groups: dict[_GroupKey, _Group], key: _GroupKey, site: AgentSite) -> _G
 def _link_config_sites(sites: list[AgentSite]) -> list[_Placed]:
     """CrewAI: code that loads ``agents_config['key']`` is an instance of the nearest agents.yaml entry with that key.
 
-    Nearest = the entry whose directory shares the most leading path components with the code's file. A tie leaves
-    the code site unlinked (its own name and instructions) and marks it ambiguous.
+    Nearest = the entry whose directory shares the most leading path components with the code's file, then the one
+    with the fewest directories beyond that shared prefix. A tie on both leaves the code site unlinked (its own name
+    and instructions) and marks it ambiguous.
     """
     entries: dict[str, list[AgentSite]] = defaultdict(list)
     for site in sites:
@@ -150,18 +151,20 @@ def _directory_parts(path: str) -> list[str]:
 
 
 def _nearest(candidates: list[AgentSite], path: str) -> AgentSite | None:
+    """Most shared leading directories, then fewest extra directories in the YAML's path; a tie on both → None."""
     here = _directory_parts(path)
 
-    def shared(entry: AgentSite) -> int:
+    def rank(entry: AgentSite) -> tuple[int, int]:
+        parts = _directory_parts(entry.file_path)
         depth = 0
-        for a, b in zip(_directory_parts(entry.file_path), here):
+        for a, b in zip(parts, here):
             if a != b:
                 break
             depth += 1
-        return depth
+        return (-depth, len(parts) - depth)
 
-    best = max(shared(entry) for entry in candidates)
-    winners = [entry for entry in candidates if shared(entry) == best]
+    best = min(rank(entry) for entry in candidates)
+    winners = [entry for entry in candidates if rank(entry) == best]
     return winners[0] if len(winners) == 1 else None
 
 
@@ -268,7 +271,8 @@ def _build_agent(
     for site in instance_sites:
         per_file[site.file_path] += 1
         instance_id = f"{agent_id}/{site.file_path}#{per_file[site.file_path]}"
-        refs = site.tool_refs if site.tool_refs is not None else inherited
+        # Only when no tools argument was given: an explicit tools= (even a non-literal one) overrides the YAML.
+        refs = inherited if site.tool_refs is None and not site.tools_given else site.tool_refs
         tools: list[InstanceTool] = []
         for ref in refs or ():
             linked = _link_tool(ref, site.file_path, tool_index)

@@ -94,6 +94,11 @@ def _is_test_path(path: str) -> bool:
 _NO_TOOLS = object()   # sentinel: no ``tools`` value to read
 
 
+def _tools_value(entry: object) -> object:
+    """An entry's raw ``tools:`` value, or ``_NO_TOOLS`` when the key is absent (the entry gives no tools)."""
+    return entry["tools"] if isinstance(entry, dict) and "tools" in entry else _NO_TOOLS
+
+
 def _literal_tool_refs(value: object) -> tuple[str, ...] | None:
     """Tool names from a YAML ``tools:`` list (strings, or mappings with a ``name``); None when absent."""
     if not isinstance(value, list):
@@ -176,6 +181,7 @@ class AgentInstanceScanner(BaseScanner):
                 fields["instructions"] = InstructionsRef.literal(literal)
             if tools is not _NO_TOOLS:
                 fields["tool_refs"] = _literal_tool_refs(tools)
+                fields["tools_given"] = True
             self._sites.append(redacted(AgentSite(**fields)))  # type: ignore[arg-type]
         except Exception:
             pass
@@ -288,7 +294,7 @@ class AgentInstanceScanner(BaseScanner):
                 self._add_site(
                     role="definition", kind="config_entry", name=str(agent_name), file_path=path, line=None,
                     instructions=InstructionsRef("config", str(agent_key)),
-                    tools=agent_val.get("tools") if isinstance(agent_val, dict) else _NO_TOOLS,
+                    tools=_tools_value(agent_val),
                 )
                 findings.append(ScanFinding(
                     scanner_name=self.name(),
@@ -310,7 +316,7 @@ class AgentInstanceScanner(BaseScanner):
                             self._add_site(
                                 role="definition", kind="config_entry", name=str(agent_name), file_path=path,
                                 line=None, instructions=InstructionsRef("config", str(agent_name)),
-                                tools=item.get("tools"),
+                                tools=_tools_value(item),
                             )
                             findings.append(ScanFinding(
                                 scanner_name=self.name(),
@@ -361,7 +367,7 @@ class AgentInstanceScanner(BaseScanner):
                 role="definition", kind="config_entry", name=agent_name, file_path=path, line=None,
                 literal=instruction,
                 model_expr=model if isinstance(model, str) else None,
-                tools=item.get("tools"),
+                tools=_tools_value(item),
             )
 
         _add(data, 0.90)

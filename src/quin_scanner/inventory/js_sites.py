@@ -238,5 +238,6 @@ def agent_sites(content: str, path: str) -> list[AgentSite]:
             role="both", kind="constructor", name=_name(body, view),
             file_path=path, line=content.count("\n", 0, call.start()) + 1,
             instructions=_instructions(body, view), model_expr=_model(body, view), tool_refs=_tool_refs(body, view),
+            tools_given=_value(body, view, "tools") is not None or _TOOLS_SHORTHAND.search(view) is not None,
         )))
     return sites
