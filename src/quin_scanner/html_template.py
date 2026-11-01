@@ -402,8 +402,8 @@ window.__REPORT_DATA__ = {{REPORT_DATA_JSON}};
     if(!ref) return "";
     if(ref.source_url) return ref.source_url;
     if(!ref.file_path) return "";
-    var repo=(D.repo_path||"").replace(/\.git$/,"");
-    var m=repo.match(/^https?:\/\/github\.com\/[^\/\s]+\/[^\/\s]+/);
+    var repo=(D.repo_path||"").replace(/\\.git$/,"");
+    var m=repo.match(/^https?:\\/\\/github\\.com\\/[^\\/\\s]+\\/[^\\/\\s]+/);
     if(m){
       var line=ref.line_number?"#L"+ref.line_number:"";
       return m[0]+"/blob/main/"+ref.file_path+line;
@@ -413,7 +413,7 @@ window.__REPORT_DATA__ = {{REPORT_DATA_JSON}};
   function evidenceRefLabel(ref){
     if(!ref) return "";
     if(ref.source_url){
-      var m=ref.source_url.match(/^https?:\/\/([^\/]+)/);
+      var m=ref.source_url.match(/^https?:\\/\\/([^\\/]+)/);
       return m?m[1]:ref.source_url;
     }
     var p=ref.file_path||"";
@@ -1217,7 +1217,7 @@ window.__REPORT_DATA__ = {{REPORT_DATA_JSON}};
       new TableEngine("tools-table-wrap",[
         colToolName,
         {key:"tool_type",label:"Type",render:function(r){var t=r.tool_type||"tool_definition";return t==="external_service"?'<span class="pill pill--blue">Service Integration</span>':'<span class="pill pill--indigo">Agent Tool</span>'}},
-        {key:"service_category",label:"Category",render:function(r){if(!r.service_category)return'<span style="color:var(--color-muted)">&mdash;</span>';var s=r.service_category.replace(/_/g," ").replace(/\b\w/g,function(c){return c.toUpperCase()});return '<span class="pill pill--emerald">'+esc(s)+'</span>'}},
+        {key:"service_category",label:"Category",render:function(r){if(!r.service_category)return'<span style="color:var(--color-muted)">&mdash;</span>';var s=r.service_category.replace(/_/g," ").replace(/\b\\w/g,function(c){return c.toUpperCase()});return '<span class="pill pill--emerald">'+esc(s)+'</span>'}},
         colFile,colLine
       ],agentTools,50);
     }

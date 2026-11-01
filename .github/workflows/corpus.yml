@@ -33,7 +33,7 @@ jobs:
             exit 0
           fi
           changed="$(git diff --name-only "origin/$BASE_REF...HEAD")"
-          if echo "$changed" | grep -E -q '^(src/quin_scanner/(scanners|rules)/|src/quin_scanner/(orchestrator|file_index|repo_accessor|models|config|cli|risk_taxonomy)\.py|tests/corpus/|scripts/run_corpus\.py|pyproject\.toml|uv\.lock)'; then
+          if grep -E -q '^(src/quin_scanner/(scanners|rules)/|src/quin_scanner/(orchestrator|file_index|repo_accessor|models|config|cli|risk_taxonomy)\.py|tests/corpus/|scripts/run_corpus\.py|pyproject\.toml|uv\.lock)' <<<"$changed"; then
             echo "relevant=true" >> "$GITHUB_OUTPUT"
           else
             echo "relevant=false" >> "$GITHUB_OUTPUT"
@@ -47,12 +47,17 @@ jobs:
         run: |
           set -euo pipefail
           # Only modified or deleted snapshots are detection changes; a new entry adds coverage, it moves nothing.
-          if git diff --name-only --diff-filter=MD "origin/$BASE_REF...HEAD" | grep -q '^tests/corpus/expected/'; then
-            if ! git diff --name-only "origin/$BASE_REF...HEAD" | grep -q '^CHANGELOG.md$'; then
+          # Capture first, then match with a here-string: `cmd | grep -q` under pipefail fails spuriously when grep exits
+          # before cmd has finished writing (SIGPIPE), which made this required check flaky.
+          snapshots_changed=$(git diff --name-only --diff-filter=MD "origin/$BASE_REF...HEAD")
+          files_changed=$(git diff --name-only "origin/$BASE_REF...HEAD")
+          if grep -q '^tests/corpus/expected/' <<<"$snapshots_changed"; then
+            if ! grep -q '^CHANGELOG.md$' <<<"$files_changed"; then
               echo "::error::An existing tests/corpus/expected/ snapshot changed but CHANGELOG.md did not. Describe the detection change under '### Detection changes' in [Unreleased]."
               exit 1
             fi
-            if ! awk '/^## \[Unreleased\]/{f=1;next} /^## \[/{f=0} f' CHANGELOG.md | grep -q '^### Detection changes'; then
+            unreleased=$(awk '/^## \[Unreleased\]/{f=1;next} /^## \[/{f=0} f' CHANGELOG.md)
+            if ! grep -q '^### Detection changes' <<<"$unreleased"; then
               echo "::error::The [Unreleased] section of CHANGELOG.md needs a '### Detection changes' heading describing the corpus change."
               exit 1
             fi

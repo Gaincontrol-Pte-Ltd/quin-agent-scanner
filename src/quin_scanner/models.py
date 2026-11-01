@@ -4,6 +4,7 @@ import hashlib
 from dataclasses import dataclass, field
 from typing import Any
 
+from quin_scanner.redaction import redact_secrets
 from quin_scanner.schema import REPORT_SCHEMA_VERSION
 
 
@@ -16,6 +17,10 @@ class ScanFinding:
     match_text: str
     capability_tag: str
     confidence: float
+
+    def __post_init__(self) -> None:
+        # Whatever a scanner captured from a scanned repository is stored, reported and sent to an LLM: no credentials in it.
+        self.match_text = redact_secrets(self.match_text)
 
     def to_dict(self) -> dict[str, Any]:
         return {

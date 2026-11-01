@@ -1036,6 +1036,7 @@ version = "1.0.0rc2"
 source = { editable = "." }
 dependencies = [
     { name = "anthropic" },
+    { name = "certifi" },
     { name = "click" },
     { name = "google-genai" },
     { name = "httpx" },
@@ -1060,6 +1061,7 @@ dev = [
 requires-dist = [
     { name = "anthropic", specifier = ">=0.87,<1" },
     { name = "build", marker = "extra == 'dev'", specifier = ">=1.0" },
+    { name = "certifi", specifier = ">=2023.7.22" },
     { name = "click", specifier = ">=8.2" },
     { name = "google-genai", specifier = ">=1.15,<3" },
     { name = "httpx", specifier = ">=0.28.1" },

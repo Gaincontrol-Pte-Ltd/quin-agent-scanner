@@ -70,7 +70,7 @@ class IaCScanner(BaseScanner):
             file_index.files_matching("**/*.yaml")
             + file_index.files_matching("**/*.yml")
         )
-        for path in all_yaml:
+        for path in sorted(all_yaml):
             if not self._should_skip_yaml(path):
                 findings.extend(self._scan_file(accessor, path, self._k8s_patterns, "kubernetes"))
 

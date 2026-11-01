@@ -6,7 +6,7 @@
     "invoice_information_subagent",
     "supervisor"
   ],
-  "artifacts": 257,
+  "artifacts": 256,
   "capability_tags": [
     "agent-instructions",
     "agent-skills",

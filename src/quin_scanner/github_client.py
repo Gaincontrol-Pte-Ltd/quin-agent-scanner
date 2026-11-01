@@ -7,6 +7,8 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Iterator
 
+from quin_scanner import _http
+
 
 @dataclass
 class RepoInfo:
@@ -40,7 +42,7 @@ class GitHubClient:
             req.add_header("X-GitHub-Api-Version", "2022-11-28")
             if self.token:
                 req.add_header("Authorization", f"Bearer {self.token}")
-            with urllib.request.urlopen(req, timeout=30) as resp:
+            with _http.urlopen(req, timeout=30) as resp:
                 return json.loads(resp.read())
 
         return _retry_with_backoff(_do)

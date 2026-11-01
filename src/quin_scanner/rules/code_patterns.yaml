@@ -297,7 +297,7 @@ patterns:
   - pattern: "Agent\\s*\\("
     language: python
     capability_tag: multi-agent
-  - pattern: "Task\\s*\\("
+  - pattern: "(?<![\\w.])Task\\s*\\("
     language: python
     capability_tag: orchestration
   - pattern: "Crew\\s*\\("

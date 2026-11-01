@@ -162,3 +162,20 @@ entries:
   source:
     repo: https://github.com/ComposioHQ/awesome-claude-skills
     commit: be2a406907dbc61b73e6827ded415c96139d13a2
+# Real repositories that are NOT AI applications (UAT finding U2: they were all reported as AI because of .github/workflows).
+# Their snapshots must keep `is_ai_application: false`.
+- name: flask
+  kind: agents
+  source:
+    repo: https://github.com/pallets/flask
+    commit: 49943b5a94413a530761350f04e896f76e8d620e
+- name: express
+  kind: agents
+  source:
+    repo: https://github.com/expressjs/express
+    commit: 1c6f1b0fe4000977b9a7b4f34097e4d527dd9824
+- name: cobra
+  kind: agents
+  source:
+    repo: https://github.com/spf13/cobra
+    commit: adbc8813901bba65827259daa8e22ff94ec1f30e

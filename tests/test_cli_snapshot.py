@@ -87,7 +87,12 @@ def breaking_cli_changes(old: dict, new: dict) -> list[str]:
                 continue
             new_param = new_params[name]
             for field in ("kind", "opts", "type", "required", "default", "is_flag", "multiple", "envvar"):
-                if old_param[field] != new_param[field]:
+                if field == "opts":
+                    # Adding a short alias is not breaking; removing or renaming an option string is.
+                    missing = [o for o in old_param[field] if o not in new_param[field]]
+                    if missing:
+                        problems.append(f"{command}: {name}.opts changed {old_param[field]!r} -> {new_param[field]!r}")
+                elif old_param[field] != new_param[field]:
                     problems.append(f"{command}: {name}.{field} changed {old_param[field]!r} -> {new_param[field]!r}")
         old_names = {p["name"] for p in old_command["params"]}
         for new_param in new[command]["params"]:
@@ -153,3 +158,17 @@ def test_breaking_change_detector():
         {"name": "token", "kind": "option", "opts": ["--token"], "type": "text", "required": True,
          "default": None, "is_flag": False, "multiple": False, "envvar": None}]}}
     assert breaking_cli_changes(base, added_required) == ["scan: new required option token"]
+
+
+def _shape(opts):
+    return {"cmd": {"params": [{"name": "output_dir", "kind": "option", "opts": opts, "type": "text", "required": False,
+                                "default": "./report", "is_flag": False, "multiple": False, "envvar": None}]}}
+
+
+def test_adding_an_option_alias_is_not_a_breaking_change():
+    assert breaking_cli_changes(_shape(["--output-dir"]), _shape(["--output-dir", "-d"])) == []
+
+
+def test_removing_or_renaming_an_option_string_is_a_breaking_change():
+    assert breaking_cli_changes(_shape(["--output-dir", "-d"]), _shape(["--output-dir"]))
+    assert breaking_cli_changes(_shape(["--output-dir"]), _shape(["--out-dir"]))

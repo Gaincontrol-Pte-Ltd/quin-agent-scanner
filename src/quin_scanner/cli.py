@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import errno
+import os
 import re
 import sys
 from datetime import datetime, timezone
@@ -18,6 +20,23 @@ from quin_scanner.schema import REPORT_SCHEMA_VERSION
 from quin_scanner.scanners.skills.baseline import BaselineError
 
 load_dotenv(find_dotenv(usecwd=True))
+
+
+def _prepare_output_file(path: str, exit_code: int) -> None:
+    """Create the folder of an output file and check it can be written, before any scanning starts.
+
+    A bad destination found after a long scan would throw the whole run away.
+    """
+    target = Path(path)
+    try:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        if target.is_dir():
+            raise IsADirectoryError(errno.EISDIR, "is a directory")
+        if not os.access(target.parent, os.W_OK) or (target.exists() and not os.access(target, os.W_OK)):
+            raise PermissionError(errno.EACCES, "permission denied")
+    except OSError as exc:
+        click.echo(f"Error: cannot write {path}: {exc.strerror or exc}", err=True)
+        sys.exit(exit_code)
 
 
 def _output_filename(target: str, fmt: str) -> str:
@@ -274,6 +293,8 @@ def scan(
       quin-scanner scan ./my-agent --skills-baseline skills-baseline.yaml
       quin-scanner scan owner/repo --llm-provider anthropic --llm-model claude-sonnet-4-20250514
     """
+    if output_file:
+        _prepare_output_file(output_file, exit_code=1)
     try:
         cfg = _build_config(
             config=config, llm_provider=llm_provider, llm_model=llm_model, llm_api_key=llm_api_key,
@@ -464,7 +485,7 @@ def scan_batch(
 @cli.command("scan-org")
 @click.argument("org_name")
 @click.option("--output", "-o", type=_OUTPUT_CHOICES, default="html", show_default=True, help="Output format")
-@click.option("--output-dir", default="./report", type=click.Path(), show_default=True, help="Directory for per-repo output files")
+@click.option("--output-dir", "-d", default="./report", type=click.Path(), show_default=True, help="Directory for per-repo output files")
 @click.option("--github-token", envvar="GITHUB_TOKEN", default=None, help="GitHub PAT (overrides GITHUB_TOKEN env var)")
 @click.option("--skip-archived", is_flag=True, default=False, help="Skip archived repositories")
 @click.option("--skip-forks", is_flag=True, default=False, help="Skip forked repositories")
@@ -750,6 +771,8 @@ def skills_scan(
     from quin_scanner.scanners.skills.baseline import load_baseline
     from quin_scanner.scanners.skills.runner import open_skill_target, run_skill_scan
 
+    if output_file:
+        _prepare_output_file(output_file, exit_code=2)
     try:
         baseline = load_baseline(baseline_file) if baseline_file else None
         cfg = _build_config(
@@ -835,6 +858,7 @@ def skills_baseline(
     from quin_scanner.scanners.skills.discovery import is_pseudo_record
     from quin_scanner.scanners.skills.runner import open_skill_target, run_skill_scan
 
+    _prepare_output_file(output_file, exit_code=2)
     try:
         if Path(output_file).exists() and not force:
             raise click.ClickException(f"{output_file} already exists (use --force to overwrite)")

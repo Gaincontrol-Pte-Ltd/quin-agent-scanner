@@ -66,6 +66,21 @@ _TOP_N_PROMPT = 10      # higher cap for PromptDiscoveryScanner
 # the total budget is spent, later files are simply not cached (no eviction).
 _READ_CACHE_MAX_FILE_BYTES = 1024 * 1024
 _READ_CACHE_MAX_TOTAL_BYTES = 50 * 1024 * 1024
+# A file this large is data, not source or configuration. Scanners read whole files and run regexes over them, so one such file
+# can dominate a scan (a 162 MB JSON took 25 of a 45 second scan) and cannot be interrupted while it is being processed.
+_MAX_SCANNED_FILE_BYTES = 10 * 1024 * 1024
+
+
+class FileTooLarge(Exception):
+    """A file is over the size limit scanners work with. An ordinary exception: scanners skip files they cannot read."""
+
+
+class ScanInterrupted(BaseException):
+    """Raised inside scanner threads once the scan was interrupted.
+
+    A BaseException on purpose: scanners skip unreadable files with ``except Exception: continue``, which must not
+    swallow the signal to stop.
+    """
 
 
 class _ReadTrackingAccessor:
@@ -83,8 +98,11 @@ class _ReadTrackingAccessor:
         accessor: RepoAccessor,
         max_file_bytes: int = _READ_CACHE_MAX_FILE_BYTES,
         max_total_bytes: int = _READ_CACHE_MAX_TOTAL_BYTES,
+        max_scanned_file_bytes: int | None = None,
     ) -> None:
         self._accessor = accessor
+        self._max_scanned_file_bytes = _MAX_SCANNED_FILE_BYTES if max_scanned_file_bytes is None else max_scanned_file_bytes
+        self._skipped_too_large: set[str] = set()
         self._lock = threading.Lock()
         self._read_calls = 0
         self._read_ok: set[str] = set()
@@ -95,12 +113,15 @@ class _ReadTrackingAccessor:
         self._cached_bytes = 0
         self._cache_hits = 0
         self._inflight: dict[str, threading.Event] = {}
+        self.cancelled = threading.Event()  # set when the scan is interrupted: further reads raise ScanInterrupted
 
     def read_file(self, path: str) -> str:
         with self._lock:
             self._read_calls += 1
         try:
             content = self._read_through(path)
+        except FileTooLarge:
+            raise  # a deliberate skip, counted apart from read failures
         except Exception:
             with self._lock:
                 self._read_failed.add(path)
@@ -109,7 +130,26 @@ class _ReadTrackingAccessor:
             self._read_ok.add(path)
         return content
 
+    def _too_large(self, path: str) -> FileTooLarge:
+        with self._lock:
+            self._skipped_too_large.add(path)
+        return FileTooLarge(f"{path}: over the {self._max_scanned_file_bytes // 1024} KB scan limit")
+
     def _read_through(self, path: str) -> str:
+        if self.cancelled.is_set():
+            raise ScanInterrupted()
+        with self._lock:
+            known_large = path in self._skipped_too_large
+        if known_large:
+            raise self._too_large(path)
+        size_of = getattr(self._accessor, "file_size", None)
+        if size_of is not None:  # local files: decide from the size, without reading what will be skipped
+            try:
+                size = size_of(path)
+            except OSError:
+                size = None
+            if size is not None and size > self._max_scanned_file_bytes:
+                raise self._too_large(path)
         while True:
             with self._lock:
                 cached = self._cache.get(path)
@@ -125,6 +165,8 @@ class _ReadTrackingAccessor:
             pending.wait()
         try:
             content = self._accessor.read_file(path)
+            if len(content) > self._max_scanned_file_bytes:  # accessors that cannot tell the size beforehand
+                raise self._too_large(path)
             self._store(path, content)
             return content
         finally:
@@ -147,11 +189,14 @@ class _ReadTrackingAccessor:
 
     def coverage(self) -> dict[str, int]:
         with self._lock:
-            return {
+            counts = {
                 "file_read_attempts": self._read_calls,
                 "files_read": len(self._read_ok),
                 "files_failed_to_read": len(self._read_failed - self._read_ok),
             }
+            if self._skipped_too_large:  # informational, and only present when it applies
+                counts["files_skipped_too_large"] = len(self._skipped_too_large)
+            return counts
 
     def cache_stats(self) -> dict[str, int]:
         with self._lock:
@@ -977,11 +1022,19 @@ class ScanOrchestrator:
                 findings = skill_scanner.summary_findings()
             return scanner.name(), findings
 
-        with ThreadPoolExecutor() as executor:
+        executor = ThreadPoolExecutor()
+        try:
             futures = [executor.submit(_run_scanner, s) for s in scanners]
             for done, _ in enumerate(as_completed(futures), start=1):
                 if verbose:
                     _progress_bar("Scanners   ", done, len(scanners))
+        except BaseException:
+            # Ctrl-C (or any failure): stop the scanners at their next file read instead of waiting for them to finish.
+            tracked_accessor.cancelled.set()
+            executor.shutdown(wait=True, cancel_futures=True)
+            raise
+        else:
+            executor.shutdown(wait=True)
         # Merge in scanner order, not completion order: capped lists keep a prefix, so
         # thread timing must not decide which findings survive.
         for future in futures:

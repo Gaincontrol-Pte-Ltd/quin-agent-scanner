@@ -65,7 +65,7 @@ class ConfigScanner(BaseScanner):
         env_files = set()
         for glob in _ENV_FILE_GLOB:
             env_files.update(file_index.files_matching(glob))
-        for path in env_files:
+        for path in sorted(env_files):
             content = accessor.read_file(path)
             for lineno, line in enumerate(content.splitlines(), start=1):
                 for pattern, tag in _API_KEY_PATTERNS:
