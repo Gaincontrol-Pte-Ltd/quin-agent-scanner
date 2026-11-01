@@ -1,6 +1,6 @@
 # Report schema
 
-This describes the JSON and YAML reports (`quin-scanner scan -o json|yaml`, same structure), the JSON envelope of `skills scan -o json`, and the files around them. Stability rules are in [stability.md](../stability.md). The authoritative field-by-field reference is the JSON Schemas [`report-1.json`](report-1.json) and [`skills-scan-1.json`](skills-scan-1.json); this page explains the rules and conventions. Every report and envelope carries `schema_version` (`MAJOR.MINOR`, currently `1.1`).
+This describes the JSON and YAML reports (`quin-scanner scan -o json|yaml`, same structure), the JSON envelope of `skills scan -o json`, and the files around them. Stability rules are in [stability.md](../stability.md). The authoritative field-by-field reference is the JSON Schemas [`report-1.json`](report-1.json) and [`skills-scan-1.json`](skills-scan-1.json); this page explains the rules and conventions. Every report and envelope carries `schema_version` (`MAJOR.MINOR`, currently `1.1`). The 1.1 fields are optional in the schema, so a 1.0 report still validates against it.
 
 ## Compatibility rules
 
@@ -17,7 +17,7 @@ Within a major schema version:
 - Paths are repo-relative and use `/` as the separator. `line_number` is 1-based or `null`.
 - `confidence` is a number from 0.0 to 1.0.
 - Severities are `critical`, `high`, `medium`, `low` or `info`. Skill verdicts are `SAFE`, `CAUTION` or `HIGH_RISK`.
-- `metadata` and `coverage` are **open maps**: their keys depend on the flags used and the scanners that ran (for example `skills_*` coverage keys appear only when the skills scanner ran, and `files_skipped_too_large` only when a file over 10 MiB was skipped). Keys documented here are stable; other keys are informational and may change.
+- `metadata` and `coverage` are **open maps**: their keys depend on the flags used and the scanners that ran (for example `skills_*` coverage keys appear only when the skills scanner ran, and `files_skipped_too_large` only when a file over 10 MiB was skipped). Keys documented here are stable; other keys are informational and may change. Informational `metadata` keys added in 1.1, each present only when it applies: `inventory_error`, `llm_unenriched_agents`, `llm_unlisted_tools`, `llm_unknown_ids` and `llm_unlisted_ids`.
 
 ## Top-level report fields
 
@@ -62,7 +62,7 @@ Within a major schema version:
 
 **Agent** (1.1 additions): `id`, `identity` (`strong` or `weak`), `scope` (`production`, `test` or `example`), `flags`, `provenance` (field name → `static` or `llm`) and `instances`. An agent is identified by its literal name and instructions; every place that creates it is an instance. `tools` is the union of the instances' tools and `source_file` is the definition site. IDs never contain line numbers or prompt text: `agent:<name>`, or `agent:<name>@<definition path>` when two different agents share a name, or `agent:@<path>#<n>` when there is no literal name. Static analysis cannot count runtime objects, so an instance created inside a loop has `multiplicity: many`.
 
-**Agent instance**: `id` (`<agent id>/<path>#<n>`), `file`, `line`, `scope`, `multiplicity` (`one` or `many`), `model` (redacted literal or a reference such as `env:MODEL`), `tools` (list of `name`, `tool_id` (string or null) and `resolved`). `tools_known` is false when the instance's tools are not statically known (for example `tools=get_tools()`), so an empty `tools` list means no information, not no tools. Only explicit `tools=[...]` lists are read.
+**Agent instance**: `id` (`<agent id>/<path>#<n>`), `file`, `line`, `scope`, `multiplicity` (`one` or `many`), `model` (redacted literal or a reference such as `env:MODEL`), `tools` (list of `name`, `tool_id` (string or null) and `resolved`). `tools_known` is false when the instance's tools are not statically known (for example `tools=get_tools()`), so an empty `tools` list means no information, not no tools. Only explicit `tools=[...]` lists are read, and the `tools` of a CrewAI `agents.yaml` entry for an instance that passes no `tools=` of its own.
 
 **Tool usage** (1.1 additions): `id` (`tool:<name>`, or `tool:<name>@<path>` when two files define the name) and `scope`.
 
