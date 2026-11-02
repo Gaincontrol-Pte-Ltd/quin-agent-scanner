@@ -313,7 +313,7 @@ def _build_agent(
         # Spec D5: production if any instance is, else test, else example.
         scope=min((instance.scope for instance in instances), key=_SCOPE_RANK.__getitem__),
         flags=sorted(group.flags | divergence_flags),
-        provenance={"name": "static", "tools": "static"},
+        provenance={"name": "static", "tools": "static", **({"risk_signals": "static"} if risk_signals else {})},
         instances=instances,
     )
     return agent, relationships

@@ -111,6 +111,18 @@ class TestParseSynthesisResponse:
         assert result.tool_enrichment == {}
         assert [i.name for i in result.suggested_agents] == ["ok"]
 
+    def test_capabilities_are_cleaned_like_other_llm_text(self):
+        key = "sk-abcdefghijklmnopqrstuvwxyz123456"
+        data = {
+            "is_ai_application": True, "framework": "x", "summary": "",
+            "enrichment": {"agent:a": {"capabilities": [f"  calls {key} ", "   ", "x" * 300, "web-search"]}},
+        }
+        caps = _parse_synthesis_response(json.dumps(data)).enrichment["agent:a"].capabilities
+        assert caps[0] == "calls [REDACTED]"
+        assert caps[1] == "x" * 100
+        assert caps[2] == "web-search"
+        assert len(caps) == 3
+
     def test_old_style_agents_and_tool_usages_are_ignored(self):
         data = {"is_ai_application": True, "framework": "x", "summary": "",
                 "agents": [{"name": "invented"}], "tool_usages": [{"tool_name": "gpt-4o"}]}

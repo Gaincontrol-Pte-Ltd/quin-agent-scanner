@@ -213,7 +213,9 @@ def test_enrichment_never_overwrites_static_facts():
     assert (agent.name, agent.tools, agent.goal, agent.agent_type, agent.capabilities) == (
         "r", ["search"], "From YAML", "worker", [],
     )
-    assert agent.provenance == {"name": "static", "tools": "static", "goal": "static", "agent_type": "llm"}
+    assert agent.provenance == {
+        "name": "static", "tools": "static", "goal": "static", "agent_type": "llm", "risk_signals": "mixed",
+    }
     assert agent.risk_signals == [static_signal, llm_signal]
     assert [r.file_path for r in static_signal.evidence_refs] == ["no_finding.py"]
     assert [r.file_path for r in llm_signal.evidence_refs] == ["src/a.py"]
@@ -343,3 +345,27 @@ def test_production_tool_divergence_reaches_sarif(tmp_path):
     })
     sarif = json.loads(ReportGenerator.to_sarif(report))
     assert "T006" in [result["ruleId"] for result in sarif["runs"][0]["results"]]
+
+
+def test_risk_signal_provenance_is_llm_mixed_or_static():
+    from quin_scanner.models import AgentEnrichment, AgentProfile, RiskIndicator, SynthesisResult
+    from quin_scanner.orchestrator import _apply_enrichment
+
+    def signal(threat):
+        return RiskIndicator(signal=threat, recommended_controls=[], threat_id=threat)
+
+    plain = AgentProfile(name="p", agent_type="unknown", goal="", id="agent:p", provenance={"name": "static"})
+    static_only = AgentProfile(name="s", agent_type="unknown", goal="", id="agent:s", risk_signals=[signal("T006")],
+                               provenance={"name": "static", "risk_signals": "static"})
+    both = AgentProfile(name="b", agent_type="unknown", goal="", id="agent:b", risk_signals=[signal("T006")],
+                        provenance={"name": "static", "risk_signals": "static"})
+    synthesis = SynthesisResult(
+        is_ai_application=True, framework="x", summary="",
+        enrichment={
+            "agent:p": AgentEnrichment(risk_signals=[signal("T001")]),
+            "agent:s": AgentEnrichment(goal="g"),
+            "agent:b": AgentEnrichment(risk_signals=[signal("T002")]),
+        },
+    )
+    _apply_enrichment([plain, static_only, both], [], synthesis, set(), {"agent:p", "agent:s", "agent:b"}, set())
+    assert [a.provenance.get("risk_signals") for a in (plain, static_only, both)] == ["llm", "static", "mixed"]

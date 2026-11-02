@@ -317,6 +317,7 @@ _MAX_GOAL = 500
 _MAX_NAME = 200
 _MAX_EVIDENCE = 500
 _MAX_FILE = 500
+_MAX_CAPABILITY = 100
 
 
 def _clean_text(value: object, limit: int) -> str:
@@ -324,6 +325,13 @@ def _clean_text(value: object, limit: int) -> str:
     if not isinstance(value, str):
         return ""
     return redact_secrets(value.strip())[:limit]
+
+
+def _clean_list(value: object, limit: int) -> list[str]:
+    """A list of LLM strings, each cleaned by :func:`_clean_text`; empties are dropped."""
+    if not isinstance(value, list):
+        return []
+    return [text for text in (_clean_text(item, limit) for item in value) if text]
 
 
 def _parse_suggestions(raw: object) -> list[LLMInferredItem]:
@@ -381,7 +389,7 @@ def _parse_synthesis_response(raw: str) -> SynthesisResult:
             enrichment[str(agent_id)] = AgentEnrichment(
                 agent_type=agent_type if isinstance(agent_type, str) and agent_type in _VALID_AGENT_TYPES else "unknown",
                 goal=_clean_text(fields.get("goal"), _MAX_GOAL),
-                capabilities=[c for c in raw_capabilities if isinstance(c, str)] if isinstance(raw_capabilities, list) else [],
+                capabilities=_clean_list(raw_capabilities, _MAX_CAPABILITY),
                 risk_signals=_parse_risk_signals(raw_signals if isinstance(raw_signals, list) else []),
             )
 

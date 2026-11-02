@@ -709,7 +709,8 @@ def _apply_enrichment(
     LLM (it cannot know them from the prompt, so they are not applied).
 
     Only agent_type, goal and capabilities (each when the LLM supplied a value and the field is not static) and
-    appended per-agent risk signals reach an agent; only an empty service_category reaches a tool. Names, tools,
+    appended per-agent risk signals reach an agent (provenance ``risk_signals``: ``llm``, or ``mixed`` when the agent
+    already had static ones); only an empty service_category reaches a tool. Names, tools,
     instances, scope, flags and the static signals are never touched. The LLM's evidence refs are validated
     before its signals are appended, so the static T006 refs are left alone.
     """
@@ -733,6 +734,9 @@ def _apply_enrichment(
                 setattr(agent, name, value)
                 agent.provenance[name] = "llm"
         _validate_evidence_refs(fields.risk_signals, scanned_paths)
+        if fields.risk_signals:
+            # Every signal already on the agent is static (the resolver's T006).
+            agent.provenance["risk_signals"] = "mixed" if agent.risk_signals else "llm"
         agent.risk_signals.extend(fields.risk_signals)
     tools_by_id = {t.id: t for t in tools}
     for tool_id, category in synthesis.tool_enrichment.items():

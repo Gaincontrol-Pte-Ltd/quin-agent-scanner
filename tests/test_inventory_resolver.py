@@ -454,6 +454,7 @@ def test_production_tool_divergence_is_a_t006_risk_signal():
         "T006", "medium", ["C003: Access Control & Least Privilege"],
     )
     assert "shell_exec" in signal.signal
+    assert a.provenance["risk_signals"] == "static"
     assert [(r.file_path, r.line_number) for r in signal.evidence_refs] == [("src/a.py", 1), ("src/admin.py", 1)]
 
 
