@@ -1076,11 +1076,15 @@ window.__REPORT_DATA__ = {{REPORT_DATA_JSON}};
       var names=[];
       insts.forEach(function(i){(i.tools||[]).forEach(function(t){if(names.indexOf(t.name)<0) names.push(t.name)})});
       names.sort();
-      var prod=insts.filter(function(i){return i.scope==="production"&&i.tools_known!==false});
+      // Highlight tools that only some instances have: production instances with known tools, or, when there are
+      // none, every instance with known tools (so test/example-only divergence is visible; T006 stays production-only).
+      var known=insts.filter(function(i){return i.tools_known!==false});
+      var basis=known.filter(function(i){return i.scope==="production"});
+      if(!basis.length) basis=known;
       var partial=Object.create(null);
       names.forEach(function(n){
-        var holders=prod.filter(function(i){return hasTool(i,n)}).length;
-        partial[n]=holders>0&&holders<prod.length;
+        var holders=basis.filter(function(i){return hasTool(i,n)}).length;
+        partial[n]=holders>0&&holders<basis.length;
       });
       var h='<div class="inst-wrap"><table class="inst-table"><thead><tr><th>Location</th><th>Scope</th><th>Model</th>';
       names.forEach(function(n){h+='<th class="'+(partial[n]?"inst-diff":"")+'">'+esc(n)+'</th>'});
