@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Approved design, not yet planned |
+| Status | Implemented on feat/inventory-core (not yet released) |
 | Date | 2026-11-01 |
 | Target version | 1.1.0 (after 1.0.0; additive, schema 1.1) |
 | Follow-ups that depend on it | C1 CycloneDX AI-BOM → C2 regulatory mapping → A1 per-agent capability profile |
@@ -107,36 +107,40 @@ Paths are repo-relative with forward slashes. Editing a prompt does not change a
 
 ### 5.3 Report types (additive)
 
-- `AgentProfile` + optional `id`, `identity` (`strong` | `weak`), `scope`, `flags` (list of `name_collision`, `tool_divergence`, `model_divergence`, `ambiguous_instance`), `provenance` (field name → `static` | `llm`), `instances: list[AgentInstance]`.
+- `AgentProfile` + optional `id`, `identity` (`strong` | `weak`), `scope`, `flags` (list of `name_collision`, `tool_divergence`, `model_divergence`, `ambiguous_instance`), `provenance` (field name → `static` | `llm`; `risk_signals` → `static` | `llm` | `mixed`), `instances: list[AgentInstance]`.
   - Existing fields keep their meaning: `tools` = union of instance tools; `source_file` = definition site; `goal`, `agent_type`, `capabilities` = LLM enrichment (empty without an LLM).
 - `AgentInstance`: `id`, `file`, `line`, `scope`, `multiplicity` (`one` | `many`), `model`, `tools: list[{tool_id: str | None, name: str, resolved: bool}]`.
 - `ToolUsage` + optional `id`, `scope`.
 - `AgentToolRelationship` + optional `agent_id`, `instance_id`, `tool_id`.
-- `ScanReport` + `llm_inferred_agents`, `llm_inferred_tools` (name, evidence text, file; no ID, no instances).
+- `ScanReport` + `llm_inferred_agents`, `llm_inferred_tools` (name, evidence text, file; no ID, no instances). Both use one schema definition, `llmInferred`. A suggestion whose name matches a verified agent (resp. tool) is dropped, and a `file` that was not scanned is left empty.
 
 ## 6. Inventory resolver (`quin_scanner/inventory/`)
 
 Deterministic, no I/O, no LLM. Input: `AgentSite`s, `ToolSite`s, the static tool sources that already exist (skills from `SkillScanner`, external services from `tool_services.yaml`, MCP tool classification) and rules. Output: agents with instances, tools, flags, relationships. Steps, in this order:
 
 1. **Scope tagging.** New `rules/scope.yaml`, first match wins, default `production`.
-   - test: the patterns now in `_TEST_PATH_PATTERNS` (moved out of `orchestrator.py`).
+   - test: test-path patterns in `rules/scope.yaml`. The orchestrator keeps its own test-path pattern for model usages and endpoints, so their filtering does not change (plan clarification 6).
    - example: `examples/`, `samples/`, `cookbook/`, `notebooks/`, `docs/`, `demo/`, `demos/`, `tutorials/`.
 2. **Tools.** Group tool sites by name. Unique → `tool:<name>`; collision → `tool:<name>@<path>` plus `name_collision`.
 3. **Agent grouping.**
    - Literal-name sites group by `(name, instructions fingerprint)`. Different fingerprints for one name → separate agents, all `name_collision`.
    - Sites whose instructions are `none` or dynamic join the single same-name group if exactly one exists; otherwise they join none and are flagged `ambiguous_instance`.
    - Sites with no literal name → one agent each, `identity: weak`.
-   - Definition ↔ instance links, same file only:
-     (A definition site whose instructions are unknown joins only a same-named agent with a site in its own file (D9); an instance site may join across files.)
+   - Definition ↔ instance links, same file only, except the CrewAI config key:
+     (A definition site whose instructions are unknown joins only a same-named agent with a site in its own file (D9, plan clarification 12); an instance site may join across files.)
      - subclass name ↔ `ClassName(...)` calls;
-     - CrewAI config key ↔ `agents_config['key']` or `@agent def key`;
+     - CrewAI config key ↔ `agents_config['key']` or `@agent def key`, across files: the nearest `agents.yaml` with the key wins, a tie leaves the site unlinked and `ambiguous_instance`, and a config agent's identity includes its YAML file (plan clarification 11). An instance that passes no `tools=` uses the entry's tools (clarification 13);
      - decorated function ↔ calls of that function.
    - Unlinked definition sites are agents whose only instance is their own site (`role: both`).
-   - Agent scope: production if any instance is production, else test, else example.
+   - Agent scope: production if any instance is production, else test, else example; a definition's own path counts only when it is the agent's only instance (plan clarification 14).
+   - Evidence names are normalised before grouping: stripped, whitespace runs collapsed, one pair of matching surrounding quotes removed; an empty name is weak.
 4. **Instance tool linking.** For each `tool_refs` entry:
    1. a tool defined or imported in the same file;
    2. else a repo-unique tool name;
-   3. else `resolved: false`, `tool_id: None`, raw name kept.
+   3. else, for a dotted ref (`SearchTools.search_internet`), steps 1–2 with its last component;
+   4. else `resolved: false`, `tool_id: None`, raw name kept.
+
+   The instance tool's `name` is always the ref as written. An agent's `skills` are its instance tools linked to a skill (plan clarification 15).
 5. **Divergence**, per agent across its instances.
    - `tool_divergence` when tool sets differ. When production instances differ, also emit a `RiskIndicator` on the agent: threat `T006`, control `C003`, severity `medium`, one `EvidenceRef` per differing instance. Test- or example-only differences are flags only.
    - `model_divergence` when model expressions differ (informational).
@@ -179,13 +183,13 @@ scanners (parallel) ──► findings (unchanged) ─────────�
 ### JSON / YAML (schema 1.1)
 
 - `REPORT_SCHEMA_VERSION = "1.1"`.
-- `docs/schema/report-1.json` gains optional fields and the definitions `agentInstance`, `instanceTool`, `llmInferredAgent`, `llmInferredTool`. The CI comparison against the frozen 1.0 schema must still pass.
+- `docs/schema/report-1.json` gains optional fields and the definitions `agentInstance`, `instanceTool` and `llmInferred` (one definition for both suggestion lists). The CI comparison against the frozen 1.0 schema must still pass.
 - `docs/schema/README.md` gains a 1.1 section.
 
 ### HTML (Agents tab)
 
 - **Agent card:** name, scope chip, "N instances" badge (×many if any instance is in a loop), flag chips.
-- **Expanded card:** an instances table with location, scope, model, then one column per tool with a tick per instance. Tools not held by every production instance are highlighted.
+- **Expanded card:** an instances table with location, scope, model, then one column per tool. A cell is ✓ for a resolved tool, ✓? for a tool with no definition found, and ? for every column of an instance whose tools are not statically known. Tools not held by every production instance with known tools are highlighted; when the agent has no such production instance, the comparison is over all instances with known tools (so test- or example-only divergence is visible). T006 stays production-only.
 - **Scope filter:** Production (default) / Test / Example / All. Pagination at 50 replaces the caps.
 - **Provenance:** LLM-written fields carry an "LLM" label.
 - **Unverified suggestions:** a collapsed section, "Suggested by the LLM, no code evidence found", for `llm_inferred_*`.
@@ -198,7 +202,7 @@ scanners (parallel) ──► findings (unchanged) ─────────�
 ## 9. Error handling
 
 - **Unparseable files** keep today's regex path and yield `AgentSite`s with `instructions: none` and `tool_refs: None`.
-- **Resolver exception:** log a warning, set `metadata.inventory_error`, and build `identity: weak` agents from findings. The report is always produced.
+- **Resolver exception:** log a warning, set `metadata.inventory_error`, and build one `identity: weak` agent per agent site (the evidence already collected; skills and external services are kept, tool definitions dropped). The report is always produced.
 - **LLM failure** (bad JSON, timeout, unknown IDs): no enrichment, reason in `metadata.llm_errors`. The verified inventory is unaffected.
 
 ## 10. Testing
@@ -222,7 +226,7 @@ scanners (parallel) ──► findings (unchanged) ─────────�
 - Feature branch after 1.0.0 ships; released as **1.1.0**. No frozen contract changes.
 - **CHANGELOG** *Added*: agents and instances, IDs, scope, `llm_inferred_*`, schema 1.1.
 - **CHANGELOG** *Detection changes*: static evidence decides the inventory, caps removed, LLM enrichment only, with before/after corpus numbers.
-- **Docs:** README feature table, `docs/schema/README.md`, and an "Agents and instances" docs section.
+- **Docs:** README feature table and `docs/schema/README.md`, whose 1.1 section documents agents and instances.
 - Commit convention `feat(inventory): ...`.
 
 ## 12. Constraints this sets for later work
