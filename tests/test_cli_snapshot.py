@@ -72,6 +72,13 @@ def cli_shape() -> dict:
     return {("quin-scanner" if key == "" else key): value for key, value in shape.items()}
 
 
+def _added_choices_only(old, new) -> bool:
+    return (
+        isinstance(old, dict) and isinstance(new, dict) and "choice" in old and "choice" in new
+        and set(old["choice"]) <= set(new["choice"])
+    )
+
+
 def breaking_cli_changes(old: dict, new: dict) -> list[str]:
     """Changes that would break an existing invocation written against *old*."""
     problems = []
@@ -92,6 +99,8 @@ def breaking_cli_changes(old: dict, new: dict) -> list[str]:
                     missing = [o for o in old_param[field] if o not in new_param[field]]
                     if missing:
                         problems.append(f"{command}: {name}.opts changed {old_param[field]!r} -> {new_param[field]!r}")
+                elif field == "type" and _added_choices_only(old_param[field], new_param[field]):
+                    continue  # adding a value to a choice keeps every existing invocation working
                 elif old_param[field] != new_param[field]:
                     problems.append(f"{command}: {name}.{field} changed {old_param[field]!r} -> {new_param[field]!r}")
         old_names = {p["name"] for p in old_command["params"]}
@@ -149,6 +158,12 @@ def test_breaking_change_detector():
     ]
     assert breaking_cli_changes(base, {"scan": {"params": []}}) == ["scan: removed option output"]
     assert breaking_cli_changes(base, {}) == ["removed command: scan"]
+
+    choice = {"choice": ["json", "html"]}
+    assert breaking_cli_changes(with_param(type=choice), with_param(type={"choice": ["json", "html", "cyclonedx"]})) == []
+    assert breaking_cli_changes(with_param(type=choice), with_param(type={"choice": ["json"]})) == [
+        "scan: output.type changed {'choice': ['json', 'html']} -> {'choice': ['json']}"
+    ]
 
     added_optional = {"scan": {"params": base["scan"]["params"] + [
         {"name": "fast", "kind": "option", "opts": ["--fast"], "type": "bool", "required": False,

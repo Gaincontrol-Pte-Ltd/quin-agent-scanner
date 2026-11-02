@@ -60,15 +60,26 @@ class ReportGenerator:
 
         return _to_sarif(report)
 
+    @staticmethod
+    def to_cyclonedx(report: ScanReport) -> str:
+        from quin_scanner import cyclonedx
+
+        try:
+            return cyclonedx.to_cyclonedx(report)
+        except Exception as exc:  # noqa: BLE001 - any failure means no BOM; say why
+            raise RuntimeError(f"could not build the CycloneDX BOM: {exc}") from exc
+
     @classmethod
     def to_string(cls, report: ScanReport, fmt: str) -> str:
-        """Return report as a string in the given format ('json', 'yaml', 'html', or 'sarif')."""
+        """Return report as a string in the given format ('json', 'yaml', 'html', 'sarif', or 'cyclonedx')."""
         if fmt == "yaml":
             return cls.to_yaml(report)
         if fmt == "html":
             return cls.to_html(report)
         if fmt == "sarif":
             return cls.to_sarif(report)
+        if fmt == "cyclonedx":
+            return cls.to_cyclonedx(report)
         return cls.to_json(report)
 
     @classmethod
