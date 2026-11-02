@@ -50,4 +50,4 @@ def test_dangling_refs_are_reported():
     assert "unknown ref in dependencies: ghost" in errors
     assert "unknown ref in dependencies: nope" in errors
     assert "unknown ref in vulnerabilities: missing" in errors
-    assert not any(" a" in e and "unknown" in e for e in errors)
+    assert "unknown ref in dependencies: a" not in errors

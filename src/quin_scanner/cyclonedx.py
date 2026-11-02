@@ -12,7 +12,15 @@ from datetime import datetime, timezone
 from typing import Any
 from urllib.parse import quote
 
-from quin_scanner.models import ScanReport, Vulnerability
+from quin_scanner.models import (
+    AgentInstance,
+    AgentProfile,
+    EndpointUsage,
+    ModelUsage,
+    ScanReport,
+    ToolUsage,
+    Vulnerability,
+)
 from quin_scanner.vuln_checker import FrameworkRef, parse_framework_ref
 
 SPEC_VERSION = "1.6"
@@ -128,6 +136,144 @@ def omitted_vulnerability_count(report: ScanReport) -> int:
     return sum(1 for v in report.vulnerabilities if v.source != "osv")
 
 
+def _occurrence(location: str, line: int | None, *, ref: str | None = None, context: str | None = None) -> dict[str, Any]:
+    out: dict[str, Any] = {}
+    if ref:
+        out["bom-ref"] = ref
+    out["location"] = location
+    if line is not None:
+        out["line"] = line
+    if context:
+        out["additionalContext"] = context
+    return out
+
+
+def _models(report: ScanReport, refs: _Refs, graph: dict[str, set[str]]) -> tuple[list[dict[str, Any]], dict[str, list[str]]]:
+    """Model components, and their bom-refs by case-folded model name (for agent dependencies)."""
+    groups: dict[tuple[str, str], list[ModelUsage]] = {}
+    for usage in report.model_usages:
+        if usage.model_name.strip():
+            groups.setdefault((usage.provider or "unknown", usage.model_name), []).append(usage)
+    components: list[dict[str, Any]] = []
+    by_name: dict[str, list[str]] = {}
+    for (provider, name), usages in sorted(groups.items()):
+        ref = refs.take(f"model:{provider}/{name}")
+        graph[ref] = set()
+        component: dict[str, Any] = {"type": "machine-learning-model", "bom-ref": ref, "name": name, "publisher": provider}
+        places = sorted({(u.file_path, u.line_number) for u in usages if u.file_path}, key=lambda p: (p[0], p[1] or 0))
+        if places:
+            component["evidence"] = {"occurrences": [_occurrence(file, line) for file, line in places]}
+        components.append(component)
+        by_name.setdefault(name.casefold(), []).append(ref)
+    return sorted(components, key=lambda c: c["bom-ref"]), by_name
+
+
+def _properties(**values: str) -> list[dict[str, str]]:
+    """quin:<name> properties sorted by name; keyword underscores become hyphens."""
+    props = [{"name": f"quin:{key.replace('_', '-')}", "value": value} for key, value in values.items()]
+    return sorted(props, key=lambda p: p["name"])
+
+
+def _is_literal_model(model: str | None) -> bool:
+    return bool(model) and not model.startswith(("env:", "var:")) and "(" not in model
+
+
+def _instance_context(instance: AgentInstance) -> str:
+    parts = [f"scope={instance.scope}"]
+    if instance.model:
+        parts.append(f"model={instance.model}")
+    parts.append("tools=unknown" if not instance.tools_known else "tools=" + ",".join(t.name for t in instance.tools))
+    if instance.multiplicity == "many":
+        parts.append("multiplicity=many")
+    return "; ".join(parts)
+
+
+def _agent(agent: AgentProfile, ref: str, refs: _Refs) -> dict[str, Any]:
+    component: dict[str, Any] = {
+        "type": "application",
+        "bom-ref": ref,
+        "name": agent.name or ref,
+        "scope": "required" if agent.scope == "production" else "excluded",
+        "properties": _properties(kind="agent", identity=agent.identity),
+    }
+    instances = sorted(agent.instances, key=lambda i: (i.file, i.line or 0, i.id))
+    occurrences = [_occurrence(i.file, i.line, ref=refs.take(i.id), context=_instance_context(i)) for i in instances if i.file]
+    if occurrences:
+        component["evidence"] = {"occurrences": occurrences}
+    return component
+
+
+def _tool(tool: ToolUsage, ref: str) -> dict[str, Any]:
+    component: dict[str, Any] = {
+        "type": "application",
+        "bom-ref": ref,
+        "name": tool.tool_name,
+        "properties": _properties(kind="tool", tool_type=tool.tool_type),
+    }
+    if tool.source_file:
+        component["evidence"] = {"occurrences": [_occurrence(tool.source_file, tool.line_number)]}
+    return component
+
+
+def _tools(report: ScanReport, refs: _Refs, graph: dict[str, set[str]]) -> tuple[list[dict[str, Any]], dict[str, str]]:
+    """Tool components, and a map from tool ID to the bom-ref allocated for it."""
+    tool_refs: dict[str, str] = {}
+    components: list[dict[str, Any]] = []
+    for tool in sorted(report.tool_usages, key=lambda t: (t.id or f"tool:{t.tool_name}", t.source_file, t.line_number or 0)):
+        ref = refs.take(tool.id or f"tool:{tool.tool_name}")
+        if tool.id:
+            tool_refs.setdefault(tool.id, ref)
+        graph[ref] = set()
+        components.append(_tool(tool, ref))
+    return sorted(components, key=lambda c: c["bom-ref"]), tool_refs
+
+
+def _agents(
+    report: ScanReport,
+    refs: _Refs,
+    graph: dict[str, set[str]],
+    tool_refs: dict[str, str],
+    models_by_name: dict[str, list[str]],
+) -> list[dict[str, Any]]:
+    components: list[dict[str, Any]] = []
+    for agent in sorted(report.agents, key=lambda a: a.id or f"agent:{a.name}"):
+        ref = refs.take(agent.id or f"agent:{agent.name}")
+        components.append(_agent(agent, ref, refs))
+        graph[ROOT_REF].add(ref)
+        depends = graph[ref] = set()
+        for instance in agent.instances:
+            depends.update(tool_refs[t.tool_id] for t in instance.tools if t.tool_id in tool_refs)
+            if _is_literal_model(instance.model):
+                depends.update(models_by_name.get(instance.model.casefold(), []))
+    return sorted(components, key=lambda c: c["bom-ref"])
+
+
+def _services(report: ScanReport, refs: _Refs, graph: dict[str, set[str]]) -> list[dict[str, Any]]:
+    services: list[dict[str, Any]] = []
+    for server in sorted(report.mcp_servers, key=lambda s: (s.name, s.transport, s.source_file)):
+        values = {"transport": server.transport}
+        if server.source_file:
+            values["source_file"] = server.source_file
+        services.append({"bom-ref": refs.take(f"service:mcp:{server.name}"), "name": server.name,
+                         "properties": _properties(**values)})
+
+    hosts: dict[str, list[EndpointUsage]] = {}
+    for endpoint in report.llm_endpoints:
+        if endpoint.kind != "unresolved" and endpoint.host:
+            hosts.setdefault(endpoint.host, []).append(endpoint)
+    for host, endpoints in sorted(hosts.items()):
+        services.append({
+            "bom-ref": refs.take(f"service:endpoint:{host}"),
+            "name": host,
+            "endpoints": sorted({e.url for e in endpoints}),
+            "properties": _properties(endpoint_kind=",".join(sorted({e.kind for e in endpoints}))),
+        })
+    for service in services:
+        graph[ROOT_REF].add(service["bom-ref"])
+        graph[service["bom-ref"]] = set()
+    return sorted(services, key=lambda s: s["bom-ref"])
+
+
 def _metadata(report: ScanReport) -> dict[str, Any]:
     from quin_scanner import __version__
 
@@ -160,6 +306,11 @@ def build_bom(report: ScanReport) -> dict[str, Any]:
     graph: dict[str, set[str]] = {ROOT_REF: set()}
     components = _framework(report, refs, graph)
     framework_ref = components[0]["bom-ref"] if components else None
+    models, models_by_name = _models(report, refs, graph)
+    tools, tool_refs = _tools(report, refs, graph)
+    agents = _agents(report, refs, graph, tool_refs, models_by_name)
+    components = components + models + agents + tools
+    services = _services(report, refs, graph)
     vulnerabilities = _vulnerabilities(report, refs, framework_ref)
 
     bom: dict[str, Any] = {
@@ -171,6 +322,8 @@ def build_bom(report: ScanReport) -> dict[str, Any]:
     }
     if components:
         bom["components"] = components
+    if services:
+        bom["services"] = services
     bom["dependencies"] = _dependencies(graph)
     if vulnerabilities:
         bom["vulnerabilities"] = vulnerabilities
