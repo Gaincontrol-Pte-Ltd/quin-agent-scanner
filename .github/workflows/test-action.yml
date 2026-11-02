@@ -72,7 +72,7 @@ jobs:
         run: |
           set -euo pipefail
           test -s "$REPORT"
-          python3 -c "import json, os; d = json.load(open(os.environ['REPORT'])); assert d['schema_version'] == '1.0', d.get('schema_version')"
+          python3 -c "import json, os; d = json.load(open(os.environ['REPORT'])); assert d['schema_version'].split('.')[0] == '1', d.get('schema_version')"
 
       - name: fail-on high_risk must fail on the malicious fixture
         id: gate

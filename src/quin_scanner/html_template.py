@@ -150,6 +150,19 @@ tr:hover td{background:#fafbfc}
 .agent-card__section{margin-bottom:8px}
 .agent-card__label{font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--color-muted);margin-bottom:4px}
 .agent-card__footer{margin-top:12px;padding-top:10px;border-top:1px solid #f3f4f6;font-size:.75rem;color:var(--color-muted);font-family:var(--font-mono);word-break:break-all;overflow-wrap:break-word}
+.agent-card__meta{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
+.agent-flag{background:#fef3c7;color:#92400e}
+.scope-filter{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap}
+.scope-filter button{border:1px solid var(--color-border);background:var(--color-surface);border-radius:var(--radius-md);padding:4px 10px;cursor:pointer;font-size:.8rem}
+.scope-filter button[aria-pressed="true"]{font-weight:700;border-color:#525252}
+.inst-wrap{overflow-x:auto;margin-top:8px}
+.inst-table{border-collapse:collapse;font-size:.78rem;width:100%}
+.inst-table th,.inst-table td{border-bottom:1px solid #f3f4f6;padding:4px 6px;text-align:left;white-space:nowrap}
+.inst-table .inst-diff{background:#fef3c7}
+.agent-card{min-width:0}
+.agents-more{margin-top:12px;border:1px solid var(--color-border);background:var(--color-surface);border-radius:var(--radius-md);padding:4px 10px;cursor:pointer;font-size:.8rem}
+.agents-inferred{margin-top:20px}
+.mono{font-family:var(--font-mono)}
 
 /* ---------- Section Headers ---------- */
 .section-title{font-size:1rem;font-weight:700;margin-bottom:12px;letter-spacing:-.01em}
@@ -226,7 +239,7 @@ tr:hover td{background:#fafbfc}
 /* ---------- Responsive ---------- */
 @media(max-width:768px){
   .hero{grid-template-columns:1fr}
-  .agent-grid{grid-template-columns:1fr}
+  .agent-grid{grid-template-columns:minmax(0,1fr)}
   .header{padding:22px 0 20px}
   .header-inner{flex-direction:column;align-items:flex-start}
   .header-meta{text-align:left;align-items:flex-start}
@@ -1037,47 +1050,113 @@ window.__REPORT_DATA__ = {{REPORT_DATA_JSON}};
   (function renderAgents(){
     var panel=$("panel-agents");
     var agents=D.agents||[];
-    if(!agents.length){panel.innerHTML='<div class="empty">No agents identified.</div>';return}
+    var inferredAgents=D.llm_inferred_agents||[], inferredTools=D.llm_inferred_tools||[];
+    if(!agents.length&&!inferredAgents.length&&!inferredTools.length){panel.innerHTML='<div class="empty">No agents identified.</div>';return}
+    var noVerified=!agents.length;
 
+    var PAGE=50, scope="production", shown=PAGE;
+    var FLAG_LABELS=Object.create(null);
+    FLAG_LABELS.tool_divergence="tool divergence";FLAG_LABELS.name_collision="name collision";FLAG_LABELS.model_divergence="model divergence";FLAG_LABELS.ambiguous_instance="ambiguous instance";
     var typeBadge=function(t){
       var cls="pill--gray";
       if(t==="supervisor") cls="pill--indigo";
       else if(t==="worker") cls="pill--blue";
-      else if(t==="utility") cls="pill--gray";
       return '<span class="pill '+cls+'">'+esc(t||"unknown")+'</span>';
     };
     var pillList=function(arr,cls){
       if(!arr||!arr.length) return '<span style="color:var(--color-muted);font-size:.78rem">None</span>';
       return arr.map(function(s){return '<span class="pill '+(cls||"")+'">'+esc(s)+'</span>'}).join(" ");
     };
+    var llmTag=function(a,field){return (a.provenance||{})[field]==="llm"?' <span class="pill pill--gray" title="Written by the LLM">LLM</span>':""};
+    var hasTool=function(inst,name){return (inst.tools||[]).some(function(t){return t.name===name})};
 
-    var html='<div class="agent-grid">';
-    agents.forEach(function(a){
-      html+='<div class="agent-card">';
-      html+='<div class="agent-card__header"><span class="agent-card__name">'+esc(a.name||"Unnamed Agent")+'</span>'+typeBadge(a.agent_type)+'</div>';
-      if(a.goal) html+='<div class="agent-card__goal">'+esc(a.goal)+'</div>';
+    function toolMatrix(a){
+      var insts=a.instances||[];
+      if(!insts.length) return "";
+      var names=[];
+      insts.forEach(function(i){(i.tools||[]).forEach(function(t){if(names.indexOf(t.name)<0) names.push(t.name)})});
+      names.sort();
+      // Highlight tools that only some instances have: production instances with known tools, or, when there are
+      // none, every instance with known tools (so test/example-only divergence is visible; T006 stays production-only).
+      var known=insts.filter(function(i){return i.tools_known!==false});
+      var basis=known.filter(function(i){return i.scope==="production"});
+      if(!basis.length) basis=known;
+      var partial=Object.create(null);
+      names.forEach(function(n){
+        var holders=basis.filter(function(i){return hasTool(i,n)}).length;
+        partial[n]=holders>0&&holders<basis.length;
+      });
+      var h='<div class="inst-wrap"><table class="inst-table"><thead><tr><th>Location</th><th>Scope</th><th>Model</th>';
+      names.forEach(function(n){h+='<th class="'+(partial[n]?"inst-diff":"")+'">'+esc(n)+'</th>'});
+      h+='</tr></thead><tbody>';
+      insts.forEach(function(i){
+        var loc=i.file+(i.line?":"+i.line:"");
+        h+='<tr><td class="mono" title="'+esc(loc)+'">'+esc(truncPath(loc,3))+(i.multiplicity==="many"?' <span class="pill pill--gray" title="Created inside a loop">&times;many</span>':'')+'</td>';
+        h+='<td>'+esc(i.scope||"")+'</td><td class="mono">'+esc(i.model||"—")+'</td>';
+        names.forEach(function(n){
+          var t=(i.tools||[]).filter(function(x){return x.name===n})[0];
+          var mark=i.tools_known===false?'<span title="Tools not statically known">?</span>':(t?(t.resolved?"✓":'<span title="No definition found">✓?</span>'):"");
+          h+='<td class="'+(partial[n]?"inst-diff":"")+'">'+mark+'</td>';
+        });
+        h+='</tr>';
+      });
+      return h+'</tbody></table></div>';
+    }
 
-      if((a.capabilities||[]).length){
-        html+='<div class="agent-card__section"><div class="agent-card__label">Capabilities</div><div class="pills" style="margin-top:0">'+pillList(a.capabilities)+'</div></div>';
-      }
-      if((a.skills||[]).length){
-        html+='<div class="agent-card__section"><div class="agent-card__label">Skills</div><div class="pills" style="margin-top:0">'+pillList(a.skills)+'</div></div>';
-      }
-      if((a.tools||[]).length){
-        html+='<div class="agent-card__section"><div class="agent-card__label">Tools</div><div class="pills" style="margin-top:0">'+pillList(a.tools)+'</div></div>';
-      }
+    function card(a){
+      var n=(a.instances||[]).length, many=(a.instances||[]).some(function(i){return i.multiplicity==="many"});
+      var h='<div class="agent-card">';
+      h+='<div class="agent-card__header"><span class="agent-card__name">'+esc(a.name||"Unnamed Agent")+'</span>'+typeBadge(a.agent_type)+llmTag(a,"agent_type")+'</div>';
+      h+='<div class="agent-card__meta"><span class="pill pill--gray">'+esc(a.scope||"production")+'</span>';
+      h+='<span class="pill pill--blue">'+n+' instance'+(n===1?"":"s")+(many?" &times;many":"")+'</span>';
+      (a.flags||[]).forEach(function(f){h+='<span class="pill agent-flag">'+esc(FLAG_LABELS[f]||f)+'</span>'});
+      if(a.identity==="weak") h+='<span class="pill agent-flag" title="No literal name in the code">weak identity</span>';
+      h+='</div>';
+      if(a.goal) h+='<div class="agent-card__goal">'+esc(a.goal)+llmTag(a,"goal")+'</div>';
+      if((a.capabilities||[]).length) h+='<div class="agent-card__section"><div class="agent-card__label">Capabilities'+llmTag(a,"capabilities")+'</div><div class="pills" style="margin-top:0">'+pillList(a.capabilities)+'</div></div>';
+      if((a.skills||[]).length) h+='<div class="agent-card__section"><div class="agent-card__label">Skills</div><div class="pills" style="margin-top:0">'+pillList(a.skills)+'</div></div>';
+      if((a.instances||[]).length) h+='<div class="agent-card__section"><div class="agent-card__label">Instances and tools</div>'+toolMatrix(a)+'</div>';
       if((a.risk_signals||[]).length){
-        html+='<div class="agent-card__section"><div class="agent-card__label">Risk Signals</div>';
-        html+=renderRiskSignals(a.risk_signals);
-        html+='</div>';
+        h+='<div class="agent-card__section"><div class="agent-card__label">Risk Signals</div>'+renderRiskSignals(a.risk_signals)+'</div>';
       }
-      if(a.source_file){
-        html+='<div class="agent-card__footer" title="'+esc(a.source_file)+'">'+esc(truncPath(a.source_file,3))+'</div>';
+      if(a.id||a.source_file){
+        h+='<div class="agent-card__footer" title="'+esc(a.source_file||"")+'">'+esc(a.id||"")+(a.source_file?" &middot; "+esc(truncPath(a.source_file,3)):"")+'</div>';
       }
-      html+='</div>';
+      return h+'</div>';
+    }
+
+    function inferred(){
+      if(!inferredAgents.length&&!inferredTools.length) return "";
+      var rows=inferredAgents.map(function(i){return ["agent",i]}).concat(inferredTools.map(function(i){return ["tool",i]}));
+      var h='<details class="agents-inferred"><summary>Suggested by the LLM, no code evidence found ('+rows.length+')</summary><ul>';
+      rows.forEach(function(r){h+='<li><b>'+esc(r[0])+'</b> '+esc(r[1].name)+(r[1].file?' <span class="mono">'+esc(r[1].file)+'</span>':'')+(r[1].evidence?' &mdash; '+esc(r[1].evidence):'')+'</li>'});
+      return h+'</ul></details>';
+    }
+
+    function draw(){
+      if(noVerified){panel.innerHTML='<div class="empty">No verified agents identified.</div>'+inferred();return}
+      var visible=agents.filter(function(a){return scope==="all"||(a.scope||"production")===scope});
+      var h='<div class="scope-filter" role="group" aria-label="Filter agents by scope">';
+      [["production","Production"],["test","Test"],["example","Example"],["all","All"]].forEach(function(s){
+        var count=s[0]==="all"?agents.length:agents.filter(function(a){return (a.scope||"production")===s[0]}).length;
+        h+='<button type="button" data-scope="'+s[0]+'" aria-pressed="'+(scope===s[0])+'">'+s[1]+' ('+count+')</button>';
+      });
+      h+='</div>';
+      if(!visible.length) h+='<div class="empty">No agents in this scope.</div>';
+      else h+='<div class="agent-grid">'+visible.slice(0,shown).map(card).join("")+'</div>';
+      if(visible.length>shown) h+='<button type="button" class="agents-more" data-more="1">Show '+Math.min(PAGE,visible.length-shown)+' more of '+(visible.length-shown)+'</button>';
+      h+=inferred();
+      panel.innerHTML=h;
+    }
+
+    panel.addEventListener("click",function(e){
+      var b=e.target.closest("button");
+      if(!b||!panel.contains(b)) return;
+      if(b.dataset.scope){scope=b.dataset.scope;shown=PAGE;draw()}
+      else if(b.dataset.more){shown+=PAGE;draw()}
     });
-    html+='</div>';
-    panel.innerHTML=html;
+    if(!agents.some(function(a){return (a.scope||"production")==="production"})&&agents.length) scope="all";
+    draw();
   })();
 
   /* ---- Models Tab ---- */

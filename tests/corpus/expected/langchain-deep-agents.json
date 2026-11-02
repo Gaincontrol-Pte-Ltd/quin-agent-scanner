@@ -27,5 +27,5 @@
     "openai:openai:gpt-5.2"
   ],
   "risk_signals": {},
-  "tools": 18
+  "tools": 20
 }

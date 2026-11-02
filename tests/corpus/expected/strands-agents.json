@@ -1,5 +1,14 @@
 {
-  "agents": [],
+  "agents": [
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    ""
+  ],
   "artifacts": 200,
   "capability_tags": [
     "agent-skills",
@@ -16,5 +25,5 @@
     "unknown:us.anthropic.claude-sonnet-4-5-20250929-v1:0"
   ],
   "risk_signals": {},
-  "tools": 14
+  "tools": 17
 }

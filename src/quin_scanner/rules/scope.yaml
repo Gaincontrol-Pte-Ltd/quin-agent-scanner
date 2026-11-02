@@ -1,0 +1,11 @@
+# Where a path lives, for agents, instances and tools in the inventory (inventory/scope.py).
+# Patterns are regular expressions matched case-insensitively against the repo-relative path with "/" separators.
+# Test rules are checked before example rules; a path that matches neither is production.
+test:
+  - '(^|/)(tests?|__tests__|fixtures)/'
+  - '(^|/)test_[^/]*$'
+  - '(^|/)conftest\.py$'
+  - '[._]test\.[^/]*$'
+  - '\.spec\.[^/]*$'
+example:
+  - '(^|/)(examples?|samples?|cookbooks?|notebooks?|docs|demos?|tutorials?)/'

@@ -193,22 +193,20 @@ class _ReversedAccessor(LocalRepoAccessor):
         return list(reversed(super().list_files(glob_pattern)))
 
 
-def test_a_capped_scan_keeps_the_same_agents_whatever_order_files_are_listed(tmp_path):
+def test_a_large_scan_keeps_the_same_agents_whatever_order_files_are_listed(tmp_path):
     from quin_scanner.config import ScannerConfig
     from quin_scanner.orchestrator import ScanOrchestrator
 
-    for i in range(60):  # more instances than the orchestrator's cap of 50
+    for i in range(60):  # more instances than the old cap of 50: the inventory has no cap
         (tmp_path / f"agent_{i:02d}.py").write_text(f'agent = Agent(name="agent_{i:02d}")\n')
     config = ScannerConfig(enabled_scanners=["agent_instance"], no_llm=True, vuln_check_enabled=False)
 
     forward = ScanOrchestrator().run(LocalRepoAccessor(tmp_path), config, verbose=False)
     backward = ScanOrchestrator().run(_ReversedAccessor(tmp_path), config, verbose=False)
 
-    names_forward = sorted(a.name for a in forward.agents)
-    names_backward = sorted(a.name for a in backward.agents)
-    assert names_forward == names_backward
-    assert len(names_forward) == 50
-    assert names_forward == [f"agent_{i:02d}" for i in range(50)]  # the first 50 in path order
+    # The inventory sorts agents by ID, so even the report order does not depend on the listing order.
+    assert [a.id for a in forward.agents] == [a.id for a in backward.agents]
+    assert [a.name for a in forward.agents] == [f"agent_{i:02d}" for i in range(60)]
 
 
 # --- Output files use LF line endings on every OS ---------------------------------------------------------------

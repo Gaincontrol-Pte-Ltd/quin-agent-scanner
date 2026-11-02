@@ -13,12 +13,15 @@ from referencing import Registry, Resource
 from quin_scanner.cli import cli
 from quin_scanner.config import ScannerConfig
 from quin_scanner.models import (
+    AgentInstance,
     AgentProfile,
     AgentToolRelationship,
     EndpointUsage,
     EvidenceRef,
     GovernanceInfo,
     InfraProfile,
+    InstanceTool,
+    LLMInferredItem,
     MCPServer,
     ModelUsage,
     RiskIndicator,
@@ -80,8 +83,14 @@ def _rich_report() -> ScanReport:
         repo_path="r", scan_timestamp="2026-10-26T00:00:00+00:00", is_ai_application=True, confidence=0.9,
         capability_tags=["llm-api"], artifacts=[_finding()], framework="CrewAI 0.80.0", summary="s",
         agents=[AgentProfile(name="a", agent_type="worker", goal="g", capabilities=["c"], risk_signals=[risk],
-                             skills=["k"], tools=["t"], source_file="a.py")],
-        tool_usages=[ToolUsage(tool_name="t", line_number=None)], risk_signals=[risk],
+                             skills=["k"], tools=["t"], source_file="a.py", id="agent:a", identity="strong",
+                             scope="production", flags=["tool_divergence"],
+                             provenance={"name": "static", "goal": "llm"},
+                             instances=[AgentInstance(id="agent:a/a.py#1", file="a.py", line=3, model=None,
+                                                      tools=[InstanceTool(name="t", tool_id="tool:t", resolved=True),
+                                                             InstanceTool(name="u")])])],
+        tool_usages=[ToolUsage(tool_name="t", line_number=None, id="tool:t", scope="production")],
+        risk_signals=[risk],
         mcp_servers=[MCPServer(name="n", transport="stdio", source_file="mcp.json")],
         infra=InfraProfile(platform="docker", details=["d"], source_files=["Dockerfile"]),
         vulnerabilities=[Vulnerability(cve_id=None, severity="high", cvss_score=None, published=None, summary="s",
@@ -90,7 +99,10 @@ def _rich_report() -> ScanReport:
                                  line_number=1, role="primary")],
         agent_tool_relationships=[AgentToolRelationship(agent_name="a", tool_name="t", source_file="a.py",
                                                         line_number=None, tool_source_file="", tool_line_number=None,
-                                                        evidence="e")],
+                                                        evidence="e", agent_id="agent:a",
+                                                        instance_id="agent:a/a.py#1", tool_id="tool:t")],
+        llm_inferred_agents=[LLMInferredItem(name="p", evidence="e", file="a.py")],
+        llm_inferred_tools=[LLMInferredItem(name="q", evidence="e", file="a.py")],
         inventory=[_finding().to_dict()], coverage={"files_discovered": 1},
         llm_endpoints=[EndpointUsage(url="http://x", host="x", kind="local", source="code", file_path="a.py",
                                      line_number=None, key="base_url", resolved_from="")],
@@ -105,14 +117,14 @@ def _rich_report() -> ScanReport:
 
 def test_report_carries_schema_version_first():
     data = _rich_report().to_dict()
-    assert data["schema_version"] == REPORT_SCHEMA_VERSION == "1.0"
+    assert data["schema_version"] == REPORT_SCHEMA_VERSION == "1.1"
     assert next(iter(data)) == "schema_version"
 
 
 def test_json_and_yaml_outputs_carry_schema_version():
     report = _rich_report()
-    assert json.loads(ReportGenerator.to_json(report))["schema_version"] == "1.0"
-    assert yaml.safe_load(ReportGenerator.to_yaml(report))["schema_version"] == "1.0"
+    assert json.loads(ReportGenerator.to_json(report))["schema_version"] == "1.1"
+    assert yaml.safe_load(ReportGenerator.to_yaml(report))["schema_version"] == "1.1"
 
 
 def test_version_option_mentions_the_report_schema_version():
@@ -167,7 +179,7 @@ def test_skills_scan_envelope_validates(tmp_path):
     out = CliRunner().invoke(cli, ["skills", "scan", str(FIXTURE), "-o", "json", "--no-vuln-check"])
     assert out.exit_code == 1, out.output  # evil-formatter is HIGH_RISK
     envelope = json.loads(out.stdout)
-    assert envelope["schema_version"] == "1.0"
+    assert envelope["schema_version"] == "1.1"
     _validate_envelope(envelope)
 
 

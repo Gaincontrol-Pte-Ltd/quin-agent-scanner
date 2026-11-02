@@ -1,5 +1,6 @@
 {
   "agents": [
+    "",
     "ChiefEditor",
     "Editor",
     "Human",
@@ -34,5 +35,5 @@
     "unknown:Embeddings"
   ],
   "risk_signals": {},
-  "tools": 2
+  "tools": 3
 }

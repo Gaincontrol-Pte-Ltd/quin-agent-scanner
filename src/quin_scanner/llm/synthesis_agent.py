@@ -4,17 +4,40 @@ import json
 from collections.abc import Callable
 
 from quin_scanner.llm.base import BaseLLMProvider
+from quin_scanner.redaction import redact_secrets
 from quin_scanner.models import (
-    AgentProfile,
+    AgentEnrichment,
     ClassificationResult,
     EvidenceRef,
+    LLMInferredItem,
     ModelUsage,
     RiskIndicator,
     SynthesisResult,
-    ToolUsage,
 )
 from quin_scanner.risk_taxonomy import build_threat_reference, filter_threats
 from quin_scanner.rules.kri_predicates import EvidenceFacts
+
+# Tool service categories: the prompt lists them and the parser accepts only these, from this one tuple.
+SERVICE_CATEGORIES: tuple[tuple[str, str], ...] = (
+    ("web_search", "search engines, SERP queries (e.g. google_search, tavily_search)"),
+    ("web_browsing", "page fetching, scraping, crawling (e.g. browse_url, scrape_page)"),
+    ("code_execution", "running code, sandboxes, REPLs (e.g. execute_code, run_python)"),
+    ("vector_database", "vector store operations (e.g. query_vectors, upsert_embeddings)"),
+    ("database", "SQL/NoSQL/graph DB operations (e.g. run_query, neo4j_search)"),
+    ("communication", "messaging, email, notifications (e.g. send_slack, send_email)"),
+    ("document_processing", "PDF/DOCX parsing, OCR (e.g. parse_pdf, extract_text)"),
+    ("image_generation", "image creation/editing (e.g. text_to_image, generate_image)"),
+    ("voice_audio", "TTS, STT, audio processing (e.g. text_to_speech, transcribe)"),
+    ("embeddings", "text-to-embedding operations (e.g. text_to_embedding, embed_text)"),
+    ("data_processing", "data transformation, feature engineering, analytics"),
+    ("file_operations", "file read/write/management (e.g. read_file, write_file)"),
+    ("api_integration", "external HTTP/REST API calls (e.g. http_request, call_api)"),
+    ("orchestration", "planning, routing, delegation (e.g. plan, delegate_task)"),
+    ("tool_management", "tool registration, schema management (e.g. register_tool)"),
+    ("testing", "test helpers, validation tools (e.g. validate, run_test)"),
+    ("other", "only if none of the above categories fit"),
+)
+_VALID_SERVICE_CATEGORIES = frozenset(name for name, _ in SERVICE_CATEGORIES)
 
 _SYSTEM_PROMPT = """\
 You are an AI application analyst. Given scanner evidence from a repository, produce a \
@@ -35,9 +58,8 @@ Output schema:
       ]
     }
   ],
-  "agents": [
-    {
-      "name": "<agent name>",
+  "enrichment": {
+    "<agent id exactly as listed in AGENT INVENTORY>": {
       "agent_type": "<supervisor|utility|worker|unknown>",
       "goal": "<one sentence>",
       "capabilities": ["<capability>"],
@@ -50,20 +72,17 @@ Output schema:
             {"file_path": "<scanner-found path>", "line_number": <int or null>, "scanner": "<scanner name>"}
           ]
         }
-      ],
-      "skills": ["<skill/playbook name — instructional workflows only>"],
-      "tools": ["<tool name — executable functions only>"],
-      "source_file": "<file path>"
+      ]
     }
+  },
+  "tool_enrichment": {
+    "<tool id exactly as listed in TOOL INVENTORY>": {"service_category": "<category from the list below>"}
+  },
+  "suggested_agents": [
+    {"name": "<agent name>", "evidence": "<why you believe this is an agent>", "file": "<scanner-found path>"}
   ],
-  "tool_usages": [
-    {
-      "tool_name": "<tool name>",
-      "tool_type": "<tool_definition|skill|mcp_tool>",
-      "service_category": "<category from the list below>",
-      "source_file": "<file path>",
-      "line_number": <int or null>
-    }
+  "suggested_tools": [
+    {"name": "<tool name>", "evidence": "<why you believe this is a tool>", "file": "<scanner-found path>"}
   ]
 }
 
@@ -123,8 +142,8 @@ Rules:
 
 - evidence_refs: For EVERY risk_signal you emit (repo-level and per-agent), include at least one
   evidence_ref pointing to a scanner finding from the Evidence block. Each ref MUST cite a
-  file_path that appears in the Evidence (under "Scanner summaries", "AGENT INSTANCES",
-  "TOOL DEFINITIONS", or "EXTERNAL SERVICES"). Do NOT invent file paths. The line_number is
+  file_path that appears in the Evidence (under "Scanner summaries", "AGENT INVENTORY" or
+  "TOOL INVENTORY"). Do NOT invent file paths. The line_number is
   optional but use it when the Evidence block provides one. The scanner field is the name shown
   in brackets in the Evidence block (e.g. "ToolDefinitionScanner", "PromptDiscoveryScanner",
   "AgentInstanceScanner"). If you cannot ground a signal in a specific finding, omit the signal
@@ -137,64 +156,22 @@ Rules:
   For each KRI: (1) set threat_id to the T0NN heading under which the KRI appears in the
   THREAT REFERENCE, and (2) include the recommended_controls listed for that threat.
 
-- agents: Populate using AGENT INSTANCES (rule-based) in the evidence as the PRIMARY source.
-  For each instance, set name from the instance name, description/goal from surrounding
-  comments or config description field if present. If AGENT INSTANCES is empty, infer agents
-  from class names in code pattern findings (e.g. AssistantAgent, UserProxyAgent, Agent
-  class instantiations). Return [] only if there is truly no agent evidence whatsoever.
+- The AGENT INVENTORY and TOOL INVENTORY are verified by static analysis and are FIXED. You cannot add,
+  remove, rename, merge or split agents or tools. Refer to them only by their id, exactly as listed.
 
-- tools vs skills vs MCP — three distinct layers of agent capability:
-  * Tools (tool_type="tool_definition"): Executable functions that agents invoke — API calls,
-    code execution, file operations, database queries. Decorated functions (@tool,
-    @function_tool), class-based tools (BaseTool subclasses), registered tool calls.
-  * Skills (tool_type="skill"): Packaged instructional workflows — markdown or text files
-    that teach an agent HOW to perform a task. Found in skills/, playbooks/, recipes/,
-    instructions/ directories. These are NOT executable code — they are playbooks/recipes.
-  * MCP tools (tool_type="mcp_tool"): References to MCP (Model Context Protocol) server
-    connections. Configured in mcp.json, claude_desktop_config.json, etc. These represent
-    the protocol connection layer, not executable tools.
-  Set tool_type for each tool_usage entry accordingly. When uncertain, default to
-  "tool_definition".
+- enrichment: one entry per inventory agent you have evidence about, keyed by its id. agent_type, goal
+  (one sentence, from surrounding comments, prompts or configuration) and capabilities describe that agent.
+  Per-agent risk_signals follow the per-agent rules above. Omit agents you know nothing about.
 
-- agents[].tools: ONLY list executable tool/function names. Do NOT include skill/playbook
-  references or MCP server names.
-- agents[].skills: ONLY list skill/playbook references — instructional markdown files or
-  packaged workflow names. Do NOT include executable tool names or MCP server names.
+- tool_enrichment: for inventory tools, classify service_category by what the tool DOES (infer from its
+  name and context) into one of:
+<<SERVICE_CATEGORIES>>
+  Do not include tools that already show a category in the TOOL INVENTORY.
 
-- tool_usages: Populate using TOOL DEFINITIONS (rule-based) and EXTERNAL SERVICES
-  (rule-based) in the evidence as the PRIMARY source. You may add additional tools
-  discovered from code analysis, but NEVER add model names or package names.
-  Return [] only if there is truly no tool evidence.
-
-- tool_usages MUST NOT contain LLM model names (e.g. gpt-4, gpt-4o, claude-3-sonnet,
-  dall-e-3, llama-3, gemini-1.5-pro, text-embedding-ada-002). Those belong in model_usages
-  only. tool_usages MUST NOT contain raw dependency/package names (e.g. faiss-cpu,
-  qdrant-client, chromadb) unless they are explicitly registered as named tools in the code.
-  Tools are functions, classes, or plugins that agents INVOKE to perform actions — not the
-  models they call or the libraries they import.
-
-- service_category: Classify EVERY tool_usage entry into one of these categories based on
-  what the tool DOES (infer from its name, context, and surrounding code):
-  * "web_search" — search engines, SERP queries (e.g. google_search, tavily_search)
-  * "web_browsing" — page fetching, scraping, crawling (e.g. browse_url, scrape_page)
-  * "code_execution" — running code, sandboxes, REPLs (e.g. execute_code, run_python)
-  * "vector_database" — vector store operations (e.g. query_vectors, upsert_embeddings)
-  * "database" — SQL/NoSQL/graph DB operations (e.g. run_query, neo4j_search)
-  * "communication" — messaging, email, notifications (e.g. send_slack, send_email)
-  * "document_processing" — PDF/DOCX parsing, OCR (e.g. parse_pdf, extract_text)
-  * "image_generation" — image creation/editing (e.g. text_to_image, generate_image)
-  * "voice_audio" — TTS, STT, audio processing (e.g. text_to_speech, transcribe)
-  * "embeddings" — text-to-embedding operations (e.g. text_to_embedding, embed_text)
-  * "data_processing" — data transformation, feature engineering, analytics
-  * "file_operations" — file read/write/management (e.g. read_file, write_file)
-  * "api_integration" — external HTTP/REST API calls (e.g. http_request, call_api)
-  * "orchestration" — planning, routing, delegation (e.g. plan, delegate_task)
-  * "tool_management" — tool registration, schema management (e.g. register_tool)
-  * "testing" — test helpers, validation tools (e.g. validate, run_test)
-  * "other" — only if none of the above categories fit
-  Every tool_usage MUST have a non-empty service_category. NEVER leave it blank.
-
-- tool_usages: repo-wide tool/function references not already captured per agent
+- suggested_agents / suggested_tools: agents or tools you believe exist but that are NOT in the
+  inventories (for example agents built by a factory function). Each needs a file path that appears in the
+  Evidence and a short reason. These are reported as unverified. Never suggest model names (gpt-4o,
+  claude-3-sonnet, ...) or package names (faiss-cpu, chromadb, ...) as tools. Return [] when there are none.
 
 - model role: For each model_usage in the evidence, classify the role field:
   * "embedding" — model name contains "embed" or "text-embedding", or file path contains
@@ -211,7 +188,10 @@ Rules:
   there is a training loop or fine-tuning API call. Do NOT include "voice-ai" unless
   there are audio/speech API calls. Do NOT include "embeddings" unless embedding APIs
   or vector stores are explicitly used.
-"""
+""".replace(
+    "<<SERVICE_CATEGORIES>>\n",
+    "".join(f'  * "{name}" — {description}\n' for name, description in SERVICE_CATEGORIES),
+)
 
 
 def _build_evidence_block(
@@ -219,9 +199,8 @@ def _build_evidence_block(
     model_usages: list[ModelUsage],
     capability_tags: list[str],
     framework_candidate: str = "unknown",
-    agent_instances: list[dict] | None = None,
-    tool_definitions: list[dict] | None = None,
-    external_services: list[dict] | None = None,
+    agent_inventory: list[dict] | None = None,
+    tool_inventory: list[dict] | None = None,
     threat_reference: str = "",
 ) -> str:
     lines: list[str] = []
@@ -238,20 +217,23 @@ def _build_evidence_block(
                 f"  - {m.provider}/{m.model_name} ({m.role}) at {m.file_path}:{m.line_number}"
             )
 
-    if agent_instances:
-        lines.append("\n--- AGENT INSTANCES (rule-based) ---")
-        for a in agent_instances:
-            lines.append(f"  - \"{a['name']}\" ({a['source_file']}:{a.get('line', '')}, conf {a.get('confidence', 0):.2f})")
+    if agent_inventory:
+        lines.append("\n--- AGENT INVENTORY (verified; enrich by id, never rename or add) ---")
+        for a in agent_inventory:
+            tools = ", ".join(a["tools"]) or "none"
+            skills = ", ".join(a.get("skills") or []) or "none"
+            lines.append(
+                f"  - id={a['id']} name=\"{a['name']}\" scope={a['scope']} instances={a['instances']} "
+                f"instructions={a['instructions']} tools=[{tools}] skills=[{skills}] file={a['file']}"
+            )
 
-    if tool_definitions:
-        lines.append("\n--- TOOL DEFINITIONS (rule-based) ---")
-        for t in tool_definitions:
-            lines.append(f"  - \"{t['name']}\" ({t['decorator']} at {t['source_file']}:{t.get('line', '')})")
-
-    if external_services:
-        lines.append("\n--- EXTERNAL SERVICES (rule-based) ---")
-        for s in external_services:
-            lines.append(f"  - {s['name']} ({s['category']}) at {s['source_file']}:{s.get('line', '')}")
+    if tool_inventory:
+        lines.append("\n--- TOOL INVENTORY (verified) ---")
+        for t in tool_inventory:
+            category = f" category={t['category']}" if t["category"] else ""
+            lines.append(
+                f"  - id={t['id']} name=\"{t['name']}\" type={t['type']}{category} at {t['file']}:{t['line'] or ''}"
+            )
 
     lines.append("\nScanner summaries:")
     for s in scanner_summaries:
@@ -327,6 +309,48 @@ def _parse_risk_signals(raw_signals: list) -> list[RiskIndicator]:
     return result
 
 
+_VALID_AGENT_TYPES = {"supervisor", "utility", "worker", "unknown"}
+
+
+# Free text from the LLM is capped by truncation (after redaction, so a cut never exposes part of a secret).
+_MAX_GOAL = 500
+_MAX_NAME = 200
+_MAX_EVIDENCE = 500
+_MAX_FILE = 500
+_MAX_CAPABILITY = 100
+
+
+def _clean_text(value: object, limit: int) -> str:
+    """A string field from the LLM: non-strings become empty, secrets are redacted, the result is capped."""
+    if not isinstance(value, str):
+        return ""
+    return redact_secrets(value.strip())[:limit]
+
+
+def _clean_list(value: object, limit: int) -> list[str]:
+    """A list of LLM strings, each cleaned by :func:`_clean_text`; empties are dropped."""
+    if not isinstance(value, list):
+        return []
+    return [text for text in (_clean_text(item, limit) for item in value) if text]
+
+
+def _parse_suggestions(raw: object) -> list[LLMInferredItem]:
+    if not isinstance(raw, list):
+        return []
+    items: list[LLMInferredItem] = []
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        name = _clean_text(item.get("name"), _MAX_NAME)
+        if name:
+            items.append(LLMInferredItem(
+                name=name,
+                evidence=_clean_text(item.get("evidence"), _MAX_EVIDENCE),
+                file=_clean_text(item.get("file"), _MAX_FILE),
+            ))
+    return items
+
+
 def _parse_synthesis_response(raw: str) -> SynthesisResult:
     """Parse LLM JSON into SynthesisResult. Falls back gracefully on errors."""
     raw = raw.strip()
@@ -351,49 +375,41 @@ def _parse_synthesis_response(raw: str) -> SynthesisResult:
             is_ai_application=False,
             framework="unknown",
             summary="",
-            agents=[],
-            tool_usages=[],
         )
 
-    agents: list[AgentProfile] = []
-    for a in data.get("agents", []):
-        if not isinstance(a, dict):
-            continue
-        agents.append(AgentProfile(
-            name=a.get("name", "UnknownAgent"),
-            agent_type=a.get("agent_type", "unknown"),
-            goal=a.get("goal", ""),
-            capabilities=a.get("capabilities", []),
-            risk_signals=_parse_risk_signals(a.get("risk_signals", [])),
-            skills=a.get("skills", []),
-            tools=a.get("tools", []),
-            source_file=a.get("source_file", ""),
-        ))
+    enrichment: dict[str, AgentEnrichment] = {}
+    raw_enrichment = data.get("enrichment")
+    if isinstance(raw_enrichment, dict):
+        for agent_id, fields in raw_enrichment.items():
+            if not isinstance(fields, dict):
+                continue
+            agent_type = fields.get("agent_type", "unknown")
+            raw_capabilities = fields.get("capabilities")
+            raw_signals = fields.get("risk_signals")
+            enrichment[str(agent_id)] = AgentEnrichment(
+                agent_type=agent_type if isinstance(agent_type, str) and agent_type in _VALID_AGENT_TYPES else "unknown",
+                goal=_clean_text(fields.get("goal"), _MAX_GOAL),
+                capabilities=_clean_list(raw_capabilities, _MAX_CAPABILITY),
+                risk_signals=_parse_risk_signals(raw_signals if isinstance(raw_signals, list) else []),
+            )
 
-    _VALID_TOOL_TYPES = {"tool_definition", "external_service", "skill", "mcp_tool"}
-    tool_usages: list[ToolUsage] = []
-    for t in data.get("tool_usages", []):
-        if not isinstance(t, dict):
-            continue
-        raw_type = t.get("tool_type", "tool_definition")
-        tool_type = raw_type if raw_type in _VALID_TOOL_TYPES else "tool_definition"
-        tool_usages.append(ToolUsage(
-            tool_name=t.get("tool_name", ""),
-            tool_type=tool_type,
-            service_category=t.get("service_category", ""),
-            source_file=t.get("source_file", ""),
-            line_number=t.get("line_number"),
-        ))
-
-    repo_risk_signals = _parse_risk_signals(data.get("risk_signals", []))
+    tool_enrichment: dict[str, str] = {}
+    raw_tools = data.get("tool_enrichment")
+    if isinstance(raw_tools, dict):
+        for tool_id, fields in raw_tools.items():
+            category = fields.get("service_category") if isinstance(fields, dict) else None
+            if isinstance(category, str) and category in _VALID_SERVICE_CATEGORIES:
+                tool_enrichment[str(tool_id)] = category
 
     return SynthesisResult(
         is_ai_application=bool(data.get("is_ai_application", False)),
         framework=data.get("framework", "unknown") or "unknown",
         summary=data.get("summary", ""),
-        agents=agents,
-        tool_usages=tool_usages,
-        risk_signals=repo_risk_signals,
+        enrichment=enrichment,
+        tool_enrichment=tool_enrichment,
+        suggested_agents=_parse_suggestions(data.get("suggested_agents")),
+        suggested_tools=_parse_suggestions(data.get("suggested_tools")),
+        risk_signals=_parse_risk_signals(data.get("risk_signals", [])),
     )
 
 
@@ -410,9 +426,8 @@ class SynthesisAgent:
         capability_tags: list[str],
         on_progress: Callable[[str], None] | None = None,
         framework_candidate: str = "unknown",
-        agent_instances: list[dict] | None = None,
-        tool_definitions: list[dict] | None = None,
-        external_services: list[dict] | None = None,
+        agent_inventory: list[dict] | None = None,
+        tool_inventory: list[dict] | None = None,
         classification: ClassificationResult | None = None,
         evidence_facts: EvidenceFacts | None = None,
     ) -> SynthesisResult:
@@ -434,9 +449,8 @@ class SynthesisAgent:
             model_usages,
             capability_tags,
             framework_candidate=framework_candidate,
-            agent_instances=agent_instances,
-            tool_definitions=tool_definitions,
-            external_services=external_services,
+            agent_inventory=agent_inventory,
+            tool_inventory=tool_inventory,
             threat_reference=threat_reference,
         )
         prompt = f"{_SYSTEM_PROMPT}\n\nEvidence:\n{evidence}"

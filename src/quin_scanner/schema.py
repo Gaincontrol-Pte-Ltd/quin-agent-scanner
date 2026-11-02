@@ -4,4 +4,4 @@ MAJOR.MINOR. Within a major version the schema only grows (new optional fields);
 change needs a new major version. See docs/stability.md and docs/schema/README.md.
 """
 
-REPORT_SCHEMA_VERSION = "1.0"
+REPORT_SCHEMA_VERSION = "1.1"
