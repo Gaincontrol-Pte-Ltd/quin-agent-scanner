@@ -169,4 +169,5 @@ def test_scan_batch_one_bad_bom_does_not_stop_the_run(tmp_path, repo, monkeypatc
     result = _run("scan-batch", str(targets), "-o", "cyclonedx", "-d", str(outdir), "--no-llm", "--no-vuln-check")
     assert result.exit_code == 1
     assert "1 of 2 targets failed" in result.stderr
+    assert "could not build the CycloneDX BOM" in result.stderr
     assert len(list(outdir.glob("*.cdx.json"))) == 1

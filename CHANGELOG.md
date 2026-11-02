@@ -22,6 +22,10 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Report schema **1.1**. Every change is additive and the new fields are optional in `docs/schema/report-1.json`, so 1.0 reports still validate and 1.0 consumers keep working. The `skills scan -o json` envelope also reports `schema_version` `1.1`; its shape is unchanged.
 - New informational `metadata` keys, present only when they apply: `inventory_error` (the inventory could not be resolved and a fallback of one weak agent per detected site was used), `llm_unenriched_agents` and `llm_unlisted_tools` (how many agents and tools were not listed to the LLM, which is given at most 30 of each), `llm_unknown_ids` and `llm_unlisted_ids` (how many enrichments the LLM returned for IDs that do not exist or were not listed to it; they are ignored).
 
+- `-o cyclonedx` on `scan`, `scan-batch` and `scan-org` writes a CycloneDX 1.6 AI-BOM: the framework, models, agents
+  (with each instance as an occurrence), tools, MCP servers, LLM endpoints and OSV vulnerabilities. Built from static
+  evidence only, so it does not change with the LLM pass. Files are named `.cdx.json`. See `docs/ai-bom.md`.
+
 ### Detection changes
 
 - **Static evidence decides the inventory.** `agents` and `tool_usages` are now built from scanner evidence whether or not an LLM runs, so the same commit gives the same inventory on every run. Before, an LLM scan used the LLM's agent and tool lists, which could rename, merge or invent agents. The LLM now only fills in `goal`, `agent_type`, `capabilities`, per-agent risk signals and tool categories (`service_category`) for agents and tools it is given by ID; `provenance` records which fields it filled; `provenance.risk_signals` is `static` when an agent carries only the static T006 signal, `llm` when it carries only LLM signals and `mixed` when it carries both. LLM capabilities are redacted and capped like other LLM text.

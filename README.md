@@ -108,7 +108,7 @@ llm:
   # api_key_env: ANTHROPIC_API_KEY     # reads from your .env
 
 output:
-  format: html                         # html | json | yaml | sarif
+  format: html                         # html | json | yaml | sarif | cyclonedx
 
 vuln_check:
   enabled: true                        # OSV.dev lookup for detected framework+version
@@ -216,7 +216,7 @@ Common `scan` options:
 
 | Option | Meaning |
 |---|---|
-| `-o json\|yaml\|html\|sarif`, `-f FILE`, `-d DIR` | Output format, file, or output directory. |
+| `-o json\|yaml\|html\|sarif\|cyclonedx`, `-f FILE`, `-d DIR` | Output format, file, or output directory. `cyclonedx` writes a CycloneDX 1.6 AI-BOM ([docs/ai-bom.md](docs/ai-bom.md)). |
 | `--no-llm` | Static analysis only; no LLM provider or API key. |
 | `--llm-provider`, `--llm-model`, `--llm-api-key`, `--openai-compatible-url`, `-c/--config` | Choose and configure the LLM provider. |
 | `--no-vuln-check`, `--vuln-search-provider` | Skip or configure vulnerability lookups. |

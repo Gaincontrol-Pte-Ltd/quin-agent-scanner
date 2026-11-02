@@ -1601,7 +1601,7 @@ tools and models it is given.
 Change the options table row at ~line 219 to:
 
 ```markdown
-| `-o json\|yaml\|html\|sarif\|cyclonedx`, `-f FILE`, `-d DIR` | Output format, file, or output directory. `cyclonedx` writes a CycloneDX 1.6 AI-BOM ([docs/ai-bom.md](docs/ai-bom.md)). |
+| `-o json\|yaml\|html\|sarif\|cyclonedx`, `-f FILE`, `-d DIR` | Output format, file, or output directory. `cyclonedx` writes a CycloneDX 1.6 AI-BOM ([docs/ai-bom.md](../../ai-bom.md)). |
 ```
 
 and the config example comment at ~line 111 to `# html | json | yaml | sarif | cyclonedx`.

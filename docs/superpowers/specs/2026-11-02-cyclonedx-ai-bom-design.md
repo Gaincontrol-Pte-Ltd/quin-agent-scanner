@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Draft, approved in brainstorming 2026-11-02 |
+| Status | Implemented on feat/cyclonedx-aibom (not yet released) |
 | Date | 2026-11-02 |
 | Target version | 1.1.0 (after 1.0.0; new output format, report schema unchanged) |
 | Depends on | F deterministic inventory core (PR #91, branch `feat/inventory-core`) |
@@ -69,7 +69,7 @@ F made the inventory deterministic with stable IDs. C1 exports it as a CycloneDX
 }
 ```
 
-The repository name is `owner/repo` for GitHub targets and the directory name for local paths, derived from `report.repo_path` with the same helper the CLI uses for file names. Empty arrays are omitted.
+The repository name is `owner/repo` for GitHub targets and the directory name for local paths (`_repo_name` in `cyclonedx.py`). Empty arrays are omitted.
 
 ### 5.2 Components
 
@@ -122,6 +122,8 @@ Each agent instance becomes one entry of the agent's `evidence.occurrences`:
 
 Endpoints are grouped by host. Services are sorted by `bom-ref`.
 
+Endpoints whose host contains `$`, or whose host or URL contains any of `{ } < > " | \ ^` `` ` `` or whitespace, are treated like unresolved addresses (template placeholders such as `${HOST}` or `$HOST`) and left out.
+
 ### 5.5 Dependencies
 
 - `repo` depends on the framework, every agent and every service.
@@ -155,7 +157,7 @@ Only `report.vulnerabilities` entries with `source == "osv"` and a non-empty `cv
 
 ## 6. Identity and uniqueness
 
-`bom-ref` values come from F's stable IDs, so they are unique by construction across agents (`agent:`), tools (`tool:`) and instances. The prefixes `model:`, `service:mcp:`, `service:endpoint:`, `vuln:` and `repo` keep the groups apart. When two items in the same group would share a `bom-ref` (e.g. two MCP servers with the same name), the second and later get `#2`, `#3`, … in their sorted order.
+`bom-ref` values come from F's stable IDs, so they are unique by construction across agents (`agent:`), tools (`tool:`) and instances. The prefixes `model:`, `service:mcp:`, `service:endpoint:`, `vuln:` and `repo` keep the groups apart. When two items in the same group would share a `bom-ref` (e.g. two MCP servers with the same name), the second and later get `#2`, `#3`, … in their sorted order. Component and service refs are claimed before any occurrence or vulnerability ref, so a component always keeps its bare ID and a colliding occurrence or vulnerability ref is the one that gets the suffix.
 
 ## 7. CLI and files
 
