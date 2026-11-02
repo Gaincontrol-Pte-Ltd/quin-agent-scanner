@@ -101,6 +101,8 @@ class TestIsoUtc:
 
     def test_unparsable_and_empty(self):
         assert _iso_utc("last week") is None
+        assert _iso_utc("0001-01-01T00:00:00+01:00") is None
+        assert _iso_utc("9999-12-31T23:00:00-05:00") is None
         assert _iso_utc("") is None
         assert _iso_utc(None) is None
 
@@ -189,3 +191,11 @@ class TestVulnerabilities:
     def test_omitted_count_counts_web_search_entries(self):
         vulns = [_vuln(), _vuln("CVE-2", source="web:gemini"), _vuln("CVE-3", source="web:openai")]
         assert omitted_vulnerability_count(_report(vulnerabilities=vulns)) == 2
+
+    def test_duplicate_id_picks_the_same_winner_in_either_order(self):
+        a = _vuln("CVE-D", "high", cvss_score=7.0, summary="alpha")
+        b = _vuln("CVE-D", "high", cvss_score=9.0, summary="beta")
+        one = build_bom(_report(framework="CrewAI 0.80.0", vulnerabilities=[a, b]))["vulnerabilities"]
+        two = build_bom(_report(framework="CrewAI 0.80.0", vulnerabilities=[b, a]))["vulnerabilities"]
+        assert one == two
+        assert one[0]["description"] == "beta"
