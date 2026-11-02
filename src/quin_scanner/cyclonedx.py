@@ -276,7 +276,10 @@ def _services(report: ScanReport, refs: _Refs, graph: dict[str, set[str]]) -> li
 
     hosts: dict[str, list[EndpointUsage]] = {}
     for endpoint in report.llm_endpoints:
-        if endpoint.kind != "unresolved" and endpoint.host and not _TEMPLATE.search(endpoint.host + endpoint.url):
+        if (
+            endpoint.kind != "unresolved" and endpoint.host and "$" not in endpoint.host  # `$HOST` is a template
+            and not _TEMPLATE.search(endpoint.host + endpoint.url)
+        ):
             hosts.setdefault(endpoint.host, []).append(endpoint)
     for host, endpoints in sorted(hosts.items()):
         services.append({

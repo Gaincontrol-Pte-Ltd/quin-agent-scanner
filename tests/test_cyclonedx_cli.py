@@ -28,6 +28,33 @@ def repo(tmp_path):
     return root
 
 
+@pytest.fixture
+def rich_repo(tmp_path):
+    root = tmp_path / "rich"
+    (root / "agents").mkdir(parents=True)
+    (root / "agents" / "crew.py").write_text(
+        "from framework import Agent, tool\n"
+        "@tool\ndef search():\n    return 1\n"
+        "@tool\ndef fetch():\n    return 2\n"
+        "researcher = Agent(name='researcher', instructions='Find.', tools=[search, fetch], model='gpt-4o')\n"
+        "writer = Agent(name='writer', instructions='Write.', tools=[fetch], model='gpt-4o-mini')\n"
+        "from openai import OpenAI\n"
+        "a = OpenAI(base_url=\"http://10.0.0.5:8000/v1\")\n"
+        "b = OpenAI(base_url=\"https://llm.example.com/v1\")\n",
+        encoding="utf-8",
+    )
+    (root / "agents" / "more.py").write_text(
+        "from framework import Agent\n"
+        "researcher = Agent(name='researcher', instructions='Find again.', model='gpt-4o')\n",
+        encoding="utf-8",
+    )
+    (root / ".mcp.json").write_text(
+        '{"mcpServers": {"fs": {"command": "npx", "args": ["srv"]}, "git": {"command": "uvx", "args": ["git"]}}}',
+        encoding="utf-8",
+    )
+    return root
+
+
 def _run(*args):
     return CliRunner().invoke(cli, list(args))
 
@@ -113,6 +140,33 @@ def _bom_without_volatile_fields(repo, out, seed: str) -> str:
     return json.dumps(bom, indent=2)
 
 
-def test_bom_does_not_depend_on_the_hash_seed(tmp_path, repo):
-    boms = {seed: _bom_without_volatile_fields(repo, tmp_path / f"b{seed}.json", seed) for seed in ("1", "2", "3")}
+def test_bom_does_not_depend_on_the_hash_seed(tmp_path, rich_repo):
+    boms = {seed: _bom_without_volatile_fields(rich_repo, tmp_path / f"b{seed}.json", seed) for seed in ("1", "2", "3")}
     assert len(set(boms.values())) == 1
+    bom = json.loads(boms["1"])
+    components = bom["components"]
+    assert sum(c["bom-ref"].startswith("agent:") for c in components) >= 2
+    assert sum(c["bom-ref"].startswith("tool:") for c in components) >= 2
+    refs = [s["bom-ref"] for s in bom["services"]]
+    assert len(refs) >= 2 and any(r.startswith("service:endpoint:") for r in refs)
+
+
+def test_scan_batch_one_bad_bom_does_not_stop_the_run(tmp_path, repo, monkeypatch):
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / "a.py").write_text("x = 1\n", encoding="utf-8")
+    targets = tmp_path / "targets.txt"
+    targets.write_text(f"{repo}\n{other}\n", encoding="utf-8")
+    real = __import__("quin_scanner.cyclonedx", fromlist=["to_cyclonedx"]).to_cyclonedx
+
+    def flaky(report):
+        if report.repo_path.endswith("other"):
+            raise ValueError("bad inventory")
+        return real(report)
+
+    monkeypatch.setattr("quin_scanner.cyclonedx.to_cyclonedx", flaky)
+    outdir = tmp_path / "out"
+    result = _run("scan-batch", str(targets), "-o", "cyclonedx", "-d", str(outdir), "--no-llm", "--no-vuln-check")
+    assert result.exit_code == 1
+    assert "1 of 2 targets failed" in result.stderr
+    assert len(list(outdir.glob("*.cdx.json"))) == 1

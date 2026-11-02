@@ -509,6 +509,10 @@ class TestRobustness:
         bom = _valid(build_bom(_report(llm_endpoints=[kept, dropped])))
         assert [s["endpoints"] for s in bom["services"]] == [["https://api.example.com/v1?sig=$abc"]]
 
+    def test_dollar_host_templates_are_left_out(self):
+        endpoint = _endpoint(url="http://$HOST/v1", host="$host", kind="unknown")
+        assert "services" not in build_bom(_report(llm_endpoints=[endpoint]))
+
     def test_occurrence_refs_are_claimed_after_vulnerability_refs(self):
         agent = _agent(instances=[_instance("vuln:CVE-2024-0001")])
         bom = _valid(build_bom(_report(framework="CrewAI 0.80.0", agents=[agent], vulnerabilities=[_vuln()])))

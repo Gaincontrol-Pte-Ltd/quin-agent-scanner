@@ -21,7 +21,7 @@ def _logo_data_uri() -> str:
 
 
 class ReportGenerator:
-    """Serializes ScanReport to JSON, YAML, or HTML."""
+    """Serializes ScanReport to JSON, YAML, HTML, SARIF or CycloneDX."""
 
     @staticmethod
     def to_json(report: ScanReport) -> str:

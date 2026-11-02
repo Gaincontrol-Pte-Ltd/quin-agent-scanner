@@ -357,12 +357,12 @@ def scan(
         # Output
         rendered = ReportGenerator.to_string(report, output)
         if output_file:
-            ReportGenerator.write_to_file(report, output_file, output)
+            Path(output_file).write_text(rendered, encoding="utf-8", newline="\n")
             click.echo(f"Report written to {output_file}", err=True)
         elif output_dir:
             Path(output_dir).mkdir(parents=True, exist_ok=True)
             out_path = Path(output_dir) / _output_filename(target, output)
-            ReportGenerator.write_to_file(report, str(out_path), output)
+            out_path.write_text(rendered, encoding="utf-8", newline="\n")
             click.echo(f"Report written to {out_path}", err=True)
         else:
             click.echo(rendered)
