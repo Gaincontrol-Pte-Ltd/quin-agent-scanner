@@ -22,6 +22,11 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Report schema **1.1**. Every change is additive and the new fields are optional in `docs/schema/report-1.json`, so 1.0 reports still validate and 1.0 consumers keep working. The `skills scan -o json` envelope also reports `schema_version` `1.1`; its shape is unchanged.
 - New informational `metadata` keys, present only when they apply: `inventory_error` (the inventory could not be resolved and a fallback of one weak agent per detected site was used), `llm_unenriched_agents` and `llm_unlisted_tools` (how many agents and tools were not listed to the LLM, which is given at most 30 of each), `llm_unknown_ids` and `llm_unlisted_ids` (how many enrichments the LLM returned for IDs that do not exist or were not listed to it; they are ignored).
 
+- `-o cyclonedx` on `scan`, `scan-batch` and `scan-org` writes a CycloneDX 1.6 AI-BOM: the framework, models, agents
+  (with each instance as an occurrence), tools, MCP servers, LLM endpoints and OSV vulnerabilities. Built from static
+  evidence only, so it does not change with the LLM pass: the framework (and so the vulnerabilities) is included only
+  when static detection found it. Files are named `.cdx.json`. See `docs/ai-bom.md`.
+
 ### Detection changes
 
 - **Static evidence decides the inventory.** `agents` and `tool_usages` are now built from scanner evidence whether or not an LLM runs, so the same commit gives the same inventory on every run. Before, an LLM scan used the LLM's agent and tool lists, which could rename, merge or invent agents. The LLM now only fills in `goal`, `agent_type`, `capabilities`, per-agent risk signals and tool categories (`service_category`) for agents and tools it is given by ID; `provenance` records which fields it filled; `provenance.risk_signals` is `static` when an agent carries only the static T006 signal, `llm` when it carries only LLM signals and `mixed` when it carries both. LLM capabilities are redacted and capped like other LLM text.
@@ -37,6 +42,10 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Tools and skills named like a dependency or a model are no longer removed (the old filter was meant for LLM output): for example the `gpt-researcher` and `browser-use` skills of those repositories are now listed.
 - The agent and tool scanners now also read test files to tag their agents and tools, and the separate pass that re-read files for agent-tool relationships is gone. On the corpus repositories `coverage.file_read_attempts` is lower (for example agno 2104 → 1894, Microsoft Agent Framework 3453 → 3201) and `files_read` is unchanged.
 - Corpus (agents, tools before → after): agno 50 → 401, 45 → 49; autogen 26 → 24, 11 → 4; browser-use 0 → 123 (all unnamed `Agent(task=...)` calls), 27 → 27; ChatDev 40 → 155, 1 → 1; crewAI examples 11 → 51, 18 → 20; gpt-researcher 8 → 9, 2 → 3; langchain deep agents 0 → 0, 18 → 20; LangGraph 5 → 5, 19 → 18; Microsoft Agent Framework 50 → 480, 37 → 246; OpenAI Agents SDK 50 → 150, 33 → 94; Strands Agents 0 → 8, 14 → 17. Google ADK, LangChain, Mastra, MCP servers, the skill collections and the non-AI repositories (Flask, Express, cobra) are unchanged.
+
+### Changed
+
+- The detected framework is now the rule-based one whenever static detection finds it; the LLM only fills it in when static detection finds nothing, and a different LLM suggestion is kept in `metadata.llm_framework`. The vulnerability check uses the same framework, so it no longer changes between runs with an LLM key. New informational `metadata` key `framework_source` (`static` or `llm`) records where the framework came from; it is absent when the framework is `unknown`.
 
 ## [1.0.0rc2] — 2026-11-01
 

@@ -377,3 +377,27 @@ def test_goal_and_suggestions_are_strings_capped_and_redacted():
     assert secret not in planner.evidence and "REDACTED" in planner.evidence
     assert len(planner.evidence) == 500 and len(planner.file) == 500
 
+
+
+@pytest.mark.parametrize("value", [["CrewAI"], {"name": "CrewAI"}, 7, None, "", "   "])
+def test_a_framework_that_is_not_a_usable_string_is_unknown(value):
+    data = {"is_ai_application": True, "framework": value, "summary": ""}
+    assert _parse_synthesis_response(json.dumps(data)).framework == "unknown"
+
+
+def test_the_framework_is_redacted_and_capped():
+    secret = "sk-proj-" + "A" * 40
+    data = {"is_ai_application": True, "framework": f"CrewAI {secret}", "summary": ""}
+    framework = _parse_synthesis_response(json.dumps(data)).framework
+    assert secret not in framework and "REDACTED" in framework
+    data["framework"] = "F" * 900
+    assert _parse_synthesis_response(json.dumps(data)).framework == "F" * 200
+
+
+def test_the_prompt_keeps_the_rule_based_framework():
+    from quin_scanner.llm.synthesis_agent import _SYSTEM_PROMPT
+
+    text = " ".join(_SYSTEM_PROMPT.split())
+    assert "prefer your detection" not in text
+    assert "When the FRAMEWORK CANDIDATE is not 'unknown', return it unchanged" in text
+    assert "NEVER return 'unknown' if any framework evidence is present" in text

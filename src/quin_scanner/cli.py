@@ -39,15 +39,18 @@ def _prepare_output_file(path: str, exit_code: int) -> None:
         sys.exit(exit_code)
 
 
+_FILE_EXTENSIONS = {"cyclonedx": "cdx.json"}
+
+
 def _output_filename(target: str, fmt: str) -> str:
-    """Build an output filename: <repo-name>_<YYYYMMDD_HHMMSS>.<fmt>"""
+    """Build an output filename: <repo-name>_<YYYYMMDD_HHMMSS>.<ext>"""
     # The last path component of the target, whichever separator it uses ("/" in URLs and POSIX paths,
     # "\\" in Windows paths), reduced to characters that are valid in a file name on every OS.
     clean = re.sub(r"[\\/]+$", "", target).removesuffix(".git")
     name = re.split(r"[\\/]", clean)[-1]
     name = re.sub(r"[^A-Za-z0-9._-]+", "_", name).strip("._") or "report"
     ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-    return f"{name}_{ts}.{fmt}"
+    return f"{name}_{ts}.{_FILE_EXTENSIONS.get(fmt, fmt)}"
 
 def _flags_used(
     cfg: ScannerConfig,
@@ -121,6 +124,18 @@ def skill_summary_lines(report) -> list[str]:
     return lines
 
 
+def _bom_note(report, fmt: str) -> None:
+    """Say how many web-search vulnerabilities the BOM leaves out (it carries OSV results only)."""
+    if fmt != "cyclonedx":
+        return
+    from quin_scanner.cyclonedx import omitted_vulnerability_count
+
+    omitted = omitted_vulnerability_count(report)
+    if omitted:
+        noun = "vulnerability" if omitted == 1 else "vulnerabilities"
+        click.echo(f"{omitted} web-search {noun} omitted from the BOM (OSV only)", err=True)
+
+
 def _open_target(target: str, **kwargs):
     """RepoAccessorFactory.create, but a local path that is missing or not a directory is an error.
 
@@ -179,7 +194,7 @@ def _warn_if_no_llm_key(cfg: ScannerConfig) -> None:
         )
 
 
-_OUTPUT_CHOICES = click.Choice(["json", "yaml", "html", "sarif"])
+_OUTPUT_CHOICES = click.Choice(["json", "yaml", "html", "sarif", "cyclonedx"])
 
 
 @click.group(context_settings={"help_option_names": ["-h", "--help"]})
@@ -342,15 +357,17 @@ def scan(
         # Output
         rendered = ReportGenerator.to_string(report, output)
         if output_file:
-            ReportGenerator.write_to_file(report, output_file, output)
+            Path(output_file).write_text(rendered, encoding="utf-8", newline="\n")
             click.echo(f"Report written to {output_file}", err=True)
         elif output_dir:
             Path(output_dir).mkdir(parents=True, exist_ok=True)
             out_path = Path(output_dir) / _output_filename(target, output)
-            ReportGenerator.write_to_file(report, str(out_path), output)
+            out_path.write_text(rendered, encoding="utf-8", newline="\n")
             click.echo(f"Report written to {out_path}", err=True)
         else:
             click.echo(rendered)
+
+        _bom_note(report, output)
 
         for line in skill_summary_lines(report):
             click.echo(line, err=True)
@@ -474,8 +491,14 @@ def scan_batch(
                 accessor.cleanup()
 
         out_path = Path(output_dir) / _output_filename(target, output)
-        ReportGenerator.write_to_file(report, str(out_path), output)
+        try:
+            ReportGenerator.write_to_file(report, str(out_path), output)
+        except Exception as e:
+            click.echo(f"  ERROR: {e}", err=True)
+            failed.append(target)
+            continue
         click.echo(f"  -> {out_path}", err=True)
+        _bom_note(report, output)
 
     if failed:
         click.echo(f"{len(failed)} of {len(targets)} targets failed: {', '.join(failed)}", err=True)
@@ -614,8 +637,14 @@ def scan_org(
                 accessor.cleanup()
 
         out_path = Path(output_dir) / _output_filename(repo.full_name, output)
-        ReportGenerator.write_to_file(report, str(out_path), output)
+        try:
+            ReportGenerator.write_to_file(report, str(out_path), output)
+        except Exception as e:
+            click.echo(f"  ERROR: {e}", err=True)
+            failed.append(repo.full_name)
+            continue
         click.echo(f"  -> {out_path}", err=True)
+        _bom_note(report, output)
         reports.append({"repo": repo.full_name, "is_ai_application": report.is_ai_application, "confidence": report.confidence})
 
     import json

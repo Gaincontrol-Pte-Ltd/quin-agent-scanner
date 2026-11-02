@@ -1328,7 +1328,7 @@ class ScanOrchestrator:
                     n_enriched = len(synthesis.enrichment)
                     n_risks = len(synthesis.risk_signals)
                     agent_risks = sum(len(e.risk_signals) for e in synthesis.enrichment.values())
-                    _log(f"  framework: {synthesis.framework}  |  {n_enriched} agent{'s' if n_enriched != 1 else ''} enriched")
+                    _log(f"  LLM framework: {synthesis.framework}  |  {n_enriched} agent{'s' if n_enriched != 1 else ''} enriched")
                     _log(f"  risks: {n_risks} system-wide, {agent_risks} agent-specific")
             except Exception as e:
                 err = f"SynthesisAgent: {type(e).__name__}: {e}"
@@ -1366,16 +1366,22 @@ class ScanOrchestrator:
             metadata["llm_unlisted_tools"] = digest.unlisted_tools
 
         # ── Deterministic post-processing ──────────────────────────────────────
-        # Apply after synthesis so these rules fill gaps when the LLM left fields
-        # empty or returned 'unknown'. Never overwrite non-empty synthesis output.
+        # Apply after synthesis. Static evidence is the record (framework, inventory); the remaining
+        # rules fill gaps when the LLM left fields empty or returned 'unknown'.
 
-        # Rule 1: framework — use rule-based candidate when synthesis returned unknown
-        pp_framework = (synthesis.framework if synthesis else "unknown") or "unknown"
-        if pp_framework == "unknown" and framework_candidate != "unknown":
+        # Rule 1: framework — the rule-based candidate is the framework of record. The LLM only fills it
+        # in when static detection found nothing; a different LLM answer is kept as a suggestion.
+        llm_framework = ((synthesis.framework if synthesis else "") or "unknown").strip() or "unknown"
+        if framework_candidate != "unknown":
             pp_framework = framework_candidate
+            metadata["framework_source"] = "static"
+        else:
+            pp_framework = llm_framework
+            if pp_framework != "unknown":
+                metadata["framework_source"] = "llm"
 
         # Rule 1b: append framework version from dependency manifests, but only
-        # if the LLM didn't already include one in pp_framework (e.g. "CrewAI 0.130.0").
+        # if the string doesn't already include one (e.g. an LLM answer "CrewAI 0.130.0").
         # parse_framework_ref returns a FrameworkRef when the string already has
         # a parseable version + a known ecosystem mapping; in that case skip
         # the dep-based lookup which would otherwise miss the package-name key.
@@ -1383,6 +1389,12 @@ class ScanOrchestrator:
             fw_version = _extract_framework_version(pp_framework, all_findings)
             if fw_version:
                 pp_framework = f"{pp_framework} {fw_version}"
+        if (
+            metadata.get("framework_source") == "static"
+            and llm_framework != "unknown"
+            and llm_framework.casefold() not in {framework_candidate.casefold(), pp_framework.casefold()}
+        ):
+            metadata["llm_framework"] = llm_framework
 
         # Rule 1c: check detected framework+version against OSV.dev and
         # (optionally) an LLM web search for CVEs / advisories. Failures
