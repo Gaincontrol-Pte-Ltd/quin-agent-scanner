@@ -290,15 +290,16 @@ class AgentInstanceScanner(BaseScanner):
                     agent_name = agent_val.get("name") or agent_val.get("role") or str(agent_key)
                 else:
                     agent_name = str(agent_key)
-                key = f"{path}::{agent_name}"
-                if key in seen:
-                    continue
-                seen.add(key)
+                # Every key is a site (code links to it by key); findings stay deduplicated by display name.
                 self._add_site(
                     role="definition", kind="config_entry", name=str(agent_name), file_path=path, line=None,
                     instructions=InstructionsRef("config", str(agent_key)),
                     tools=_tools_value(agent_val),
                 )
+                key = f"{path}::{agent_name}"
+                if key in seen:
+                    continue
+                seen.add(key)
                 findings.append(ScanFinding(
                     scanner_name=self.name(),
                     category="agent_instance",

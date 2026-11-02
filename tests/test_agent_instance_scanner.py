@@ -368,3 +368,9 @@ def test_js_regex_findings_in_comments_and_strings_get_no_fallback_site(tmp_path
     findings, sites = _evidence(tmp_path, {"c.ts": source})
     assert sorted(f.match_text for f in findings) == ["bee", "ghost", "inStr"]   # findings unchanged
     assert [s.name for s in sites] == ["bee"]
+
+
+def test_two_yaml_keys_with_one_display_name_each_get_a_site(tmp_path):
+    findings, sites = _evidence(tmp_path, {"config/agents.yaml": "a:\n  role: Writer\nb:\n  role: Writer\n"})
+    assert [f.match_text for f in findings] == ["Writer"]   # findings dedupe as before
+    assert sorted((s.name, s.instructions.value) for s in sites) == [("Writer", "a"), ("Writer", "b")]
