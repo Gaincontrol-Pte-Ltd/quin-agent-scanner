@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 import yaml
 
 from quin_scanner.inventory import js_sites, python_sites
-from quin_scanner.inventory.evidence import AgentSite, InstructionsRef, redacted
+from quin_scanner.inventory.evidence import AgentSite, InstructionsRef, clean_site
 from quin_scanner.models import ScanFinding
 from quin_scanner.scanners.base import BaseScanner
 
@@ -182,7 +182,7 @@ class AgentInstanceScanner(BaseScanner):
             if tools is not _NO_TOOLS:
                 fields["tool_refs"] = _literal_tool_refs(tools)
                 fields["tools_given"] = True
-            self._sites.append(redacted(AgentSite(**fields)))  # type: ignore[arg-type]
+            self._sites.append(clean_site(AgentSite(**fields)))  # type: ignore[arg-type]
         except Exception:
             pass
 
@@ -262,7 +262,7 @@ class AgentInstanceScanner(BaseScanner):
                     for f, (role, kind, offset) in zip(findings, origins, strict=True)
                     if not any(start <= offset <= end for start, end in spans)
                 ]
-                sites = [redacted(s) for s in sites]
+                sites = [clean_site(s) for s in sites]
                 self._sites.extend(sites)
         except Exception:
             pass

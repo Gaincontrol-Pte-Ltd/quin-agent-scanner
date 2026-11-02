@@ -7,9 +7,8 @@ from typing import TYPE_CHECKING
 
 import yaml
 
-from quin_scanner.inventory.evidence import ToolSite
+from quin_scanner.inventory.evidence import ToolSite, clean_name
 from quin_scanner.models import ScanFinding
-from quin_scanner.redaction import redact_secrets
 from quin_scanner.scanners.base import BaseScanner
 
 if TYPE_CHECKING:
@@ -171,9 +170,11 @@ class ToolDefinitionScanner(BaseScanner):
                 if label in _REGISTRATION_LABELS:
                     continue                  # a registration call references a tool; it does not define one
                 site_kind = {"tools/": "function", "agent spec": "agent_spec"}.get(label, label)
-            # match_text is already redacted by ScanFinding; redacting again is idempotent and keeps that local.
-            self._sites.append(ToolSite(name=redact_secrets(name.strip()), kind=site_kind, file_path=f.file_path,
-                                        line=f.line_number or None))
+            # Normalised like agent names (and redacted again: idempotent, keeps that local); empty → no site.
+            cleaned = clean_name(name)
+            if cleaned:
+                self._sites.append(ToolSite(name=cleaned, kind=site_kind, file_path=f.file_path,
+                                            line=f.line_number or None))
 
     def evidence(self) -> list[ToolSite]:
         """Typed tool definition sites from the last scan(), test files included, sorted by location."""

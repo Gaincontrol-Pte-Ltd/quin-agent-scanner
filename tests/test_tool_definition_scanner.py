@@ -101,3 +101,9 @@ def test_tools_dir_failure_keeps_code_findings(tmp_path, monkeypatch):
     monkeypatch.setattr(ToolDefinitionScanner, "_scan_tool_dir_functions", boom)
     findings, _ = _scan(tmp_path, {"tools/a.py": "@tool\ndef alpha():\n    pass\n"})
     assert [f.match_text for f in findings] == ["alpha (@tool)"]
+
+
+def test_tool_site_names_are_normalised_like_agent_names(tmp_path):
+    findings, sites = _scan(tmp_path, {"tools.yaml": "tools:\n  - name: \"'web   search'\"\n  - name: \"''\"\n"})
+    assert sorted(f.match_text for f in findings) == ["''", "'web   search'"]   # findings unchanged
+    assert [s.name for s in sites] == ["web search"]                              # an empty name gives no site

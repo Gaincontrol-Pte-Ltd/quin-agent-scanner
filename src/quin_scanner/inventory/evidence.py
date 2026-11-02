@@ -52,15 +52,34 @@ class ToolSite:
     line: int | None
 
 
-def redacted(site: AgentSite) -> AgentSite:
-    """Credentials removed from every user-content string a site carries (a literal's hash is not user content)."""
+def clean_name(name: str | None) -> str | None:
+    """An evidence name as shown: whitespace runs collapsed to one space, ends stripped, one pair of matching
+    surrounding quotes removed, credentials redacted. None when nothing is left (the site is then weak).
+
+    For evidence only: findings keep their raw ``match_text``.
+    """
+    if name is None:
+        return None
+    text = " ".join(name.split())
+    if len(text) >= 2 and text[0] == text[-1] and text[0] in "'\"":
+        text = " ".join(text[1:-1].split())
+    return redact_secrets(text) if text else None
+
+
+def clean_site(site: AgentSite) -> AgentSite:
+    """The one place a site is made presentable: names normalised (:func:`clean_name`, also for tool refs; empty
+    refs are dropped) and credentials removed from every user-content string (a literal's hash is not user content).
+    """
     instructions = site.instructions
     if instructions.kind in ("file", "var", "config"):
         instructions = InstructionsRef(instructions.kind, redact_secrets(instructions.value))
+    tool_refs = site.tool_refs
+    if tool_refs is not None:
+        tool_refs = tuple(ref for ref in (clean_name(r) for r in tool_refs) if ref)
     return dataclasses.replace(
         site,
-        name=redact_secrets(site.name) if site.name else site.name,
+        name=clean_name(site.name),
         instructions=instructions,
         model_expr=redact_secrets(site.model_expr) if site.model_expr else site.model_expr,
-        tool_refs=None if site.tool_refs is None else tuple(redact_secrets(ref) for ref in site.tool_refs),
+        tool_refs=tool_refs,
     )

@@ -262,7 +262,7 @@ def test_config_site_failure_never_costs_findings(tmp_path, monkeypatch):
     def boom(site):
         raise RuntimeError("x")
 
-    monkeypatch.setattr("quin_scanner.scanners.agent_instance_scanner.redacted", boom)
+    monkeypatch.setattr("quin_scanner.scanners.agent_instance_scanner.clean_site", boom)
     findings, sites = _evidence(tmp_path, {"config/agents.yaml": "a:\n  role: R\nb:\n  role: S\n"})
     assert len(findings) == 2 and sites == []
 
@@ -325,3 +325,35 @@ def test_tool_ref_failure_never_costs_findings(tmp_path, monkeypatch):
 def test_yaml_config_sites_record_whether_a_tools_key_is_present(tmp_path):
     _, sites = _evidence(tmp_path, {"config/agents.yaml": "a:\n  role: A\n  tools: TOOLS\nb:\n  role: B\n"})
     assert sorted((s.name, s.tool_refs, s.tools_given) for s in sites) == [("A", None, True), ("B", None, False)]
+
+
+# --- final review: evidence names are normalised --------------------------------------------------------------------
+
+
+def test_block_scalar_and_quoted_yaml_names_are_normalised(tmp_path):
+    source = (
+        "planner:\n  role: >\n    Activity Planner\n  goal: g\n"
+        "strategist:\n  role: >\n    \"Senior Communications Strategist\"\n  goal: g\n"
+        "spaced:\n  role: \"  Lead   \\t Analyst \"\n  tools:\n    - \"'search tool'\"\n    - \"  web\\n\"\n"
+        "blank:\n  role: \"''\"\n"
+    )
+    findings, sites = _evidence(tmp_path, {"config/agents.yaml": source})
+    # findings are unchanged: match_text keeps the raw YAML value
+    assert "Activity Planner\n" in [f.match_text for f in findings]
+    got = {s.instructions.value: (s.name, s.tool_refs) for s in sites}
+    assert got == {
+        "planner": ("Activity Planner", None),
+        "strategist": ("Senior Communications Strategist", None),
+        "spaced": ("Lead Analyst", ("search tool", "web")),
+        "blank": (None, None),
+    }
+
+
+def test_clean_site_normalises_every_name_it_carries():
+    from quin_scanner.inventory.evidence import AgentSite, clean_name, clean_site
+
+    site = clean_site(AgentSite(role="both", kind="constructor", name=" 'x  y' ", file_path="a.py", line=1,
+                                tool_refs=('"t1"', " t2\n", "''")))
+    assert (site.name, site.tool_refs) == ("x y", ("t1", "t2"))
+    assert clean_name("\"a'") == "\"a'"   # unmatched quotes are kept
+    assert clean_name("''") is None and clean_name("  ") is None and clean_name(None) is None

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import re
 
-from quin_scanner.inventory.evidence import NO_INSTRUCTIONS, AgentSite, InstructionsRef, redacted
+from quin_scanner.inventory.evidence import NO_INSTRUCTIONS, AgentSite, InstructionsRef, clean_site
 
 _AGENT_CALL = re.compile(r"\b(?:new\s+)?(?:Agent|AssistantAgent|UserProxyAgent|ConversableAgent)\s*\(\s*\{")
 # A name, dotted name or quoted string; every item of a tools list must be one for the list to be known.
@@ -234,7 +234,7 @@ def agent_sites(content: str, path: str) -> list[AgentSite]:
     for call, opening, closing in _calls(content):
         body = content[opening + 1:closing]
         view = _top_level_view(body)   # keys are read only at the object's top level, never in nested values
-        sites.append(redacted(AgentSite(
+        sites.append(clean_site(AgentSite(
             role="both", kind="constructor", name=_name(body, view),
             file_path=path, line=content.count("\n", 0, call.start()) + 1,
             instructions=_instructions(body, view), model_expr=_model(body, view), tool_refs=_tool_refs(body, view),

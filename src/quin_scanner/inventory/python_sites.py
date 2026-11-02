@@ -4,7 +4,7 @@ from __future__ import annotations
 import ast
 import warnings
 
-from quin_scanner.inventory.evidence import NO_INSTRUCTIONS, AgentSite, InstructionsRef, redacted
+from quin_scanner.inventory.evidence import NO_INSTRUCTIONS, AgentSite, InstructionsRef, clean_site
 from quin_scanner.redaction import redact_secrets
 
 _NAME_KEYWORDS = frozenset({"name", "agent_name"})
@@ -299,7 +299,7 @@ def agent_sites(tree: ast.Module, path: str) -> list[AgentSite]:
     A tree too deep to walk recursively (it parsed, but visiting it raises RecursionError) gives no sites.
     """
     try:
-        return [redacted(site) for site in _all_sites(tree, path)]
+        return [clean_site(site) for site in _all_sites(tree, path)]
     except RecursionError:
         return []
 
