@@ -28,7 +28,8 @@ ROOT_REF = "repo"
 _SEVERITY_ORDER = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4, "none": 5, "unknown": 6}
 
 
-_TEMPLATE = re.compile(r'[{}$<>"|\\^`\s]')
+# `${HOST}`-style templates and other characters that are not legal in an IRI. A lone `$` is legal.
+_TEMPLATE = re.compile(r'[{}<>"|\\^`\s]')
 
 
 class _Refs:
@@ -335,8 +336,8 @@ def build_bom(report: ScanReport) -> dict[str, Any]:
     agents = _agents(report, refs, graph, tool_refs, models_by_name)
     components = framework + models + agents + tools
     services = _services(report, refs, graph)
-    _claim_occurrence_refs(components, refs)
     vulnerabilities = _vulnerabilities(report, refs, framework_ref)
+    _claim_occurrence_refs(components, refs)  # last, so no other ref is displaced by an instance id
 
     bom: dict[str, Any] = {
         "bomFormat": "CycloneDX",

@@ -503,6 +503,17 @@ class TestRobustness:
         endpoint = _endpoint(url="http://${HOST}:8000/v1", host="${host}", kind="unknown")
         assert "services" not in build_bom(_report(llm_endpoints=[endpoint]))
 
+    def test_a_lone_dollar_sign_is_a_legal_endpoint(self):
+        kept = _endpoint(url="https://api.example.com/v1?sig=$abc", host="api.example.com", kind="public")
+        dropped = _endpoint(url="http://${HOST}/v1", host="other.example.com", kind="public")
+        bom = _valid(build_bom(_report(llm_endpoints=[kept, dropped])))
+        assert [s["endpoints"] for s in bom["services"]] == [["https://api.example.com/v1?sig=$abc"]]
+
+    def test_occurrence_refs_are_claimed_after_vulnerability_refs(self):
+        agent = _agent(instances=[_instance("vuln:CVE-2024-0001")])
+        bom = _valid(build_bom(_report(framework="CrewAI 0.80.0", agents=[agent], vulnerabilities=[_vuln()])))
+        assert bom["vulnerabilities"][0]["bom-ref"] == "vuln:CVE-2024-0001"
+
     def test_duplicate_tool_ids_map_to_first_ref(self):
         agent = _agent(instances=[_instance("i#1", tools=[("s", "tool:s")])])
         tools = [_tool("tool:s", "s", line=1), _tool("tool:s", "s", line=2)]
