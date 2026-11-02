@@ -101,6 +101,16 @@ class TestRepoName:
     def test_empty_falls_back(self):
         assert _repo_name("") == "repository"
 
+    def test_github_https_url(self):
+        assert _repo_name("https://github.com/acme/agents") == "acme/agents"
+        assert _repo_name("https://github.com/acme/agents.git") == "acme/agents"
+        assert _repo_name("https://github.com/acme/agents/") == "acme/agents"
+        assert _repo_name("http://github.com/acme/agents.git/") == "acme/agents"
+
+    def test_github_ssh_url(self):
+        assert _repo_name("git@github.com:acme/agents.git") == "acme/agents"
+        assert _repo_name("git@github.com:acme/agents") == "acme/agents"
+
 
 class TestIsoUtc:
     def test_offset_datetime(self):
@@ -252,10 +262,11 @@ class TestModels:
         assert len(bom["components"]) == 1
         assert "evidence" not in bom["components"][0]
 
-    def test_empty_provider_becomes_unknown(self):
-        bom = build_bom(_report(model_usages=[_model(provider="")]))
-        assert bom["components"][0]["bom-ref"] == "model:unknown/gpt-4o"
-        assert bom["components"][0]["publisher"] == "unknown"
+    def test_empty_or_unknown_provider_has_no_publisher(self):
+        for provider in ("", "unknown"):
+            bom = _valid(build_bom(_report(model_usages=[_model(provider=provider)])))
+            assert bom["components"][0]["bom-ref"] == "model:unknown/gpt-4o"
+            assert "publisher" not in bom["components"][0]
 
     def test_models_are_not_root_dependencies(self):
         bom = build_bom(_report(model_usages=[_model()]))

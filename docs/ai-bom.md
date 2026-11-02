@@ -13,20 +13,26 @@ The BOM holds AI components only. For packages, generate an SBOM with [syft](htt
     syft dir:./my-agent-app -o cyclonedx-json=sbom.cdx.json
     cyclonedx merge --input-files sbom.cdx.json ai-bom.cdx.json --output-file full.cdx.json
 
-Both files can also be uploaded to the same project in Dependency-Track.
+For Dependency-Track, upload the merged `full.cdx.json`: uploading a BOM replaces the project's inventory, so uploading
+the SBOM and the AI-BOM one after the other to the same project keeps only the second. Alternatively, upload each file to
+a project of its own.
 
 ## What is in it
 
 | Quin item | CycloneDX | `bom-ref` |
 |---|---|---|
 | Repository | `metadata.component` (`application`) | `repo` |
-| Detected framework and version | component, `type: framework`, with `purl` | the purl, e.g. `pkg:pypi/crewai@0.80.0` |
-| Model with a literal name | component, `type: machine-learning-model`, `publisher` = provider; each use is an occurrence | `model:<provider>/<name>` |
-| Agent | component, `type: application`, property `quin:kind=agent`; each instance is an occurrence | the agent ID, e.g. `agent:researcher` |
+| Framework and version found by static detection | component, `type: framework`, with `purl` | the purl, e.g. `pkg:pypi/crewai@0.80.0` |
+| Model with a literal name | component, `type: machine-learning-model`, `publisher` = provider (omitted when the provider is unknown); each use is an occurrence | `model:<provider>/<name>`, `model:unknown/<name>` without a provider |
+| Agent | component, `type: application`, property `quin:kind=agent`; each instance is an occurrence. An agent without a literal name (`quin:identity=weak`) has its ID as `name` | the agent ID, e.g. `agent:researcher` |
 | Tool | component, `type: application`, property `quin:kind=tool`; its definition is an occurrence | the tool ID, e.g. `tool:search` |
 | MCP server | service | `service:mcp:<name>` |
 | LLM endpoint (resolved address) | service, `endpoints` = redacted URLs, one per host | `service:endpoint:<host>` |
 | OSV vulnerability in the framework | vulnerability, `affects` = the framework | `vuln:<id>` |
+
+The framework is included only when static detection found it (`metadata.framework_source` is `static` in the JSON
+report). When only the LLM named the framework, the BOM has no framework component and so no vulnerabilities, because
+the LLM's answer can differ between runs.
 
 Agents whose instances are all in test or example code have `scope: excluded`; production agents have `scope: required`.
 
@@ -46,14 +52,15 @@ tools and models it is given.
 | `quin:tool-type` | tools | `tool_definition`, `external_service`, `skill`, `mcp_tool` |
 | `quin:transport` | MCP servers | `stdio`, `http`, `sse`, `unknown` |
 | `quin:source-file` | MCP servers | file the server is configured in |
-| `quin:endpoint-kind` | endpoints | `hosted_provider`, `local`, `private`, `remote`, `unknown` |
+| `quin:endpoint-kind` | endpoints | `hosted_provider`, `local`, `private`, `remote`, `unknown`; a comma-separated list (sorted) when one host has endpoints of several kinds, e.g. `hosted_provider,remote` |
 
 ## What is left out, and why
 
 - **Anything the LLM writes**: agent goals, types and capabilities, tool service categories, and the unverified
-  `llm_inferred_agents` / `llm_inferred_tools`. The BOM is built from static evidence only, so the same commit gives the
-  same BOM with or without an LLM key. Only `serialNumber` (new for every BOM, as the CycloneDX spec requires) and
-  `metadata.timestamp` change between runs.
+  `llm_inferred_agents` / `llm_inferred_tools`, and a framework that only the LLM named. The BOM is built from static
+  evidence only, so it is the same with or without an LLM key: the same commit, the same Quin version and the same OSV
+  data give the same BOM apart from `serialNumber` (new for every BOM, as the CycloneDX spec requires) and
+  `metadata.timestamp`.
 - **Web-search vulnerabilities**: results from `--vuln-search-provider` can differ between runs and sometimes have no
   advisory ID. The BOM carries OSV results only; Quin prints how many web-search results it left out. They remain in
   the JSON and HTML reports.

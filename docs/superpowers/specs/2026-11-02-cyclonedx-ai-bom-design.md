@@ -21,7 +21,7 @@ F made the inventory deterministic with stable IDs. C1 exports it as a CycloneDX
 1. `-o cyclonedx` on `scan`, `scan-batch` and `scan-org` writes a CycloneDX 1.6 JSON BOM that validates against the official schema.
 2. The BOM holds AI components only. Package SBOMs come from syft or cdxgen; the docs show how to combine them with `cyclonedx merge`.
 3. The BOM holds inventory and vulnerabilities only: no risk signals, divergence flags or LLM-written text.
-4. The same commit gives the same BOM. Only `serialNumber` and `metadata.timestamp` differ between runs.
+4. The same commit, the same Quin version and the same OSV data give the same BOM, with or without the LLM pass. Only `serialNumber` and `metadata.timestamp` differ between runs.
 5. Agents keep the agent/instance structure from F: one component per agent, one occurrence per instance.
 6. No new runtime dependency.
 
@@ -33,7 +33,7 @@ F made the inventory deterministic with stable IDs. C1 exports it as a CycloneDX
 - Risk properties, regulatory mapping (C2), capability profiles (A1).
 - A BOM for `skills scan`.
 - A GitHub Action input for the BOM (small follow-up).
-- Changes to the JSON report schema.
+- Changes to the JSON report schema (the framework fix adds two informational `metadata` keys, §5.2; `metadata` is an open map).
 
 ## 4. Decisions
 
@@ -46,6 +46,7 @@ F made the inventory deterministic with stable IDs. C1 exports it as a CycloneDX
 | D5 | How the BOM is built | Hand-written dict builder, validated in tests against the vendored 1.6 schema | `cyclonedx-python-lib` as runtime dependency or optional extra |
 | D6 | Agent and tool component type | `application` with property `quin:kind` = `agent` / `tool`; no `quin:service-category` (§5.2) | — (CycloneDX has no agent or tool type) |
 | D7 | `serialNumber` | Random `urn:uuid` per BOM | Deterministic UUID (the spec requires a new serial number for every BOM, even when content is unchanged) |
+| D8 | Which framework | The rule-based framework is the framework of record; the LLM fills it in only when static detection finds none; the BOM includes the framework only when `metadata.framework_source == "static"` | The LLM's framework with the rule-based one as fallback (the framework, and the OSV results, changed with an LLM key) |
 
 ## 5. Mapping
 
@@ -69,7 +70,7 @@ F made the inventory deterministic with stable IDs. C1 exports it as a CycloneDX
 }
 ```
 
-The repository name is `owner/repo` for GitHub targets and the directory name for local paths (`_repo_name` in `cyclonedx.py`). Empty arrays are omitted.
+The repository name is `owner/repo` for GitHub targets, given as `owner/repo` or as a GitHub URL (`https://github.com/owner/repo`, `http://…`, `git@github.com:owner/repo`, each with an optional `.git` and trailing `/`), and the directory name for local paths (`_repo_name` in `cyclonedx.py`). Empty arrays are omitted.
 
 ### 5.2 Components
 
@@ -77,10 +78,12 @@ Order: framework, then models, then agents, then tools. Within each group, sorte
 
 | Quin item | `type` | `bom-ref` | Other fields |
 |---|---|---|---|
-| Framework (when `parse_framework_ref(report.framework)` resolves) | `framework` | purl, e.g. `pkg:pypi/crewai@0.80.0` | `name`, `version`, `purl` |
-| `model_usages` entry with a literal model name | `machine-learning-model` | `model:<provider>/<model_name>` | `name`, `publisher` = provider; one occurrence per usage (file, line) |
-| Agent | `application` | agent ID | `name`, `scope`, properties, occurrences (5.3) |
+| Framework (only when it comes from static detection, `metadata.framework_source == "static"`, and `parse_framework_ref(report.framework)` resolves) | `framework` | purl, e.g. `pkg:pypi/crewai@0.80.0` | `name`, `version`, `purl` |
+| `model_usages` entry with a literal model name | `machine-learning-model` | `model:<provider>/<model_name>`; `model:unknown/<model_name>` when the provider is empty | `name`, `publisher` = provider (omitted when the provider is empty or `unknown`); one occurrence per usage (file, line) |
+| Agent | `application` | agent ID | `name` (the agent ID for a weak agent without a literal name), `scope`, properties, occurrences (5.3) |
 | Tool (`tool_usages`) | `application` | tool ID | `name`, properties; one occurrence at the tool's own location when known |
+
+The report's framework is the rule-based one whenever static detection finds it (the orchestrator records `metadata.framework_source = "static"`, and keeps a different LLM answer in `metadata.llm_framework`); only when static detection finds none does the LLM's answer become the framework (`framework_source = "llm"`). An LLM-named framework is left out of the BOM because it can differ between runs.
 
 `scope` on agents: `required` when the agent's scope is `production`, `excluded` when it is `test` or `example`. Tools and models carry no `scope`.
 
@@ -118,7 +121,7 @@ Each agent instance becomes one entry of the agent's `evidence.occurrences`:
 | Quin item | `bom-ref` | Fields |
 |---|---|---|
 | MCP server | `service:mcp:<name>` | `name`, property `quin:transport`, property `quin:source-file` |
-| `llm_endpoints` entry whose `kind` is not `unresolved` | `service:endpoint:<host>` | `name` = host, `endpoints` = redacted URLs (sorted, deduplicated), property `quin:endpoint-kind` |
+| `llm_endpoints` entry whose `kind` is not `unresolved` | `service:endpoint:<host>` | `name` = host, `endpoints` = redacted URLs (sorted, deduplicated), property `quin:endpoint-kind` (the host's kinds, sorted and comma-separated when there are several, e.g. `hosted_provider,remote`) |
 
 Endpoints are grouped by host. Services are sorted by `bom-ref`.
 
@@ -149,6 +152,7 @@ Only `report.vulnerabilities` entries with `source == "osv"` and a non-empty `cv
 
 - `ratings[].score` omitted when `cvss_score` is null; `severity` uses the CycloneDX enum (`unknown` stays `unknown`).
 - `published` is normalised to a date-time (`YYYY-MM-DDT00:00:00Z` for a bare date); omitted when missing or unparsable.
+- Duplicate IDs are de-duplicated deterministically: the entry that ranks first (severity, then higher score, then summary, then URL) is kept, whatever the input order.
 - Sorted by severity (critical first), then `id`.
 
 ### 5.7 Left out
@@ -165,19 +169,19 @@ Only `report.vulnerabilities` entries with `source == "osv"` and a non-empty `cv
 - Auto-named files use the extension `.cdx.json` (`<name>_<ts>.cdx.json`); other formats keep `.<fmt>`.
 - `-f FILE` and stdout behave as for SARIF.
 - When web-search vulnerabilities were left out, one line goes to stderr: `N web-search vulnerabilities omitted from the BOM (OSV only)`.
-- The BOM does not depend on whether the LLM pass ran.
+- The BOM does not depend on whether the LLM pass ran: it uses static evidence only, and the framework (with its OSV vulnerabilities) only when static detection found it.
 
 ## 8. Code
 
 - New `src/quin_scanner/cyclonedx.py`, same style as `sarif.py`: private builders returning plain dicts, public `build_bom(report) -> dict`, `to_cyclonedx(report: ScanReport) -> str` (JSON, 2-space indent, `ensure_ascii=False`, written like the other formats) and `omitted_vulnerability_count(report) -> int`.
 - `ReportGenerator.render` gets a `cyclonedx` branch; `ReportGenerator.to_cyclonedx` mirrors `to_sarif`.
 - `cli.py`: output choice, extension mapping, stderr note.
-- No change to `models.py` or the report schema.
+- No change to `models.py` or the report schema. `orchestrator.py` makes the rule-based framework the framework of record and records `metadata.framework_source` / `metadata.llm_framework` (§5.2).
 
 ## 9. Errors
 
 - An empty inventory produces a valid BOM with only the root component and its empty dependency entry.
-- A framework without a resolvable purl produces no framework component and no vulnerabilities.
+- A framework without a resolvable purl, or one not from static detection, produces no framework component and no vulnerabilities.
 - If building the BOM raises, `scan` fails through its existing error path with `Scan failed: could not build the CycloneDX BOM: <reason>` and exit code 1; no partial file is written (render first, then write). In `scan-batch` and `scan-org` that target is reported and counted as failed, and the run continues.
 
 ## 10. Testing
@@ -197,7 +201,7 @@ Only `report.vulnerabilities` entries with `source == "osv"` and a non-empty `cv
   - every output validates against the vendored schema.
 - Determinism: export twice under different `PYTHONHASHSEED` values; after removing `serialNumber` and `metadata.timestamp`, output is byte-identical.
 - CLI tests: `-o cyclonedx` on `scan` (file and stdout), `scan-batch` auto-naming `.cdx.json`, stderr note.
-- Corpus: `scripts/run_corpus.py --check` also builds and schema-validates a BOM for every corpus repository. No BOM snapshots are stored.
+- Corpus: `scripts/run_corpus.py --check` also builds and schema-validates a BOM for every corpus repository. No BOM snapshots are stored. A BOM export that fails or a BOM that fails the schema marks the entry `INVALID` (exit 1, a product defect, not an infrastructure error); the corpus workflow also runs when `cyclonedx.py`, `report.py`, `tests/cyclonedx_support.py` or `tests/cyclonedx_schema/` change.
 
 ## 11. Docs
 

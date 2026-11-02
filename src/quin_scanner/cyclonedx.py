@@ -48,7 +48,12 @@ class _Refs:
 
 
 def _repo_name(repo_path: str) -> str:
-    """owner/repo for GitHub targets, the directory name for local paths."""
+    """owner/repo for GitHub targets (owner/repo or a GitHub URL), the directory name for local paths."""
+    github = re.fullmatch(
+        r"(?:https?://github\.com/|git@github\.com:)([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+?)(?:\.git)?/*", repo_path.strip(),
+    )
+    if github:
+        return f"{github.group(1)}/{github.group(2)}"
     clean = re.sub(r"[\\/]+$", "", repo_path).removesuffix(".git")
     if re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", clean):
         return clean
@@ -168,7 +173,9 @@ def _models(report: ScanReport, refs: _Refs, graph: dict[str, set[str]]) -> tupl
     for (provider, name), usages in sorted(groups.items()):
         ref = refs.take(f"model:{provider}/{name}")
         graph[ref] = set()
-        component: dict[str, Any] = {"type": "machine-learning-model", "bom-ref": ref, "name": name, "publisher": provider}
+        component: dict[str, Any] = {"type": "machine-learning-model", "bom-ref": ref, "name": name}
+        if provider.strip() and provider.strip().casefold() != "unknown":
+            component["publisher"] = provider
         places = sorted({(u.file_path, u.line_number) for u in usages if u.file_path}, key=lambda p: (p[0], p[1] is None, p[1] or 0))
         if places:
             component["evidence"] = {"occurrences": [_occurrence(file, line) for file, line in places]}

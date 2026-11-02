@@ -6,7 +6,7 @@
   python3 scripts/run_corpus.py --update [--only NAME]  # rewrite snapshots after a deliberate change
   python3 scripts/run_corpus.py --check --latest        # upstream HEAD instead of the pinned commit (drift)
 
-Exit codes: 0 all match, 1 something differs, 2 infrastructure error (fetch or scan failed).
+Exit codes: 0 all match, 1 something differs or a BOM is invalid, 2 infrastructure error (fetch or scan failed).
 The scan uses the public CLI (no LLM, no vulnerability lookup), so the corpus also exercises the CLI contract.
 Agents entries are also exported with -o cyclonedx and validated against the CycloneDX 1.6 schema.
 """
@@ -115,7 +115,10 @@ def scan(entry: dict, target: Path) -> dict:
 
 
 def check_bom(entry: dict, target: Path) -> list[str]:
-    """Build the CycloneDX BOM with the public CLI and return its schema errors (agents entries only)."""
+    """Build the CycloneDX BOM with the public CLI and return its problems (agents entries only).
+
+    A crashing export is a product defect like a schema error, so it is returned as a problem, not raised.
+    """
     if str(ROOT) not in sys.path:
         sys.path.insert(0, str(ROOT))
     from tests.cyclonedx_support import bom_errors  # dev dependency (jsonschema); the corpus runs with --all-extras
@@ -126,7 +129,7 @@ def check_bom(entry: dict, target: Path) -> list[str]:
         env = {**os.environ, "PYTHONUTF8": "1", "NO_COLOR": "1"}
         result = subprocess.run([*CLI, *args], capture_output=True, text=True, env=env, timeout=1800)
         if result.returncode != 0 or not out.is_file():
-            raise CorpusError(f"{entry['name']}: BOM export failed (exit {result.returncode}): {result.stderr.strip()[-400:]}")
+            return [f"BOM export failed (exit {result.returncode}): {result.stderr.strip()[-400:]}"]
         return bom_errors(json.loads(out.read_text(encoding="utf-8")))
 
 
@@ -229,7 +232,7 @@ def main(argv: list[str] | None = None) -> int:
             return 2
         if bom_problems:
             invalid += 1
-            print(f"INVALID {name}: the CycloneDX BOM fails the 1.6 schema:")
+            print(f"INVALID {name}: the CycloneDX BOM export failed or fails the 1.6 schema:")
             for problem in bom_problems[:20]:
                 print(f"  {problem}")
         path = EXPECTED / f"{name}.json"
@@ -247,11 +250,10 @@ def main(argv: list[str] | None = None) -> int:
             print(f"CHANGED {name} ({commit[:12]}):")
             for line in lines:
                 print(f"  {line}")
-        else:
+        elif not bom_problems:
             print(f"ok      {name} ({commit[:12]})")
     if invalid:
         print(f"\n{invalid} corpus entr{'y' if invalid == 1 else 'ies'} produced an invalid CycloneDX BOM.", file=sys.stderr)
-        return 1
     if changed:
         print(
             f"\n{changed} corpus entr{'y' if changed == 1 else 'ies'} changed. If this is the intended effect of your change, "
@@ -259,8 +261,7 @@ def main(argv: list[str] | None = None) -> int:
             "'Detection changes' in CHANGELOG.md.",
             file=sys.stderr,
         )
-        return 1
-    return 0
+    return 1 if invalid or changed else 0
 
 
 if __name__ == "__main__":
