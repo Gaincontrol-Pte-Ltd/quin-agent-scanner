@@ -85,7 +85,12 @@ def _purl(ref: FrameworkRef) -> str | None:
 
 
 def _framework(report: ScanReport, refs: _Refs, graph: dict[str, set[str]]) -> list[dict[str, Any]]:
-    """The framework component (0 or 1 item), wired to the root in *graph*."""
+    """The framework component (0 or 1 item), wired to the root in *graph*.
+
+    Only a framework found by static detection is included: one the LLM named could differ between runs.
+    """
+    if report.metadata.get("framework_source") != "static":
+        return []
     ref = parse_framework_ref(report.framework)
     purl = _purl(ref) if ref else None
     if ref is None or purl is None:

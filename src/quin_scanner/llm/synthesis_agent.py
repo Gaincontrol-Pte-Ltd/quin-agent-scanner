@@ -206,7 +206,7 @@ def _build_evidence_block(
     lines: list[str] = []
 
     lines.append(f"FRAMEWORK CANDIDATE (rule-based): {framework_candidate}")
-    lines.append("Confirm if correct, or override with a more specific framework name.\n")
+    lines.append("Confirm it, or name the framework if the candidate is unknown.\n")
 
     lines.append(f"Capability tags: {', '.join(capability_tags) if capability_tags else 'none'}")
 

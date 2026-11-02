@@ -32,6 +32,9 @@ from quin_scanner.vuln_checker import FrameworkRef
 from tests.cyclonedx_support import bom_errors
 
 
+_STATIC = {"framework_source": "static"}
+
+
 def _report(**fields) -> ScanReport:
     base = dict(
         repo_path="/home/dev/demo-repo",
@@ -141,13 +144,22 @@ def _vuln(cve_id="CVE-2024-0001", severity="high", source="osv", **kw) -> Vulner
 
 class TestFramework:
     def test_framework_component(self):
-        bom = _valid(build_bom(_report(framework="CrewAI 0.80.0")))
+        bom = _valid(build_bom(_report(framework="CrewAI 0.80.0", metadata=_STATIC)))
         assert bom["components"] == [{
             "type": "framework", "bom-ref": "pkg:pypi/crewai@0.80.0", "name": "crewai",
             "version": "0.80.0", "purl": "pkg:pypi/crewai@0.80.0",
         }]
         assert {"ref": "repo", "dependsOn": ["pkg:pypi/crewai@0.80.0"]} in bom["dependencies"]
         assert {"ref": "pkg:pypi/crewai@0.80.0"} in bom["dependencies"]
+
+    def test_llm_framework_gives_no_component_and_no_vulnerabilities(self):
+        bom = _valid(build_bom(_report(framework="CrewAI 0.80.0", metadata={"framework_source": "llm"},
+                                       vulnerabilities=[_vuln()])))
+        assert "components" not in bom and "vulnerabilities" not in bom
+
+    def test_framework_without_a_source_gives_no_component(self):
+        bom = _valid(build_bom(_report(framework="CrewAI 0.80.0", vulnerabilities=[_vuln()])))
+        assert "components" not in bom and "vulnerabilities" not in bom
 
     def test_unresolvable_framework_gives_no_component(self):
         bom = _valid(build_bom(_report(framework="unknown")))
@@ -168,7 +180,7 @@ class TestFramework:
 
 class TestVulnerabilities:
     def test_osv_vulnerability(self):
-        bom = _valid(build_bom(_report(framework="CrewAI 0.80.0", vulnerabilities=[_vuln()])))
+        bom = _valid(build_bom(_report(framework="CrewAI 0.80.0", metadata=_STATIC, vulnerabilities=[_vuln()])))
         assert bom["vulnerabilities"] == [{
             "bom-ref": "vuln:CVE-2024-0001",
             "id": "CVE-2024-0001",
@@ -181,7 +193,7 @@ class TestVulnerabilities:
 
     def test_web_search_and_unidentified_entries_are_left_out(self):
         vulns = [_vuln("CVE-2024-0002", source="web:perplexity"), _vuln(None), _vuln("")]
-        bom = _valid(build_bom(_report(framework="CrewAI 0.80.0", vulnerabilities=vulns)))
+        bom = _valid(build_bom(_report(framework="CrewAI 0.80.0", metadata=_STATIC, vulnerabilities=vulns)))
         assert "vulnerabilities" not in bom
 
     def test_no_framework_component_means_no_vulnerabilities(self):
@@ -190,15 +202,15 @@ class TestVulnerabilities:
 
     def test_optional_fields_are_omitted(self):
         v = _vuln(cvss_score=None, published="soon", summary="", source_url=None, severity="weird")
-        out = build_bom(_report(framework="CrewAI 0.80.0", vulnerabilities=[v]))["vulnerabilities"][0]
+        out = build_bom(_report(framework="CrewAI 0.80.0", metadata=_STATIC, vulnerabilities=[v]))["vulnerabilities"][0]
         assert out["ratings"] == [{"severity": "unknown"}]
         assert out["source"] == {"name": "OSV"}
         assert "published" not in out and "description" not in out
-        _valid(build_bom(_report(framework="CrewAI 0.80.0", vulnerabilities=[v])))
+        _valid(build_bom(_report(framework="CrewAI 0.80.0", metadata=_STATIC, vulnerabilities=[v])))
 
     def test_sorted_by_severity_then_id_and_deduplicated(self):
         vulns = [_vuln("CVE-B", "medium"), _vuln("CVE-C", "critical"), _vuln("CVE-A", "medium"), _vuln("CVE-C", "critical")]
-        bom = build_bom(_report(framework="CrewAI 0.80.0", vulnerabilities=vulns))
+        bom = build_bom(_report(framework="CrewAI 0.80.0", metadata=_STATIC, vulnerabilities=vulns))
         assert [v["id"] for v in bom["vulnerabilities"]] == ["CVE-C", "CVE-A", "CVE-B"]
 
     def test_omitted_count_counts_web_search_entries(self):
@@ -208,8 +220,8 @@ class TestVulnerabilities:
     def test_duplicate_id_picks_the_same_winner_in_either_order(self):
         a = _vuln("CVE-D", "high", cvss_score=7.0, summary="alpha")
         b = _vuln("CVE-D", "high", cvss_score=9.0, summary="beta")
-        one = build_bom(_report(framework="CrewAI 0.80.0", vulnerabilities=[a, b]))["vulnerabilities"]
-        two = build_bom(_report(framework="CrewAI 0.80.0", vulnerabilities=[b, a]))["vulnerabilities"]
+        one = build_bom(_report(framework="CrewAI 0.80.0", metadata=_STATIC, vulnerabilities=[a, b]))["vulnerabilities"]
+        two = build_bom(_report(framework="CrewAI 0.80.0", metadata=_STATIC, vulnerabilities=[b, a]))["vulnerabilities"]
         assert one == two
         assert one[0]["description"] == "beta"
 
@@ -351,7 +363,7 @@ class TestTools:
 
 class TestComponentOrder:
     def test_framework_models_agents_tools(self):
-        report = _report(framework="CrewAI 0.80.0", model_usages=[_model()], agents=[_agent()], tool_usages=[_tool()])
+        report = _report(framework="CrewAI 0.80.0", metadata=_STATIC, model_usages=[_model()], agents=[_agent()], tool_usages=[_tool()])
         kinds = [c["bom-ref"].split(":")[0] for c in build_bom(report)["components"]]
         assert kinds == ["pkg", "model", "agent", "tool"]
 
@@ -371,7 +383,7 @@ class TestAgentDependencies:
         assert {"ref": "agent:researcher", "dependsOn": ["model:openai/GPT-4o", "tool:search"]} in bom["dependencies"]
 
     def test_every_component_has_a_dependency_entry(self):
-        report = _report(framework="CrewAI 0.80.0", model_usages=[_model()], agents=[_agent()], tool_usages=[_tool()])
+        report = _report(framework="CrewAI 0.80.0", metadata=_STATIC, model_usages=[_model()], agents=[_agent()], tool_usages=[_tool()])
         bom = build_bom(report)
         refs = {c["bom-ref"] for c in bom["components"]} | {"repo"}
         assert {d["ref"] for d in bom["dependencies"]} == refs
@@ -430,7 +442,7 @@ def _full_report() -> ScanReport:
         _instance("agent:researcher/tests/t.py#1", file="tests/t.py", scope="test", known=False),
     ])
     return _report(
-        framework="CrewAI 0.80.0",
+        framework="CrewAI 0.80.0", metadata=_STATIC,
         agents=[agent, _agent("agent:writer", "writer", scope="example")],
         tool_usages=[_tool(), _tool("tool:scrape", "scrape", tool_type="external_service")],
         model_usages=[_model()],
@@ -515,7 +527,7 @@ class TestRobustness:
 
     def test_occurrence_refs_are_claimed_after_vulnerability_refs(self):
         agent = _agent(instances=[_instance("vuln:CVE-2024-0001")])
-        bom = _valid(build_bom(_report(framework="CrewAI 0.80.0", agents=[agent], vulnerabilities=[_vuln()])))
+        bom = _valid(build_bom(_report(framework="CrewAI 0.80.0", metadata=_STATIC, agents=[agent], vulnerabilities=[_vuln()])))
         assert bom["vulnerabilities"][0]["bom-ref"] == "vuln:CVE-2024-0001"
 
     def test_duplicate_tool_ids_map_to_first_ref(self):

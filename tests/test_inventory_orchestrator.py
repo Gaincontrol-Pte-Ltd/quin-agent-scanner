@@ -396,3 +396,52 @@ def test_llm_suggestions_that_repeat_verified_items_are_dropped_and_unknown_file
     )
     assert [(i.name, i.file) for i in report.llm_inferred_agents] == [("planner", "src/a.py"), ("critic", "")]
     assert [(i.name, i.file) for i in report.llm_inferred_tools] == [("browse", "")]
+
+
+class _FrameworkStub:
+    """Answers every prompt with a synthesis that names the given framework."""
+
+    def __init__(self, framework: str):
+        self.framework = framework
+
+    def generate(self, prompt):
+        return json.dumps({"is_ai_application": True, "framework": self.framework, "summary": "s"})
+
+
+def _framework_scan(tmp_path, monkeypatch, files, llm_framework):
+    stub = _FrameworkStub(llm_framework)
+    monkeypatch.setattr(ScannerConfig, "provider_factory", lambda self: stub)
+    return _scan(tmp_path, files, no_llm=False, enabled_scanners=["dependency", "agent_instance"])
+
+
+def test_the_static_framework_is_the_framework_of_record(tmp_path, monkeypatch):
+    report = _framework_scan(tmp_path, monkeypatch, {"requirements.txt": "crewai==0.80.0\n"}, "LangGraph 0.2.0")
+    assert report.framework == "CrewAI 0.80.0"
+    assert report.metadata["framework_source"] == "static"
+    assert report.metadata["llm_framework"] == "LangGraph 0.2.0"
+
+
+def test_an_agreeing_llm_framework_is_not_recorded_as_a_suggestion(tmp_path, monkeypatch):
+    report = _framework_scan(tmp_path, monkeypatch, {"requirements.txt": "crewai==0.80.0\n"}, "CrewAI")
+    assert report.framework == "CrewAI 0.80.0"
+    assert report.metadata["framework_source"] == "static"
+    assert "llm_framework" not in report.metadata
+
+
+def test_the_llm_fills_in_the_framework_when_static_detection_finds_none(tmp_path, monkeypatch):
+    report = _framework_scan(tmp_path, monkeypatch, {"src/a.py": "print('hi')\n"}, "LangGraph")
+    assert report.framework == "LangGraph"
+    assert report.metadata["framework_source"] == "llm"
+    assert "llm_framework" not in report.metadata
+
+
+def test_no_framework_source_when_neither_finds_a_framework(tmp_path, monkeypatch):
+    report = _framework_scan(tmp_path, monkeypatch, {"src/a.py": "print('hi')\n"}, "unknown")
+    assert report.framework == "unknown"
+    assert "framework_source" not in report.metadata and "llm_framework" not in report.metadata
+
+
+def test_static_only_scan_records_a_static_framework(tmp_path):
+    report = _scan(tmp_path, {"requirements.txt": "crewai==0.80.0\n"}, enabled_scanners=["dependency"])
+    assert report.framework == "CrewAI 0.80.0"
+    assert report.metadata["framework_source"] == "static"
