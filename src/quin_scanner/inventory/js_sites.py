@@ -60,10 +60,12 @@ def _matching_brace(content: str, opening: int) -> int | None:
     return None
 
 
-def _top_level_view(text: str) -> str:
-    """``text`` with nested ``{}``/``[]``/``()`` contents, strings and comments blanked (same length, so offsets agree).
+def _blanked_view(text: str, *, top_level: bool) -> str:
+    """``text`` with strings (template literals whole, ``${...}`` included) and comments blanked; with ``top_level``
+    also the contents of nested ``{}``/``[]``/``()``. Same length, so offsets agree; newlines are kept. One pass.
 
-    The delimiters of each depth-1 bracket are kept, so a bracketed value's closing position can be found in the view.
+    With ``top_level`` the delimiters of each depth-1 bracket are kept, so a bracketed value's closing position can be
+    found in the view.
     """
     view = list(text)
     depth = 0
@@ -98,17 +100,27 @@ def _top_level_view(text: str) -> str:
             i += 2
             continue
         elif char in _OPENERS:
-            keep = depth == 0
+            keep = depth == 0 or not top_level
             depth += 1
         elif char in _CLOSERS:
             depth = max(depth - 1, 0)
-            keep = depth == 0
+            keep = depth == 0 or not top_level
         else:
-            keep = depth == 0
+            keep = depth == 0 or not top_level
         if not keep and char != "\n":
             view[i] = " "
         i += 1
     return "".join(view)
+
+
+def _top_level_view(text: str) -> str:
+    """``text`` with nested ``{}``/``[]``/``()`` contents, strings and comments blanked (same length, so offsets agree)."""
+    return _blanked_view(text, top_level=True)
+
+
+def code_view(text: str) -> str:
+    """``text`` with only strings and comments blanked (same length): an offset whose character survives is code."""
+    return _blanked_view(text, top_level=False)
 
 
 def _string_at(text: str, start: int) -> str | None:
@@ -216,8 +228,14 @@ def _model(body: str, view: str) -> str | None:
 
 
 def _calls(content: str):
-    """(call match, opening brace offset, closing brace offset) of every ``Agent({...})`` call with a balanced body."""
+    """(call match, opening brace offset, closing brace offset) of every ``Agent({...})`` call with a balanced body.
+
+    A call written inside a comment or a string (template literals included) is not one.
+    """
+    view = code_view(content)
     for call in _AGENT_CALL.finditer(content):
+        if view[call.start():call.end()] != call.group(0):
+            continue
         opening = call.end() - 1
         closing = _matching_brace(content, opening)
         if closing is not None:

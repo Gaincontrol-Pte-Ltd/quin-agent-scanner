@@ -150,3 +150,28 @@ def test_call_spans_are_character_offsets_of_each_parsed_call():
 def test_tools_given_records_a_tools_key(body, given):
     (site,) = agent_sites(f"const a = new Agent({{ {body} }});\n", "a.ts")
     assert site.tools_given is given
+
+
+# ── Final review: calls in comments and strings are not agents ───────────────
+
+
+def test_agent_calls_in_comments_and_strings_are_not_sites():
+    from quin_scanner.inventory.js_sites import call_spans
+
+    source = (
+        '// const a = new Agent({ name: "ghost", tools: [x] });\n'
+        "const s = `new Agent({ name: \"inStr\" })`;\n"
+        "/* new Agent({ name: \"blockGhost\" }) */ const q = 'new Agent({ name: \"q\" })';\n"
+        'const real = new Agent({ name: "real", instructions: "// not a comment" });\n'
+    )
+    assert [s.name for s in agent_sites(source, "c.ts")] == ["real"]
+    assert len(call_spans(source)) == 1
+
+
+def test_code_view_blanks_only_comments_and_strings():
+    from quin_scanner.inventory.js_sites import code_view
+
+    text = 'f({a: "x{"}) // c\n`t ${y}` /* z */ g[1]'
+    view = code_view(text)
+    assert len(view) == len(text)
+    assert view.split() == ["f({a:", "})", "g[1]"]

@@ -357,3 +357,14 @@ def test_clean_site_normalises_every_name_it_carries():
     assert (site.name, site.tool_refs) == ("x y", ("t1", "t2"))
     assert clean_name("\"a'") == "\"a'"   # unmatched quotes are kept
     assert clean_name("''") is None and clean_name("  ") is None and clean_name(None) is None
+
+
+def test_js_regex_findings_in_comments_and_strings_get_no_fallback_site(tmp_path):
+    source = (
+        '// const a = new Agent({ name: "ghost", tools: [x] });\n'
+        "const s = `new Agent({ name: \"inStr\" })`;\n"
+        'const b = new AssistantAgent("bee");\n'
+    )
+    findings, sites = _evidence(tmp_path, {"c.ts": source})
+    assert sorted(f.match_text for f in findings) == ["bee", "ghost", "inStr"]   # findings unchanged
+    assert [s.name for s in sites] == ["bee"]

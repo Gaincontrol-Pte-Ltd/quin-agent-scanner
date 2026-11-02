@@ -256,11 +256,14 @@ class AgentInstanceScanner(BaseScanner):
                 is_js = Path(path).suffix.lower() in _JS_EXTENSIONS
                 sites = js_sites.agent_sites(content, path) if is_js else []
                 spans = js_sites.call_spans(content) if is_js else []
-                # A regex finding inside a call that js_sites parsed is that site (it reads only the top-level keys).
+                view = js_sites.code_view(content) if is_js else content
+                # A regex finding inside a call that js_sites parsed is that site (it reads only the top-level keys);
+                # one inside a JS comment or string is not an agent (the finding stays, only the site is skipped).
                 sites += [
                     AgentSite(role=role, kind=kind, name=f.match_text, file_path=path, line=f.line_number)
                     for f, (role, kind, offset) in zip(findings, origins, strict=True)
                     if not any(start <= offset <= end for start, end in spans)
+                    and (offset < 0 or view[offset] == content[offset])
                 ]
                 sites = [clean_site(s) for s in sites]
                 self._sites.extend(sites)
