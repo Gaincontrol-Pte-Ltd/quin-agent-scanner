@@ -434,7 +434,7 @@ def test_a_dotted_tool_ref_resolves_by_its_last_component():
     inv = resolve(
         [agent("r", "src/crew.py", tools=("SearchTools.search_internet", "tools.Search", "a.ghost", "x.dup"))],
         [tool("search_internet", "src/tools/search.py"), tool("Search", "src/tools/s.py"),
-         tool("dup", "src/p.py"), tool("dup", "src/q.py")],
+         tool("dup", "src/p.py"), tool("dup", "src/sub/q.py")],
     )
     assert [t.to_dict() for t in inv.agents[0].instances[0].tools] == [
         {"name": "SearchTools.search_internet", "tool_id": "tool:search_internet", "resolved": True},
@@ -448,6 +448,30 @@ def test_a_dotted_tool_ref_resolves_by_its_last_component():
 def test_a_dotted_tool_ref_prefers_its_full_name():
     inv = resolve([agent("r", "src/a.py", tools=("m.run",))], [tool("m.run", "src/b.py"), tool("run", "src/a.py")])
     assert inv.agents[0].instances[0].tools[0].tool_id == "tool:m.run"
+
+
+def test_a_dotted_ref_never_links_to_a_tool_in_an_unrelated_directory():
+    inv = resolve(
+        [agent("t", "python/samples/03-workflows/x/main.py", tools=("plugin.send_notification",))],
+        [tool("send_notification", "python/samples/02-agents/y/z.py")],
+    )
+    assert inv.agents[0].instances[0].tools[0].resolved is False
+
+
+def test_a_dotted_ref_links_to_a_tool_below_or_beside_its_directory():
+    inv = resolve([
+        agent("a", "crew/crew.py", tools=("SearchTools.search_instagram",)),
+        agent("b", "app/agents/main.py", tools=("Calc.calculate",)),
+        agent("c", "app/agents/two.py", tools=("T.twin",)),
+        agent("d", "top.py", tools=("T.rooted",)),
+    ], [
+        tool("search_instagram", "crew/tools/search_tools.py"),
+        tool("calculate", "app/tools/calc.py"),           # a sibling of app/agents
+        tool("twin", "app/tools/a.py"), tool("twin", "app/lib/b.py"),   # two siblings: ambiguous
+        tool("rooted", "lib/r.py"),                       # an instance at the root never looks repo-wide
+    ])
+    got = {a.name: a.instances[0].tools[0].tool_id for a in inv.agents}
+    assert got == {"a": "tool:search_instagram", "b": "tool:calculate", "c": None, "d": None}
 
 
 def test_relationships_are_built_from_instances():

@@ -253,18 +253,50 @@ def _describe(instructions: InstructionsRef) -> str:
 def _link_tool(ref: str, path: str, tool_index: dict[str, list[ToolUsage]]) -> ToolUsage | None:
     """A tool defined in the same file, else a repo-unique name, else None (unresolved).
 
-    The exact-case name is tried first (same file, then repo-unique), then the case-insensitive one. A dotted ref
-    (``SearchTools.search_internet``) that does not resolve as written is retried with its last component.
+    The exact-case name is tried first, then the case-insensitive one. A dotted ref (``SearchTools.search_internet``)
+    that does not resolve as written is retried with its last component, but only nearby (:func:`_link_nearby`).
     """
-    for name in (ref, ref.rpartition(".")[2]) if "." in ref else (ref,):
-        candidates = tool_index.get(name.casefold(), [])
-        exact = [t for t in candidates if t.tool_name == name]
-        for pool in (exact, candidates):
-            same_file = [t for t in pool if t.source_file == path]
-            if same_file:
-                return same_file[0]
-            if len(pool) == 1:
-                return pool[0]
+    linked = _link_in(ref, tool_index, lambda pool: _same_file_or_unique(pool, path))
+    if linked is None and "." in ref:
+        linked = _link_in(ref.rpartition(".")[2], tool_index, lambda pool: _link_nearby(pool, path))
+    return linked
+
+
+def _link_in(name: str, tool_index: dict[str, list[ToolUsage]], pick) -> ToolUsage | None:
+    candidates = tool_index.get(name.casefold(), [])
+    exact = [t for t in candidates if t.tool_name == name]
+    for pool in (exact, candidates):
+        linked = pick(pool)
+        if linked is not None:
+            return linked
+    return None
+
+
+def _same_file_or_unique(pool: list[ToolUsage], path: str) -> ToolUsage | None:
+    same_file = [t for t in pool if t.source_file == path]
+    if same_file:
+        return same_file[0]
+    return pool[0] if len(pool) == 1 else None
+
+
+def _under(path: str, directory: str) -> bool:
+    return path.replace("\\", "/").startswith(directory + "/")
+
+
+def _link_nearby(pool: list[ToolUsage], path: str) -> ToolUsage | None:
+    """Same file; else the single tool in the instance file's directory tree; else the single tool in its parent's
+    tree (the directory's siblings). Never repo-wide: a tree is only searched when it is not the repository root.
+    """
+    same_file = [t for t in pool if t.source_file == path]
+    if same_file:
+        return same_file[0]
+    parts = _directory_parts(path)
+    for depth in (len(parts), len(parts) - 1):
+        if depth <= 0:
+            break
+        nearby = [t for t in pool if _under(t.source_file, "/".join(parts[:depth]))]
+        if nearby:
+            return nearby[0] if len(nearby) == 1 else None
     return None
 
 

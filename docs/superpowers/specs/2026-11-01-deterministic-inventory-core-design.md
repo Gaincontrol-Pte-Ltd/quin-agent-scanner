@@ -137,7 +137,7 @@ Deterministic, no I/O, no LLM. Input: `AgentSite`s, `ToolSite`s, the static tool
 4. **Instance tool linking.** For each `tool_refs` entry:
    1. a tool defined or imported in the same file;
    2. else a repo-unique tool name;
-   3. else, for a dotted ref (`SearchTools.search_internet`), steps 1–2 with its last component;
+   3. else, for a dotted ref (`SearchTools.search_internet`), its last component: in the same file, else the single match under the instance file's directory, else the single match under that directory's parent; never repo-wide;
    4. else `resolved: false`, `tool_id: None`, raw name kept.
 
    The instance tool's `name` is always the ref as written. An agent's `skills` are its instance tools linked to a skill (plan clarification 15).
