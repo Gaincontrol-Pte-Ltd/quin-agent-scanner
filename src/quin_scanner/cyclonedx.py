@@ -10,8 +10,10 @@ import re
 import uuid
 from datetime import datetime, timezone
 from typing import Any
+from urllib.parse import quote
 
-from quin_scanner.models import ScanReport
+from quin_scanner.models import ScanReport, Vulnerability
+from quin_scanner.vuln_checker import FrameworkRef, parse_framework_ref
 
 SPEC_VERSION = "1.6"
 ROOT_REF = "repo"
@@ -56,6 +58,66 @@ def _iso_utc(value: str | None) -> str | None:
     return parsed.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+_SEVERITY_ORDER = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4, "none": 5, "unknown": 6}
+
+
+def _purl(ref: FrameworkRef) -> str | None:
+    """Package URL of the framework package, or None for an ecosystem without a mapping."""
+    version = quote(ref.version, safe="")
+    ecosystem = ref.ecosystem.lower()
+    if ecosystem == "pypi":
+        return f"pkg:pypi/{re.sub(r'[-_.]+', '-', ref.package).lower()}@{version}"
+    if ecosystem == "npm":
+        namespace, _, name = ref.package.rpartition("/")
+        path = f"{quote(namespace, safe='')}/{quote(name, safe='')}" if namespace else quote(name, safe="")
+        return f"pkg:npm/{path}@{version}"
+    return None
+
+
+def _framework(report: ScanReport) -> dict[str, Any] | None:
+    ref = parse_framework_ref(report.framework)
+    purl = _purl(ref) if ref else None
+    if ref is None or purl is None:
+        return None
+    return {"type": "framework", "bom-ref": purl, "name": ref.package, "version": ref.version, "purl": purl}
+
+
+def _vulnerability(v: Vulnerability, framework_ref: str) -> dict[str, Any]:
+    severity = v.severity if v.severity in _SEVERITY_ORDER else "unknown"
+    rating: dict[str, Any] = {}
+    if v.cvss_score is not None:
+        rating["score"] = v.cvss_score
+    rating["severity"] = severity
+    source: dict[str, Any] = {"name": "OSV"}
+    if v.source_url:
+        source["url"] = v.source_url
+    out: dict[str, Any] = {"bom-ref": f"vuln:{v.cve_id}", "id": v.cve_id, "source": source, "ratings": [rating]}
+    if v.summary:
+        out["description"] = v.summary
+    published = _iso_utc(v.published)
+    if published:
+        out["published"] = published
+    out["affects"] = [{"ref": framework_ref}]
+    return out
+
+
+def _vulnerabilities(report: ScanReport, framework_ref: str | None) -> list[dict[str, Any]]:
+    """OSV entries with an ID only: web-search results can differ between runs (spec D2)."""
+    if framework_ref is None:
+        return []
+    picked: dict[str, Vulnerability] = {}
+    for v in report.vulnerabilities:
+        if v.source == "osv" and v.cve_id and v.cve_id not in picked:
+            picked[v.cve_id] = v
+    ordered = sorted(picked.values(), key=lambda v: (_SEVERITY_ORDER.get(v.severity, 6), v.cve_id))
+    return [_vulnerability(v, framework_ref) for v in ordered]
+
+
+def omitted_vulnerability_count(report: ScanReport) -> int:
+    """Web-search vulnerabilities in the report that the BOM leaves out."""
+    return sum(1 for v in report.vulnerabilities if v.source != "osv")
+
+
 def _metadata(report: ScanReport) -> dict[str, Any]:
     from quin_scanner import __version__
 
@@ -79,7 +141,18 @@ def _dependencies(graph: dict[str, set[str]]) -> list[dict[str, Any]]:
 
 def build_bom(report: ScanReport) -> dict[str, Any]:
     """The CycloneDX 1.6 BOM for *report* as a plain dict."""
+    refs = _Refs()
     graph: dict[str, set[str]] = {ROOT_REF: set()}
+    components: list[dict[str, Any]] = []
+
+    framework = _framework(report)
+    framework_ref = None
+    if framework is not None:
+        framework_ref = framework["bom-ref"] = refs.take(framework["bom-ref"])
+        components.append(framework)
+        graph[ROOT_REF].add(framework_ref)
+        graph[framework_ref] = set()
+
     bom: dict[str, Any] = {
         "bomFormat": "CycloneDX",
         "specVersion": SPEC_VERSION,
@@ -87,7 +160,12 @@ def build_bom(report: ScanReport) -> dict[str, Any]:
         "version": 1,
         "metadata": _metadata(report),
     }
+    if components:
+        bom["components"] = components
     bom["dependencies"] = _dependencies(graph)
+    vulnerabilities = _vulnerabilities(report, framework_ref)
+    if vulnerabilities:
+        bom["vulnerabilities"] = vulnerabilities
     return bom
 
 

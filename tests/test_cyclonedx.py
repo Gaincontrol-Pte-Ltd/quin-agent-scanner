@@ -5,8 +5,17 @@ import json
 import re
 
 from quin_scanner import __version__
-from quin_scanner.cyclonedx import _iso_utc, _Refs, _repo_name, build_bom, to_cyclonedx
-from quin_scanner.models import ScanReport
+from quin_scanner.cyclonedx import (
+    _iso_utc,
+    _purl,
+    _Refs,
+    _repo_name,
+    build_bom,
+    omitted_vulnerability_count,
+    to_cyclonedx,
+)
+from quin_scanner.models import ScanReport, Vulnerability
+from quin_scanner.vuln_checker import FrameworkRef
 from tests.cyclonedx_support import bom_errors
 
 
@@ -105,3 +114,78 @@ class TestRefs:
 
     def test_root_is_reserved(self):
         assert _Refs().take("repo") == "repo#2"
+
+
+def _vuln(cve_id="CVE-2024-0001", severity="high", source="osv", **kw) -> Vulnerability:
+    fields = dict(cve_id=cve_id, severity=severity, cvss_score=7.5, published="2024-08-15",
+                  summary="Prompt injection in tool router", source=source,
+                  source_url=f"https://osv.dev/vulnerability/{cve_id}")
+    fields.update(kw)
+    return Vulnerability(**fields)
+
+
+class TestFramework:
+    def test_framework_component(self):
+        bom = _valid(build_bom(_report(framework="CrewAI 0.80.0")))
+        assert bom["components"] == [{
+            "type": "framework", "bom-ref": "pkg:pypi/crewai@0.80.0", "name": "crewai",
+            "version": "0.80.0", "purl": "pkg:pypi/crewai@0.80.0",
+        }]
+        assert {"ref": "repo", "dependsOn": ["pkg:pypi/crewai@0.80.0"]} in bom["dependencies"]
+        assert {"ref": "pkg:pypi/crewai@0.80.0"} in bom["dependencies"]
+
+    def test_unresolvable_framework_gives_no_component(self):
+        bom = _valid(build_bom(_report(framework="unknown")))
+        assert "components" not in bom
+
+    def test_pypi_names_are_normalised(self):
+        assert _purl(FrameworkRef("X", "1.0", "PyPI", "Llama_Index.Core")) == "pkg:pypi/llama-index-core@1.0"
+
+    def test_npm_scope_is_percent_encoded(self):
+        assert _purl(FrameworkRef("Mastra", "0.10.1", "npm", "@mastra/core")) == "pkg:npm/%40mastra/core@0.10.1"
+
+    def test_npm_without_scope(self):
+        assert _purl(FrameworkRef("Vercel AI SDK", "4.0.0", "npm", "ai")) == "pkg:npm/ai@4.0.0"
+
+    def test_unknown_ecosystem(self):
+        assert _purl(FrameworkRef("X", "1.0", "Maven", "x")) is None
+
+
+class TestVulnerabilities:
+    def test_osv_vulnerability(self):
+        bom = _valid(build_bom(_report(framework="CrewAI 0.80.0", vulnerabilities=[_vuln()])))
+        assert bom["vulnerabilities"] == [{
+            "bom-ref": "vuln:CVE-2024-0001",
+            "id": "CVE-2024-0001",
+            "source": {"name": "OSV", "url": "https://osv.dev/vulnerability/CVE-2024-0001"},
+            "ratings": [{"score": 7.5, "severity": "high"}],
+            "description": "Prompt injection in tool router",
+            "published": "2024-08-15T00:00:00Z",
+            "affects": [{"ref": "pkg:pypi/crewai@0.80.0"}],
+        }]
+
+    def test_web_search_and_unidentified_entries_are_left_out(self):
+        vulns = [_vuln("CVE-2024-0002", source="web:perplexity"), _vuln(None), _vuln("")]
+        bom = _valid(build_bom(_report(framework="CrewAI 0.80.0", vulnerabilities=vulns)))
+        assert "vulnerabilities" not in bom
+
+    def test_no_framework_component_means_no_vulnerabilities(self):
+        bom = _valid(build_bom(_report(framework="unknown", vulnerabilities=[_vuln()])))
+        assert "vulnerabilities" not in bom
+
+    def test_optional_fields_are_omitted(self):
+        v = _vuln(cvss_score=None, published="soon", summary="", source_url=None, severity="weird")
+        out = build_bom(_report(framework="CrewAI 0.80.0", vulnerabilities=[v]))["vulnerabilities"][0]
+        assert out["ratings"] == [{"severity": "unknown"}]
+        assert out["source"] == {"name": "OSV"}
+        assert "published" not in out and "description" not in out
+        _valid(build_bom(_report(framework="CrewAI 0.80.0", vulnerabilities=[v])))
+
+    def test_sorted_by_severity_then_id_and_deduplicated(self):
+        vulns = [_vuln("CVE-B", "medium"), _vuln("CVE-C", "critical"), _vuln("CVE-A", "medium"), _vuln("CVE-C", "critical")]
+        bom = build_bom(_report(framework="CrewAI 0.80.0", vulnerabilities=vulns))
+        assert [v["id"] for v in bom["vulnerabilities"]] == ["CVE-C", "CVE-A", "CVE-B"]
+
+    def test_omitted_count_counts_web_search_entries(self):
+        vulns = [_vuln(), _vuln("CVE-2", source="web:gemini"), _vuln("CVE-3", source="web:openai")]
+        assert omitted_vulnerability_count(_report(vulnerabilities=vulns)) == 2
