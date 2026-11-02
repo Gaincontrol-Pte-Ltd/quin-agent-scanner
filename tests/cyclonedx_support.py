@@ -29,6 +29,14 @@ def _is_rfc3339(value: object) -> bool:
     return True
 
 
+@_checker.checks("iri-reference", raises=ValueError)
+def _is_iri_reference(value: object) -> bool:
+    """Rejects characters that cannot appear in an IRI reference (templates such as ${HOST} included)."""
+    if isinstance(value, str) and re.search(r'[\s<>"{}|\\^`]', value):
+        raise ValueError(f"not an IRI reference: {value!r}")
+    return True
+
+
 @lru_cache(maxsize=1)
 def _validator() -> Draft7Validator:
     schemas = {name: json.loads((SCHEMA_DIR / name).read_text(encoding="utf-8")) for name in _FILES}

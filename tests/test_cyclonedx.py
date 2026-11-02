@@ -1,6 +1,7 @@
 """CycloneDX AI-BOM mapping (spec: docs/superpowers/specs/2026-11-02-cyclonedx-ai-bom-design.md)."""
 from __future__ import annotations
 
+import copy
 import json
 import re
 
@@ -441,12 +442,7 @@ def _full_report() -> ScanReport:
 
 class TestWholeBom:
     def test_full_report_is_valid(self):
-        _valid(build_bom(_full_report()))
-
-    def test_bom_refs_are_unique(self):
-        text = to_cyclonedx(_full_report())
-        refs = re.findall(r'"bom-ref": "([^"]+)"', text)
-        assert len(refs) == len(set(refs))
+        _valid(build_bom(_full_report()))  # bom_errors also checks bom-ref uniqueness
 
     def test_dependencies_point_at_known_refs(self):
         bom = build_bom(_full_report())
@@ -467,3 +463,62 @@ class TestWholeBom:
             "bomFormat", "specVersion", "serialNumber", "version", "metadata",
             "components", "services", "dependencies", "vulnerabilities",
         ]
+
+
+def _reversed(report: ScanReport) -> ScanReport:
+    clone = copy.deepcopy(report)
+    for name in ("agents", "tool_usages", "model_usages", "mcp_servers", "llm_endpoints", "vulnerabilities"):
+        getattr(clone, name).reverse()
+    for agent in clone.agents:
+        agent.instances.reverse()
+    return clone
+
+
+def _stable(report: ScanReport) -> str:
+    bom = build_bom(report)
+    bom.pop("serialNumber")
+    return json.dumps(bom)
+
+
+class TestRobustness:
+    def test_components_claim_bare_ids_before_occurrences(self):
+        agents = [_agent("agent:a", "a", instances=[_instance("agent:b")]), _agent("agent:b", "b")]
+        bom = _valid(build_bom(_report(agents=agents)))
+        assert _component(bom, "agent:b")["name"] == "b"
+        assert _component(bom, "agent:a")["evidence"]["occurrences"][0]["bom-ref"] == "agent:b#2"
+
+    def test_output_does_not_depend_on_input_order(self):
+        assert _stable(_full_report()) == _stable(_reversed(_full_report()))
+
+    def test_duplicate_ids_in_any_order(self):
+        def report():
+            return _report(
+                agents=[_agent("agent:x", "x", instances=[_instance("i#1", line=1, model="m1")]),
+                        _agent("agent:x", "x2", scope="test", instances=[_instance("i#1", line=1, model="m2")])],
+                tool_usages=[_tool("tool:t", "t1", line=1), _tool("tool:t", "t2", line=2, tool_type="skill")],
+            )
+        assert _stable(report()) == _stable(_reversed(report()))
+
+    def test_template_endpoints_are_left_out(self):
+        endpoint = _endpoint(url="http://${HOST}:8000/v1", host="${host}", kind="unknown")
+        assert "services" not in build_bom(_report(llm_endpoints=[endpoint]))
+
+    def test_duplicate_tool_ids_map_to_first_ref(self):
+        agent = _agent(instances=[_instance("i#1", tools=[("s", "tool:s")])])
+        tools = [_tool("tool:s", "s", line=1), _tool("tool:s", "s", line=2)]
+        bom = _valid(build_bom(_report(agents=[agent], tool_usages=tools)))
+        assert {"ref": "agent:researcher", "dependsOn": ["tool:s"]} in bom["dependencies"]
+
+    def test_empty_instance_id_has_no_occurrence_ref(self):
+        bom = _valid(build_bom(_report(agents=[_agent(instances=[_instance("")])])))
+        assert "bom-ref" not in bom["components"][0]["evidence"]["occurrences"][0]
+
+    def test_empty_tool_and_mcp_names_use_their_ref(self):
+        bom = _valid(build_bom(_report(tool_usages=[_tool("tool:z", "")], mcp_servers=[MCPServer(name="")])))
+        assert _component(bom, "tool:z")["name"] == "tool:z"
+        assert bom["services"][0]["name"] == "service:mcp:"
+
+    def test_agent_depends_on_same_named_models_of_every_provider(self):
+        agent = _agent(instances=[_instance("i#1", model="gpt-4o")])
+        bom = build_bom(_report(agents=[agent], model_usages=[_model("openai"), _model("azure")]))
+        assert {"ref": "agent:researcher", "dependsOn": ["model:azure/gpt-4o", "model:openai/gpt-4o"]} in bom["dependencies"]

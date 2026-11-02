@@ -51,3 +51,11 @@ def test_dangling_refs_are_reported():
     assert "unknown ref in dependencies: nope" in errors
     assert "unknown ref in vulnerabilities: missing" in errors
     assert "unknown ref in dependencies: a" not in errors
+
+
+def test_iri_reference_format_is_checked():
+    def bom(url):
+        return {**_MINIMAL, "services": [{"name": "s", "endpoints": [url]}]}
+
+    assert bom_errors(bom("https://api.example.com/v1")) == []
+    assert bom_errors(bom("http://${HOST}/v1")) != []

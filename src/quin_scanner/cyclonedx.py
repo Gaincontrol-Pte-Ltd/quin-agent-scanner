@@ -28,6 +28,9 @@ ROOT_REF = "repo"
 _SEVERITY_ORDER = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4, "none": 5, "unknown": 6}
 
 
+_TEMPLATE = re.compile(r'[{}$<>"|\\^`\s]')
+
+
 class _Refs:
     """Hands out bom-refs, unique across the BOM: a value already taken gets #2, #3, ..."""
 
@@ -160,7 +163,7 @@ def _models(report: ScanReport, refs: _Refs, graph: dict[str, set[str]]) -> tupl
         ref = refs.take(f"model:{provider}/{name}")
         graph[ref] = set()
         component: dict[str, Any] = {"type": "machine-learning-model", "bom-ref": ref, "name": name, "publisher": provider}
-        places = sorted({(u.file_path, u.line_number) for u in usages if u.file_path}, key=lambda p: (p[0], p[1] or 0))
+        places = sorted({(u.file_path, u.line_number) for u in usages if u.file_path}, key=lambda p: (p[0], p[1] is None, p[1] or 0))
         if places:
             component["evidence"] = {"occurrences": [_occurrence(file, line) for file, line in places]}
         components.append(component)
@@ -188,7 +191,11 @@ def _instance_context(instance: AgentInstance) -> str:
     return "; ".join(parts)
 
 
-def _agent(agent: AgentProfile, ref: str, refs: _Refs) -> dict[str, Any]:
+def _instance_key(i: AgentInstance) -> tuple:
+    return (i.file, i.line is None, i.line or 0, i.id, i.model or "", i.multiplicity, i.tools_known, tuple(t.name for t in i.tools))
+
+
+def _agent(agent: AgentProfile, ref: str) -> dict[str, Any]:
     component: dict[str, Any] = {
         "type": "application",
         "bom-ref": ref,
@@ -196,8 +203,10 @@ def _agent(agent: AgentProfile, ref: str, refs: _Refs) -> dict[str, Any]:
         "scope": "required" if agent.scope == "production" else "excluded",
         "properties": _properties(kind="agent", identity=agent.identity),
     }
-    instances = sorted(agent.instances, key=lambda i: (i.file, i.line or 0, i.id))
-    occurrences = [_occurrence(i.file, i.line, ref=refs.take(i.id), context=_instance_context(i)) for i in instances if i.file]
+    # Occurrence bom-refs hold the raw instance id here; _claim_occurrence_refs allocates them once every
+    # component and service has its ref, so a component always keeps a bare id.
+    instances = sorted(agent.instances, key=_instance_key)
+    occurrences = [_occurrence(i.file, i.line, ref=i.id or None, context=_instance_context(i)) for i in instances if i.file]
     if occurrences:
         component["evidence"] = {"occurrences": occurrences}
     return component
@@ -207,7 +216,7 @@ def _tool(tool: ToolUsage, ref: str) -> dict[str, Any]:
     component: dict[str, Any] = {
         "type": "application",
         "bom-ref": ref,
-        "name": tool.tool_name,
+        "name": tool.tool_name or ref,
         "properties": _properties(kind="tool", tool_type=tool.tool_type),
     }
     if tool.source_file:
@@ -216,10 +225,12 @@ def _tool(tool: ToolUsage, ref: str) -> dict[str, Any]:
 
 
 def _tools(report: ScanReport, refs: _Refs, graph: dict[str, set[str]]) -> tuple[list[dict[str, Any]], dict[str, str]]:
-    """Tool components, and a map from tool ID to the bom-ref allocated for it."""
+    """Tool components, and a map from tool ID to the bom-ref allocated for it (the first in sorted order when an ID repeats)."""
     tool_refs: dict[str, str] = {}
     components: list[dict[str, Any]] = []
-    for tool in sorted(report.tool_usages, key=lambda t: (t.id or f"tool:{t.tool_name}", t.source_file, t.line_number or 0)):
+    for tool in sorted(report.tool_usages, key=lambda t: (
+        t.id or f"tool:{t.tool_name}", t.source_file, t.line_number is None, t.line_number or 0, t.tool_name, t.tool_type,
+    )):
         ref = refs.take(tool.id or f"tool:{tool.tool_name}")
         if tool.id:
             tool_refs.setdefault(tool.id, ref)
@@ -236,13 +247,17 @@ def _agents(
     models_by_name: dict[str, list[str]],
 ) -> list[dict[str, Any]]:
     components: list[dict[str, Any]] = []
-    for agent in sorted(report.agents, key=lambda a: a.id or f"agent:{a.name}"):
-        ref = refs.take(agent.id or f"agent:{agent.name}")
-        components.append(_agent(agent, ref, refs))
+    ordered = sorted(report.agents, key=lambda a: (
+        a.id or f"agent:{a.name}", a.scope, a.name, a.identity, sorted(_instance_key(i) for i in a.instances),
+    ))
+    agent_refs = [refs.take(a.id or f"agent:{a.name}") for a in ordered]
+    for agent, ref in zip(ordered, agent_refs):
+        components.append(_agent(agent, ref))
         graph[ROOT_REF].add(ref)
         depends = graph[ref] = set()
         for instance in agent.instances:
             depends.update(tool_refs[t.tool_id] for t in instance.tools if t.tool_id in tool_refs)
+            # An instance model carries no provider, so the agent depends on every model component of that name.
             if _is_literal_model(instance.model):
                 depends.update(models_by_name.get(instance.model.casefold(), []))
     return sorted(components, key=lambda c: c["bom-ref"])
@@ -254,12 +269,13 @@ def _services(report: ScanReport, refs: _Refs, graph: dict[str, set[str]]) -> li
         values = {"transport": server.transport}
         if server.source_file:
             values["source_file"] = server.source_file
-        services.append({"bom-ref": refs.take(f"service:mcp:{server.name}"), "name": server.name,
+        ref = refs.take(f"service:mcp:{server.name}")
+        services.append({"bom-ref": ref, "name": server.name or ref,
                          "properties": _properties(**values)})
 
     hosts: dict[str, list[EndpointUsage]] = {}
     for endpoint in report.llm_endpoints:
-        if endpoint.kind != "unresolved" and endpoint.host:
+        if endpoint.kind != "unresolved" and endpoint.host and not _TEMPLATE.search(endpoint.host + endpoint.url):
             hosts.setdefault(endpoint.host, []).append(endpoint)
     for host, endpoints in sorted(hosts.items()):
         services.append({
@@ -272,6 +288,14 @@ def _services(report: ScanReport, refs: _Refs, graph: dict[str, set[str]]) -> li
         graph[ROOT_REF].add(service["bom-ref"])
         graph[service["bom-ref"]] = set()
     return sorted(services, key=lambda s: s["bom-ref"])
+
+
+def _claim_occurrence_refs(components: list[dict[str, Any]], refs: _Refs) -> None:
+    """Second pass: occurrences take their bom-refs after every component and service has its own."""
+    for component in components:
+        for occurrence in component.get("evidence", {}).get("occurrences", []):
+            if "bom-ref" in occurrence:
+                occurrence["bom-ref"] = refs.take(occurrence["bom-ref"])
 
 
 def _metadata(report: ScanReport) -> dict[str, Any]:
@@ -304,13 +328,14 @@ def build_bom(report: ScanReport) -> dict[str, Any]:
     """
     refs = _Refs()
     graph: dict[str, set[str]] = {ROOT_REF: set()}
-    components = _framework(report, refs, graph)
-    framework_ref = components[0]["bom-ref"] if components else None
+    framework = _framework(report, refs, graph)
+    framework_ref = framework[0]["bom-ref"] if framework else None
     models, models_by_name = _models(report, refs, graph)
     tools, tool_refs = _tools(report, refs, graph)
     agents = _agents(report, refs, graph, tool_refs, models_by_name)
-    components = components + models + agents + tools
+    components = framework + models + agents + tools
     services = _services(report, refs, graph)
+    _claim_occurrence_refs(components, refs)
     vulnerabilities = _vulnerabilities(report, refs, framework_ref)
 
     bom: dict[str, Any] = {
