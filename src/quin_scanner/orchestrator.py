@@ -1328,7 +1328,7 @@ class ScanOrchestrator:
                     n_enriched = len(synthesis.enrichment)
                     n_risks = len(synthesis.risk_signals)
                     agent_risks = sum(len(e.risk_signals) for e in synthesis.enrichment.values())
-                    _log(f"  framework: {synthesis.framework}  |  {n_enriched} agent{'s' if n_enriched != 1 else ''} enriched")
+                    _log(f"  LLM framework: {synthesis.framework}  |  {n_enriched} agent{'s' if n_enriched != 1 else ''} enriched")
                     _log(f"  risks: {n_risks} system-wide, {agent_risks} agent-specific")
             except Exception as e:
                 err = f"SynthesisAgent: {type(e).__name__}: {e}"
