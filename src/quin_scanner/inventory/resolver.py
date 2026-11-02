@@ -253,16 +253,18 @@ def _describe(instructions: InstructionsRef) -> str:
 def _link_tool(ref: str, path: str, tool_index: dict[str, list[ToolUsage]]) -> ToolUsage | None:
     """A tool defined in the same file, else a repo-unique name, else None (unresolved).
 
-    The exact-case name is tried first (same file, then repo-unique), then the case-insensitive one.
+    The exact-case name is tried first (same file, then repo-unique), then the case-insensitive one. A dotted ref
+    (``SearchTools.search_internet``) that does not resolve as written is retried with its last component.
     """
-    candidates = tool_index.get(ref.casefold(), [])
-    exact = [t for t in candidates if t.tool_name == ref]
-    for pool in (exact, candidates):
-        same_file = [t for t in pool if t.source_file == path]
-        if same_file:
-            return same_file[0]
-        if len(pool) == 1:
-            return pool[0]
+    for name in (ref, ref.rpartition(".")[2]) if "." in ref else (ref,):
+        candidates = tool_index.get(name.casefold(), [])
+        exact = [t for t in candidates if t.tool_name == name]
+        for pool in (exact, candidates):
+            same_file = [t for t in pool if t.source_file == path]
+            if same_file:
+                return same_file[0]
+            if len(pool) == 1:
+                return pool[0]
     return None
 
 

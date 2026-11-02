@@ -430,6 +430,26 @@ def test_a_colliding_tool_name_from_other_files_stays_unresolved():
     assert inv.agents[0].instances[0].tools[0].resolved is False
 
 
+def test_a_dotted_tool_ref_resolves_by_its_last_component():
+    inv = resolve(
+        [agent("r", "src/crew.py", tools=("SearchTools.search_internet", "tools.Search", "a.ghost", "x.dup"))],
+        [tool("search_internet", "src/tools/search.py"), tool("Search", "src/tools/s.py"),
+         tool("dup", "src/p.py"), tool("dup", "src/q.py")],
+    )
+    assert [t.to_dict() for t in inv.agents[0].instances[0].tools] == [
+        {"name": "SearchTools.search_internet", "tool_id": "tool:search_internet", "resolved": True},
+        {"name": "tools.Search", "tool_id": "tool:Search", "resolved": True},
+        {"name": "a.ghost", "tool_id": None, "resolved": False},
+        {"name": "x.dup", "tool_id": None, "resolved": False},
+    ]
+    assert inv.relationships[0].tool_name == "SearchTools.search_internet"
+
+
+def test_a_dotted_tool_ref_prefers_its_full_name():
+    inv = resolve([agent("r", "src/a.py", tools=("m.run",))], [tool("m.run", "src/b.py"), tool("run", "src/a.py")])
+    assert inv.agents[0].instances[0].tools[0].tool_id == "tool:m.run"
+
+
 def test_relationships_are_built_from_instances():
     inv = resolve([agent("researcher", "agent.py", 5, tools=("lookup_customer",))],
                   [tool("lookup_customer", "agent.py", 2)])
