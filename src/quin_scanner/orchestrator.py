@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+import dataclasses
 import re
 import sys
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from typing import NamedTuple
+from typing import Iterable, NamedTuple
 from datetime import datetime, timezone
 
 from quin_scanner.config import ScannerConfig
@@ -29,6 +30,7 @@ from quin_scanner.models import (
     ToolUsage,
     Vulnerability,
 )
+from quin_scanner.inventory.evidence import clean_name
 from quin_scanner.inventory import AgentSite, Inventory, ToolSite, fallback_inventory, resolve_inventory
 from quin_scanner.vuln_checker import VulnChecker, parse_framework_ref
 from quin_scanner.repo_accessor import RepoAccessor
@@ -750,6 +752,21 @@ def _apply_enrichment(
     return unknown, unlisted
 
 
+def _unverified_suggestions(
+    items: list[LLMInferredItem], verified_names: Iterable[str], scanned_paths: set[str],
+) -> list[LLMInferredItem]:
+    """LLM suggestions that are not already verified items of the same kind (names compared normalised and
+    case-insensitively); a ``file`` that is not a scanned path is blanked rather than shown."""
+    verified = {name.casefold() for name in (clean_name(n) for n in verified_names) if name}
+    kept: list[LLMInferredItem] = []
+    for item in items:
+        name = clean_name(item.name)
+        if not name or name.casefold() in verified:
+            continue
+        kept.append(item if not item.file or item.file in scanned_paths else dataclasses.replace(item, file=""))
+    return kept
+
+
 # Directories that indicate a file is a skill / playbook / instruction set
 _SKILL_DIR_NAMES = frozenset({"skills", "playbooks", "recipes", "instructions", "agents"})
 
@@ -1415,8 +1432,12 @@ class ScanOrchestrator:
                 metadata["llm_unknown_ids"] = unknown_ids
             if unlisted_ids:
                 metadata["llm_unlisted_ids"] = unlisted_ids
-            llm_inferred_agents = list(synthesis.suggested_agents)
-            llm_inferred_tools = list(synthesis.suggested_tools)
+            llm_inferred_agents = _unverified_suggestions(
+                synthesis.suggested_agents, (a.name for a in pp_agents), _scanned_paths,
+            )
+            llm_inferred_tools = _unverified_suggestions(
+                synthesis.suggested_tools, (t.tool_name for t in pp_tool_usages), _scanned_paths,
+            )
 
         # Rule 5: summary — generate a deterministic fallback when synthesis returned empty
         pp_summary = (synthesis.summary if synthesis else "") or ""

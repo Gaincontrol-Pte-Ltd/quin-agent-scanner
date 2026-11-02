@@ -369,3 +369,30 @@ def test_risk_signal_provenance_is_llm_mixed_or_static():
     )
     _apply_enrichment([plain, static_only, both], [], synthesis, set(), {"agent:p", "agent:s", "agent:b"}, set())
     assert [a.provenance.get("risk_signals") for a in (plain, static_only, both)] == ["llm", "static", "mixed"]
+
+
+def test_llm_suggestions_that_repeat_verified_items_are_dropped_and_unknown_files_blanked(tmp_path, monkeypatch):
+    synthesis = {
+        "is_ai_application": True, "framework": "x", "summary": "s",
+        "suggested_agents": [
+            {"name": " 'RESEARCHER' ", "evidence": "dup", "file": "src/a.py"},
+            {"name": "planner", "evidence": "factory", "file": "src/a.py"},
+            {"name": "critic", "evidence": "loop", "file": "src/invented.py"},
+        ],
+        "suggested_tools": [{"name": "Search", "evidence": "dup"}, {"name": "browse", "evidence": "e", "file": "x.py"}],
+    }
+
+    class Stub:
+        def generate(self, prompt):
+            if "--- AGENT INVENTORY" in prompt:
+                return json.dumps(synthesis)
+            return '{"system_types": ["agentic_ai"], "relevant_threats": []}'
+
+    monkeypatch.setattr(ScannerConfig, "provider_factory", lambda self: Stub())
+    report = _scan(
+        tmp_path,
+        {"src/a.py": "@tool\ndef search():\n    pass\nr = Agent(name='researcher', tools=[search])\n"},
+        no_llm=False, llm_provider="openai", llm_api_key="x",
+    )
+    assert [(i.name, i.file) for i in report.llm_inferred_agents] == [("planner", "src/a.py"), ("critic", "")]
+    assert [(i.name, i.file) for i in report.llm_inferred_tools] == [("browse", "")]
