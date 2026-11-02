@@ -188,15 +188,23 @@ def _join_unknown_definitions(groups: dict[_GroupKey, _Group], sites: list[Agent
 
     It joins the single same-named agent that has a site in its file; otherwise it is an agent of its own, one per file.
     """
+    by_name_and_file: dict[tuple[str | None, str], list[_Group]] = defaultdict(list)
+
+    def index(group: _Group, path: str) -> None:
+        listed = by_name_and_file[(group.name, path)]
+        if not any(g is group for g in listed):
+            listed.append(group)
+
+    for group in groups.values():
+        for path in {s.file_path for s in group.sites}:
+            index(group, path)
     for site in sites:
-        same_file = [
-            group for group in groups.values()
-            if group.name == site.name and any(s.file_path == site.file_path for s in group.sites)
-        ]
+        same_file = list(by_name_and_file.get((site.name, site.file_path), []))
         if len(same_file) == 1:
             same_file[0].sites.append(site)
             continue
         group = _add(groups, (site.name, NO_INSTRUCTIONS, site.file_path), site)
+        index(group, site.file_path)
         if len(same_file) > 1:
             group.flags.add("ambiguous_instance")
 

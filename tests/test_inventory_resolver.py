@@ -517,3 +517,27 @@ def test_tools_known_is_false_only_when_the_instance_tools_are_unknown():
         agent("r", "src/c.py", instructions=PROMPT, tools=()),
     ], [])
     assert [i.tools_known for i in inv.agents[0].instances] == [True, False, True]
+
+
+def test_many_definitions_resolve_in_near_linear_time():
+    import time
+
+    sites = [agent(f"A{i}", f"src/f{i}.py", 1, role="definition", kind="subclass") for i in range(8000)]
+    sites += [agent(f"A{i}", f"src/f{i}.py", 9, instructions=PROMPT) for i in range(0, 8000, 2)]
+    start = time.perf_counter()
+    inv = resolve(sites, [])
+    assert time.perf_counter() - start < 1.0
+    assert len(inv.agents) == 8000
+    assert all(len(a.instances) == 1 for a in inv.agents)
+
+
+def test_a_definition_joins_its_same_file_agent_via_the_index():
+    inv = resolve([
+        agent("A", "src/x.py", 1, role="definition", kind="subclass"),
+        agent("A", "src/x.py", 5, instructions=PROMPT),
+        agent("A", "src/y.py", 1, role="definition", kind="subclass"),
+        agent("A", "src/y.py", 2, role="definition", kind="subclass"),
+    ], [])
+    assert sorted((a.id, len(a.instances)) for a in inv.agents) == [
+        ("agent:A@src/x.py", 1), ("agent:A@src/y.py", 2),
+    ]
