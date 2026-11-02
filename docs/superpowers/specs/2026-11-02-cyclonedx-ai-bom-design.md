@@ -127,7 +127,7 @@ Endpoints are grouped by host. Services are sorted by `bom-ref`.
 - `repo` depends on the framework, every agent and every service.
 - Each agent depends on the tool IDs it links to (resolved instance tools and agent skills) and on the model components whose name matches a literal model of one of its instances.
 - Tool references without a tool ID, and model references, are not dependencies.
-- Every `bom-ref` in the BOM gets a `dependencies` entry (empty `dependsOn` allowed). Entries and `dependsOn` lists are sorted.
+- The root, every component and every service get a `dependencies` entry (`dependsOn` omitted when empty). Occurrence and vulnerability `bom-ref`s do not. Entries and `dependsOn` lists are sorted.
 
 ### 5.6 Vulnerabilities
 
@@ -167,7 +167,7 @@ Only `report.vulnerabilities` entries with `source == "osv"` and a non-empty `cv
 
 ## 8. Code
 
-- New `src/quin_scanner/cyclonedx.py`, same style as `sarif.py`: private builders returning plain dicts, one public `to_cyclonedx(report: ScanReport) -> str` (JSON, 2-space indent, `ensure_ascii=False`, trailing newline added by the writer).
+- New `src/quin_scanner/cyclonedx.py`, same style as `sarif.py`: private builders returning plain dicts, public `build_bom(report) -> dict`, `to_cyclonedx(report: ScanReport) -> str` (JSON, 2-space indent, `ensure_ascii=False`, written like the other formats) and `omitted_vulnerability_count(report) -> int`.
 - `ReportGenerator.render` gets a `cyclonedx` branch; `ReportGenerator.to_cyclonedx` mirrors `to_sarif`.
 - `cli.py`: output choice, extension mapping, stderr note.
 - No change to `models.py` or the report schema.
@@ -176,7 +176,7 @@ Only `report.vulnerabilities` entries with `source == "osv"` and a non-empty `cv
 
 - An empty inventory produces a valid BOM with only the root component and its empty dependency entry.
 - A framework without a resolvable purl produces no framework component and no vulnerabilities.
-- If building the BOM raises, the command fails with `Error: could not build the CycloneDX BOM: <reason>` and exit code 1; no partial file is written (render first, then write).
+- If building the BOM raises, `scan` fails through its existing error path with `Scan failed: could not build the CycloneDX BOM: <reason>` and exit code 1; no partial file is written (render first, then write). In `scan-batch` and `scan-org` that target is reported and counted as failed, and the run continues.
 
 ## 10. Testing
 
