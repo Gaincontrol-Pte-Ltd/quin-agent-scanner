@@ -35,6 +35,7 @@ Within a major schema version:
 | `agents` | always | list of object | Agents (one per logical agent) with their instances, tools, skills and risk signals. |
 | `tool_usages` | always | list of object | Tool definitions, external services, skills and MCP tools in use. |
 | `risk_signals` | always | list of object | Repo-level risks (threat ID, severity, controls, evidence). |
+| `controls` | always (1.1+); absent in 1.0 reports | object | Controls named by risk signals, keyed by control ID (`name`, `regulatory_refs`: list of `framework`, `id`, `title`, `url`). Informative mapping to the EU AI Act, ISO/IEC 42001 and the NIST AI RMF, not a compliance verdict; data from `rules/regulatory_mapping.yaml`. Added in 1.1; empty when no risk signal names a control. |
 | `mcp_servers` | always | list of object | MCP servers and transports found in config. |
 | `infra` | always | object or null | Infrastructure profile (Docker, CI, IaC), `null` when none found. |
 | `vulnerabilities` | always | list of object | Known vulnerabilities for the detected framework version. |

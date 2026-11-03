@@ -140,6 +140,15 @@ def test_rich_report_validates_against_the_report_schema():
     _validate_report(_rich_report().to_dict())
 
 
+def test_report_with_controls_catalogue_validates():
+    data = _rich_report().to_dict()
+    assert data["controls"]["C001"]["regulatory_refs"]
+    _validate_report(data)
+    assert "controls" not in REPORT_SCHEMA["required"]
+    old = {k: v for k, v in data.items() if k != "controls"}
+    _validate_report(old)  # a 1.0 report without the field still validates
+
+
 def test_report_without_optional_governance_validates():
     report = _rich_report()
     report.governance = None

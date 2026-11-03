@@ -27,6 +27,11 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   evidence only, so it does not change with the LLM pass: the framework (and so the vulnerabilities) is included only
   when static detection found it. Files are named `.cdx.json`. See `docs/ai-bom.md`.
 
+- Regulatory crosswalk: each control (C001–C014) maps to the EU AI Act, ISO/IEC 42001 Annex A and NIST AI RMF 1.0
+  clauses it is relevant to (`src/quin_scanner/rules/regulatory_mapping.yaml`). Shown in `docs/risk-framework.md`, in a
+  new optional `controls` field of the JSON/YAML report (schema 1.1), as chips in the HTML report and as SARIF rule tags
+  (the framework ids, such as `eu-ai-act`; the clauses are in the rule's help text). Informative only, not a compliance assessment.
+
 ### Detection changes
 
 - **Static evidence decides the inventory.** `agents` and `tool_usages` are now built from scanner evidence whether or not an LLM runs, so the same commit gives the same inventory on every run. Before, an LLM scan used the LLM's agent and tool lists, which could rename, merge or invent agents. The LLM now only fills in `goal`, `agent_type`, `capabilities`, per-agent risk signals and tool categories (`service_category`) for agents and tools it is given by ID; `provenance` records which fields it filled; `provenance.risk_signals` is `static` when an agent carries only the static T006 signal, `llm` when it carries only LLM signals and `mixed` when it carries both. LLM capabilities are redacted and capped like other LLM text.

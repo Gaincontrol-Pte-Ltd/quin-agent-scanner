@@ -285,6 +285,12 @@ class AgentIntentSummary:
         }
 
 
+def _controls_catalog(labels: list[str]) -> dict[str, Any]:
+    from quin_scanner.regulatory import controls_catalog  # local import: avoids a cycle with risk_taxonomy/regulatory
+
+    return controls_catalog(labels)
+
+
 def _make_agent_id(prompt_location: str) -> str:
     return hashlib.sha256(prompt_location.encode()).hexdigest()[:16]
 
@@ -499,6 +505,16 @@ class ScanReport:
             d["governance"] = self.governance.to_dict()
         return d
 
+    def _control_labels(self) -> list[str]:
+        """Control labels named by repo- and agent-level risk signals, in report order."""
+        labels = [label for signal in self.risk_signals for label in signal.recommended_controls]
+        for agent in self.agents:
+            labels.extend(
+                label for signal in agent.risk_signals if isinstance(signal, RiskIndicator)
+                for label in signal.recommended_controls
+            )
+        return labels
+
     def _base_dict(self) -> dict[str, Any]:
         return {
             "schema_version": REPORT_SCHEMA_VERSION,
@@ -512,6 +528,7 @@ class ScanReport:
             "agents": [a.to_dict() for a in self.agents],
             "tool_usages": [t.to_dict() for t in self.tool_usages],
             "risk_signals": [r.to_dict() for r in self.risk_signals],
+            "controls": _controls_catalog(self._control_labels()),
             "mcp_servers": [m.to_dict() for m in self.mcp_servers],
             "infra": self.infra.to_dict() if self.infra else None,
             "vulnerabilities": [v.to_dict() for v in self.vulnerabilities],

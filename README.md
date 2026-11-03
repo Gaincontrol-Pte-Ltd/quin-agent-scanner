@@ -486,7 +486,7 @@ Quin `1.0.0rc2` is the current release candidate for 1.0. From `1.0.0`, the CLI 
 | [Skills scanning guide](docs/skills-scanning.md) | Scan skills, MCP tool definitions and instruction files; verdicts, baselines, CI examples, LLM review, limits |
 | [Skill rules](docs/skill-rules.md) | Every skill rule: severity, threat mapping, and what it flags |
 | [Skill scanner tuning notes](docs/skill-scanner-tuning-2026-10.md) | How the rules were tuned against public skill repositories |
-| [Risk framework](docs/risk-framework.md) | The threat and control taxonomy that findings map to |
+| [Risk framework](docs/risk-framework.md) | The threat and control taxonomy that findings map to. Each recommended control also lists the EU AI Act, ISO/IEC 42001 and NIST AI RMF clauses it is relevant to (an informative crosswalk, not a compliance verdict) — see [Regulatory crosswalk](docs/risk-framework.md#regulatory-crosswalk) |
 | [OWASP and DASF references](docs/) | LLM, Agentic, MCP and MAESTRO Top 10 references and the Databricks AI Security Framework |
 | [Example reports](examples/README.md) | Sample HTML reports for supported agent frameworks |
 | [Changelog](CHANGELOG.md) | What changed in each release |

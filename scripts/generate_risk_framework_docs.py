@@ -22,6 +22,7 @@ if str(SRC) not in sys.path:
 
 from jinja2 import Environment, FileSystemLoader, StrictUndefined  # noqa: E402
 
+from quin_scanner.regulatory import disclaimer, frameworks, refs_for_control  # noqa: E402
 from quin_scanner.risk_taxonomy import load_taxonomy  # noqa: E402
 
 TEMPLATE_DIR = REPO_ROOT / "scripts" / "templates"
@@ -67,6 +68,9 @@ def render() -> str:
         threat_name=threat_name,
         threats_for_control=threats_for_control,
         _rel=_rel,
+        frameworks=frameworks(),
+        regulatory_disclaimer=disclaimer(),
+        refs_for_control=refs_for_control,
     )
     # Normalize to a single trailing newline for stable output.
     return rendered.rstrip() + "\n"

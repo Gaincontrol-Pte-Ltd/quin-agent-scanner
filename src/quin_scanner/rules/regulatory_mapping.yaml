@@ -1,0 +1,94 @@
+# Informative crosswalk from Quin's controls (rules/risk_taxonomy.yaml) to regulatory frameworks.
+# Spec: docs/superpowers/specs/2026-11-03-regulatory-mapping-design.md
+# Clause titles are short labels in Quin's own words; ISO text is not reproduced.
+# tests/test_regulatory.py validates this file: every control mapped, every clause known and used.
+
+disclaimer: >
+  Informative mapping of Quin's controls to the clauses their evidence is relevant to.
+  It is not a compliance assessment or legal advice: whether a framework applies, and how,
+  depends on the use case and the organisation.
+
+frameworks:
+  - id: eu-ai-act
+    name: EU AI Act
+    version: Regulation (EU) 2024/1689
+    url: https://eur-lex.europa.eu/eli/reg/2024/1689/oj
+    clauses:
+      - {id: "Art. 9", title: Risk management system}
+      - {id: "Art. 10", title: Data and data governance}
+      - {id: "Art. 11", title: Technical documentation}
+      - {id: "Art. 12", title: Record-keeping}
+      - {id: "Art. 13", title: Transparency and information to deployers}
+      - {id: "Art. 14", title: Human oversight}
+      - {id: "Art. 15", title: "Accuracy, robustness and cybersecurity"}
+      - {id: "Art. 19", title: Automatically generated logs}
+      - {id: "Art. 25", title: Responsibilities along the AI value chain}
+      - {id: "Art. 26", title: Obligations of deployers}
+      - {id: "Art. 50", title: Transparency for certain AI systems}
+      - {id: "Art. 72", title: Post-market monitoring}
+      - {id: "Art. 73", title: Reporting of serious incidents}
+
+  - id: iso-42001
+    name: ISO/IEC 42001
+    version: "ISO/IEC 42001:2023, Annex A"
+    url: https://www.iso.org/standard/42001
+    clauses:
+      - {id: A.2.2, title: AI policy}
+      - {id: A.3.2, title: AI roles and responsibilities}
+      - {id: A.3.3, title: Reporting concerns}
+      - {id: A.4.5, title: System and computing resources}
+      - {id: A.6.2.2, title: System requirements and specification}
+      - {id: A.6.2.4, title: Verification and validation}
+      - {id: A.6.2.6, title: Operation and monitoring}
+      - {id: A.6.2.7, title: Technical documentation}
+      - {id: A.6.2.8, title: Event logging}
+      - {id: A.7.2, title: Data for development and enhancement}
+      - {id: A.7.3, title: Data acquisition}
+      - {id: A.7.4, title: Data quality}
+      - {id: A.7.5, title: Data provenance}
+      - {id: A.8.2, title: Documentation and information for users}
+      - {id: A.8.4, title: Communicating incidents}
+      - {id: A.9.2, title: Responsible use processes}
+      - {id: A.9.4, title: Intended use}
+      - {id: A.10.3, title: Suppliers}
+
+  - id: nist-ai-rmf
+    name: NIST AI RMF
+    version: AI RMF 1.0 (NIST AI 100-1)
+    url: https://www.nist.gov/itl/ai-risk-management-framework
+    clauses:
+      - {id: GOVERN 1.1, title: Legal and regulatory requirements understood and managed}
+      - {id: GOVERN 1.6, title: Inventory of AI systems}
+      - {id: GOVERN 2.1, title: Roles and responsibilities documented}
+      - {id: GOVERN 6.1, title: Third-party risk policies}
+      - {id: GOVERN 6.2, title: Contingency for third-party failures}
+      - {id: MAP 3.3, title: Targeted application scope specified}
+      - {id: MAP 3.5, title: Human oversight processes defined}
+      - {id: MEASURE 2.4, title: Behaviour monitored in production}
+      - {id: MEASURE 2.5, title: Validity and reliability demonstrated}
+      - {id: MEASURE 2.6, title: Safety risks evaluated}
+      - {id: MEASURE 2.7, title: Security and resilience evaluated}
+      - {id: MEASURE 2.8, title: Transparency and accountability examined}
+      - {id: MEASURE 2.10, title: Privacy risk examined}
+      - {id: MANAGE 2.3, title: Response to previously unknown risks}
+      - {id: MANAGE 2.4, title: "Mechanisms to supersede, disengage or deactivate"}
+      - {id: MANAGE 3.1, title: Third-party risks monitored}
+      - {id: MANAGE 3.2, title: Pre-trained models monitored}
+      - {id: MANAGE 4.1, title: Post-deployment monitoring}
+      - {id: MANAGE 4.3, title: Incidents and errors communicated}
+
+controls:
+  C001: {eu-ai-act: ["Art. 15"], iso-42001: [A.6.2.2], nist-ai-rmf: [MEASURE 2.7]}
+  C002: {eu-ai-act: ["Art. 15"], iso-42001: [A.6.2.4], nist-ai-rmf: [MEASURE 2.5, MEASURE 2.7]}
+  C003: {eu-ai-act: ["Art. 15"], iso-42001: [A.9.4], nist-ai-rmf: [MEASURE 2.7]}
+  C004: {eu-ai-act: ["Art. 15", "Art. 25"], iso-42001: [A.10.3], nist-ai-rmf: [GOVERN 6.1, GOVERN 6.2, MANAGE 3.1, MANAGE 3.2]}
+  C005: {eu-ai-act: ["Art. 10"], iso-42001: [A.7.2, A.7.3], nist-ai-rmf: [MEASURE 2.10]}
+  C006: {eu-ai-act: ["Art. 14", "Art. 26"], iso-42001: [A.9.2], nist-ai-rmf: [MAP 3.5, MANAGE 2.4]}
+  C007: {eu-ai-act: ["Art. 12", "Art. 19", "Art. 26", "Art. 72"], iso-42001: [A.6.2.6, A.6.2.8], nist-ai-rmf: [MEASURE 2.4, MANAGE 4.1]}
+  C008: {eu-ai-act: ["Art. 9"], iso-42001: [A.6.2.2, A.9.4], nist-ai-rmf: [MAP 3.3]}
+  C009: {eu-ai-act: ["Art. 9", "Art. 15"], iso-42001: [A.6.2.4], nist-ai-rmf: [MEASURE 2.6, MEASURE 2.7]}
+  C010: {eu-ai-act: ["Art. 15"], iso-42001: [A.4.5], nist-ai-rmf: [MEASURE 2.7]}
+  C011: {eu-ai-act: ["Art. 10", "Art. 15"], iso-42001: [A.7.4, A.7.5], nist-ai-rmf: [MEASURE 2.7]}
+  C012: {eu-ai-act: ["Art. 15"], iso-42001: [A.4.5], nist-ai-rmf: [MEASURE 2.7]}
+  C013: {eu-ai-act: ["Art. 11", "Art. 13", "Art. 50"], iso-42001: [A.2.2, A.3.2, A.6.2.7, A.8.2], nist-ai-rmf: [GOVERN 1.1, GOVERN 1.6, GOVERN 2.1, MEASURE 2.8]}
+  C014: {eu-ai-act: ["Art. 73"], iso-42001: [A.3.3, A.8.4], nist-ai-rmf: [MANAGE 2.3, MANAGE 4.1, MANAGE 4.3]}

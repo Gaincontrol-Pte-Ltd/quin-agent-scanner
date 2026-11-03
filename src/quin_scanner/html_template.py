@@ -101,6 +101,9 @@ body{font-family:var(--font-sans);background:var(--color-bg);color:var(--color-t
 .doc-link:hover{color:var(--color-accent);text-decoration-style:solid}
 .doc-link--icon{display:inline-block;margin-left:6px;font-size:.78rem;text-decoration:none;opacity:.7}
 .doc-link--icon:hover{opacity:1;text-decoration:none}
+.reg-chips{display:inline-flex;flex-wrap:wrap;gap:.25rem;margin-left:.35rem;vertical-align:middle}
+.reg-chip{font-size:.65rem;line-height:1.4;padding:0 .35rem;border:1px solid var(--color-border);border-radius:.6rem;color:inherit;text-decoration:none;white-space:normal;overflow-wrap:anywhere;max-width:100%;opacity:.85}
+.reg-chip:hover{opacity:1;text-decoration:underline}
 
 /* ---------- Summary ---------- */
 .summary{margin-top:16px;padding:16px 20px;background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-md);font-size:.9rem;line-height:1.7;color:#404040}
@@ -321,7 +324,7 @@ window.__REPORT_DATA__ = {{REPORT_DATA_JSON}};
     /* Accepts "C003: Access Control & Least Privilege" or just "C003".
        Renders a clickable link to DOCS_BASE#c003; falls back to plain text. */
     var s=String(label||"");
-    var m=s.match(/^(C\\d{3})\\b/i);
+    var m=s.match(/^\\s*(C\\d{3})\\b/i);
     if(!m) return esc(s);
     var cid=m[1].toUpperCase();
     return '<a href="'+esc(DOCS_BASE+"#"+cid.toLowerCase())+'" target="_blank" rel="noopener" class="doc-link">'+esc(s)+'</a>';
@@ -330,6 +333,29 @@ window.__REPORT_DATA__ = {{REPORT_DATA_JSON}};
     var s=String(tid||"");
     if(!/^T\\d{3}$/i.test(s)) return null;
     return DOCS_BASE+"#"+s.toLowerCase();
+  }
+
+  /* ---- Regulatory chips (informative crosswalk, data from D.controls) ---- */
+  var REG_SHORT={"eu-ai-act":"EU","iso-42001":"ISO","nist-ai-rmf":"NIST"};
+  function regChips(label){
+    var m=String(label||"").match(/^\\s*(C\\d{3})\\b/i);
+    if(!m) return "";
+    var entry=(D.controls||{})[m[1].toUpperCase()];
+    var refs=entry&&Array.isArray(entry.regulatory_refs)?entry.regulatory_refs:[];
+    if(!refs.length) return "";
+    var groups={},order=[];
+    refs.forEach(function(r){
+      var f=String(r.framework||"");
+      if(!groups[f]){groups[f]=[];order.push(f)}
+      groups[f].push(r);
+    });
+    var href=esc(DOCS_BASE+"#regulatory-crosswalk");
+    return ' <span class="reg-chips">'+order.map(function(f){
+      var items=groups[f];
+      var text=(REG_SHORT[f]||f)+" "+items.map(function(r){return String(r.id||"")}).join(", ");
+      var title="Relevant to (informative) \\u2014 "+items.map(function(r){return String(r.id||"")+" \\u2014 "+String(r.title||"")}).join("\\n");
+      return '<a class="reg-chip" href="'+href+'" target="_blank" rel="noopener" title="'+esc(title)+'" onclick="event.stopPropagation()">'+esc(text)+'</a>';
+    }).join("")+'</span>';
   }
 
   /* ---- Helpers ---- */
@@ -1009,7 +1035,9 @@ window.__REPORT_DATA__ = {{REPORT_DATA_JSON}};
         html+='<div class="risk-controls" style="display:none;margin:.35rem 0 .35rem 10px;font-size:.75rem;color:var(--color-muted)">';
         if(ctrls.length){
           html+='<div class="risk-detail__label">Recommended controls</div>';
-          ctrls.forEach(function(c){html+='<div style="margin-bottom:.2rem">&#8594; '+controlLink(c)+'</div>'});
+          var anyChips=false;
+          ctrls.forEach(function(c){var chips=regChips(c);if(chips)anyChips=true;html+='<div style="margin-bottom:.2rem">&#8594; '+controlLink(c)+chips+'</div>'});
+          if(anyChips) html+='<div style="margin:.1rem 0 .2rem;font-size:.68rem;opacity:.8">Regulatory references are informative, not a compliance assessment.</div>';
         }
         if(refs.length){
           html+='<div class="risk-detail__label" style="margin-top:'+(ctrls.length?'.5rem':'0')+'">Evidence</div>';

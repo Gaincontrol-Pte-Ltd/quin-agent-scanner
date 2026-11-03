@@ -3,6 +3,7 @@
 <!--
   GENERATED FILE — DO NOT EDIT BY HAND.
   Source of truth: src/quin_scanner/rules/risk_taxonomy.yaml
+                   src/quin_scanner/rules/regulatory_mapping.yaml
   Regenerate:       python scripts/generate_risk_framework_docs.py
   Drift check:      python scripts/generate_risk_framework_docs.py --check
 -->
@@ -16,6 +17,7 @@ evidence grounded in:
 - OWASP MCP Top 10
 - OWASP MAESTRO multi-agent threat model
 - Databricks AI Security Framework (DASF) v3.0
+- Regulatory crosswalk (informative): EU AI Act, ISO/IEC 42001, NIST AI RMF — see [Regulatory crosswalk](#regulatory-crosswalk)
 
 Scanner reports deep-link into this file. Each control label in a Quin HTML
 report (e.g. `C003: Access Control & Least Privilege`) links to the matching
@@ -550,6 +552,12 @@ recommended controls, and every control lists the threats it helps mitigate.
 - Stripping content that attackers simply re-encode (base64, homoglyphs)
 - Losing the filter when the prompt is refactored into a new codepath
 
+**Regulatory references (informative).**
+
+- EU AI Act: [Art. 15](https://eur-lex.europa.eu/eli/reg/2024/1689/oj) Accuracy, robustness and cybersecurity
+- ISO/IEC 42001: [A.6.2.2](https://www.iso.org/standard/42001) System requirements and specification
+- NIST AI RMF: [MEASURE 2.7](https://www.nist.gov/itl/ai-risk-management-framework) Security and resilience evaluated
+
 **References.**
 
 - [OWASP LLM01 — Mitigation section](https://genai.owasp.org/llmrisk/llm01-prompt-injection/) — local copy: [`docs/OWASP-LLM-Top10.md`](OWASP-LLM-Top10.md)
@@ -579,6 +587,12 @@ recommended controls, and every control lists the threats it helps mitigate.
 - Passing LLM output to shell=True or eval() "because it's a tool wrapper"
 - Trusting JSON shape because the LLM said "here is valid JSON"
 - Silently dropping invalid output instead of alerting and falling back
+
+**Regulatory references (informative).**
+
+- EU AI Act: [Art. 15](https://eur-lex.europa.eu/eli/reg/2024/1689/oj) Accuracy, robustness and cybersecurity
+- ISO/IEC 42001: [A.6.2.4](https://www.iso.org/standard/42001) Verification and validation
+- NIST AI RMF: [MEASURE 2.5](https://www.nist.gov/itl/ai-risk-management-framework) Validity and reliability demonstrated; [MEASURE 2.7](https://www.nist.gov/itl/ai-risk-management-framework) Security and resilience evaluated
 
 **References.**
 
@@ -610,6 +624,12 @@ recommended controls, and every control lists the threats it helps mitigate.
 - Granting write+delete where list+read would do
 - Forgetting that shared context stores need their own ACL model
 
+**Regulatory references (informative).**
+
+- EU AI Act: [Art. 15](https://eur-lex.europa.eu/eli/reg/2024/1689/oj) Accuracy, robustness and cybersecurity
+- ISO/IEC 42001: [A.9.4](https://www.iso.org/standard/42001) Intended use
+- NIST AI RMF: [MEASURE 2.7](https://www.nist.gov/itl/ai-risk-management-framework) Security and resilience evaluated
+
 **References.**
 
 - [OWASP LLM06 — Excessive Agency mitigations](https://genai.owasp.org/llmrisk/llm06-excessive-agency/) — local copy: [`docs/OWASP-LLM-Top10.md`](OWASP-LLM-Top10.md)
@@ -639,6 +659,12 @@ recommended controls, and every control lists the threats it helps mitigate.
 - Trusting a public model hub's `verified` badge as a security claim
 - Skipping the AI-BOM because the team only uses one model today
 - Letting remote tool schemas mutate between deploys
+
+**Regulatory references (informative).**
+
+- EU AI Act: [Art. 15](https://eur-lex.europa.eu/eli/reg/2024/1689/oj) Accuracy, robustness and cybersecurity; [Art. 25](https://eur-lex.europa.eu/eli/reg/2024/1689/oj) Responsibilities along the AI value chain
+- ISO/IEC 42001: [A.10.3](https://www.iso.org/standard/42001) Suppliers
+- NIST AI RMF: [GOVERN 6.1](https://www.nist.gov/itl/ai-risk-management-framework) Third-party risk policies; [GOVERN 6.2](https://www.nist.gov/itl/ai-risk-management-framework) Contingency for third-party failures; [MANAGE 3.1](https://www.nist.gov/itl/ai-risk-management-framework) Third-party risks monitored; [MANAGE 3.2](https://www.nist.gov/itl/ai-risk-management-framework) Pre-trained models monitored
 
 **References.**
 
@@ -670,6 +696,12 @@ recommended controls, and every control lists the threats it helps mitigate.
 - Sharing a single vector store across tenants
 - Keeping context indefinitely because "we might want it later"
 
+**Regulatory references (informative).**
+
+- EU AI Act: [Art. 10](https://eur-lex.europa.eu/eli/reg/2024/1689/oj) Data and data governance
+- ISO/IEC 42001: [A.7.2](https://www.iso.org/standard/42001) Data for development and enhancement; [A.7.3](https://www.iso.org/standard/42001) Data acquisition
+- NIST AI RMF: [MEASURE 2.10](https://www.nist.gov/itl/ai-risk-management-framework) Privacy risk examined
+
 **References.**
 
 - [Databricks DASF — Data Classification & Protection](https://www.databricks.com/resources/whitepaper/databricks-ai-security-framework-dasf) — local copy: [`docs/Databricks-DASF-Reference.md`](Databricks-DASF-Reference.md)
@@ -699,6 +731,12 @@ recommended controls, and every control lists the threats it helps mitigate.
 - Presenting only the summarized action, not the underlying prompt/data
 - Using the same HITL queue for low- and high-stakes actions
 - Treating "manager added to cc" as oversight
+
+**Regulatory references (informative).**
+
+- EU AI Act: [Art. 14](https://eur-lex.europa.eu/eli/reg/2024/1689/oj) Human oversight; [Art. 26](https://eur-lex.europa.eu/eli/reg/2024/1689/oj) Obligations of deployers
+- ISO/IEC 42001: [A.9.2](https://www.iso.org/standard/42001) Responsible use processes
+- NIST AI RMF: [MAP 3.5](https://www.nist.gov/itl/ai-risk-management-framework) Human oversight processes defined; [MANAGE 2.4](https://www.nist.gov/itl/ai-risk-management-framework) Mechanisms to supersede, disengage or deactivate
 
 **References.**
 
@@ -730,6 +768,12 @@ recommended controls, and every control lists the threats it helps mitigate.
 - Capturing secrets in logs by default
 - Treating AI telemetry as separate from security telemetry
 
+**Regulatory references (informative).**
+
+- EU AI Act: [Art. 12](https://eur-lex.europa.eu/eli/reg/2024/1689/oj) Record-keeping; [Art. 19](https://eur-lex.europa.eu/eli/reg/2024/1689/oj) Automatically generated logs; [Art. 26](https://eur-lex.europa.eu/eli/reg/2024/1689/oj) Obligations of deployers; [Art. 72](https://eur-lex.europa.eu/eli/reg/2024/1689/oj) Post-market monitoring
+- ISO/IEC 42001: [A.6.2.6](https://www.iso.org/standard/42001) Operation and monitoring; [A.6.2.8](https://www.iso.org/standard/42001) Event logging
+- NIST AI RMF: [MEASURE 2.4](https://www.nist.gov/itl/ai-risk-management-framework) Behaviour monitored in production; [MANAGE 4.1](https://www.nist.gov/itl/ai-risk-management-framework) Post-deployment monitoring
+
 **References.**
 
 - [Databricks DASF — Monitoring Controls](https://www.databricks.com/resources/whitepaper/databricks-ai-security-framework-dasf) — local copy: [`docs/Databricks-DASF-Reference.md`](Databricks-DASF-Reference.md)
@@ -759,6 +803,12 @@ recommended controls, and every control lists the threats it helps mitigate.
 - No kill switch, or one that requires a redeploy
 - Step budgets in the prompt (advisory) instead of the runtime (enforced)
 - Letting an agent modify its own policy file
+
+**Regulatory references (informative).**
+
+- EU AI Act: [Art. 9](https://eur-lex.europa.eu/eli/reg/2024/1689/oj) Risk management system
+- ISO/IEC 42001: [A.6.2.2](https://www.iso.org/standard/42001) System requirements and specification; [A.9.4](https://www.iso.org/standard/42001) Intended use
+- NIST AI RMF: [MAP 3.3](https://www.nist.gov/itl/ai-risk-management-framework) Targeted application scope specified
 
 **References.**
 
@@ -790,6 +840,12 @@ recommended controls, and every control lists the threats it helps mitigate.
 - Evaluating the model in isolation, ignoring the prompt + tool stack
 - Treating eval failures as "model problems, not our problem"
 
+**Regulatory references (informative).**
+
+- EU AI Act: [Art. 9](https://eur-lex.europa.eu/eli/reg/2024/1689/oj) Risk management system; [Art. 15](https://eur-lex.europa.eu/eli/reg/2024/1689/oj) Accuracy, robustness and cybersecurity
+- ISO/IEC 42001: [A.6.2.4](https://www.iso.org/standard/42001) Verification and validation
+- NIST AI RMF: [MEASURE 2.6](https://www.nist.gov/itl/ai-risk-management-framework) Safety risks evaluated; [MEASURE 2.7](https://www.nist.gov/itl/ai-risk-management-framework) Security and resilience evaluated
+
 **References.**
 
 - [OWASP LLM Top 10 — evaluation guidance](https://genai.owasp.org/llm-top-10/) — local copy: [`docs/OWASP-LLM-Top10.md`](OWASP-LLM-Top10.md)
@@ -819,6 +875,12 @@ recommended controls, and every control lists the threats it helps mitigate.
 - MCP servers on public networks with no authentication
 - Treating a model container like a black box that just works
 - Letting AI egress traffic bypass the standard proxy/filter
+
+**Regulatory references (informative).**
+
+- EU AI Act: [Art. 15](https://eur-lex.europa.eu/eli/reg/2024/1689/oj) Accuracy, robustness and cybersecurity
+- ISO/IEC 42001: [A.4.5](https://www.iso.org/standard/42001) System and computing resources
+- NIST AI RMF: [MEASURE 2.7](https://www.nist.gov/itl/ai-risk-management-framework) Security and resilience evaluated
 
 **References.**
 
@@ -850,6 +912,12 @@ recommended controls, and every control lists the threats it helps mitigate.
 - No baseline metrics, so drift has nothing to compare against
 - Letting the RAG corpus evolve freely and silently
 
+**Regulatory references (informative).**
+
+- EU AI Act: [Art. 10](https://eur-lex.europa.eu/eli/reg/2024/1689/oj) Data and data governance; [Art. 15](https://eur-lex.europa.eu/eli/reg/2024/1689/oj) Accuracy, robustness and cybersecurity
+- ISO/IEC 42001: [A.7.4](https://www.iso.org/standard/42001) Data quality; [A.7.5](https://www.iso.org/standard/42001) Data provenance
+- NIST AI RMF: [MEASURE 2.7](https://www.nist.gov/itl/ai-risk-management-framework) Security and resilience evaluated
+
 **References.**
 
 - [OWASP LLM04 — Data and Model Poisoning mitigations](https://genai.owasp.org/llmrisk/llm04-data-and-model-poisoning/) — local copy: [`docs/OWASP-LLM-Top10.md`](OWASP-LLM-Top10.md)
@@ -879,6 +947,12 @@ recommended controls, and every control lists the threats it helps mitigate.
 - No output cap, enabling model-extraction-by-maximum-response
 - Alerts on anomalies but no automatic action
 - Forgetting that subagents multiply effective request rate
+
+**Regulatory references (informative).**
+
+- EU AI Act: [Art. 15](https://eur-lex.europa.eu/eli/reg/2024/1689/oj) Accuracy, robustness and cybersecurity
+- ISO/IEC 42001: [A.4.5](https://www.iso.org/standard/42001) System and computing resources
+- NIST AI RMF: [MEASURE 2.7](https://www.nist.gov/itl/ai-risk-management-framework) Security and resilience evaluated
 
 **References.**
 
@@ -910,6 +984,12 @@ recommended controls, and every control lists the threats it helps mitigate.
 - No single owner accountable for each AI system
 - Disclosure framed as legal CYA, not user-serving transparency
 
+**Regulatory references (informative).**
+
+- EU AI Act: [Art. 11](https://eur-lex.europa.eu/eli/reg/2024/1689/oj) Technical documentation; [Art. 13](https://eur-lex.europa.eu/eli/reg/2024/1689/oj) Transparency and information to deployers; [Art. 50](https://eur-lex.europa.eu/eli/reg/2024/1689/oj) Transparency for certain AI systems
+- ISO/IEC 42001: [A.2.2](https://www.iso.org/standard/42001) AI policy; [A.3.2](https://www.iso.org/standard/42001) AI roles and responsibilities; [A.6.2.7](https://www.iso.org/standard/42001) Technical documentation; [A.8.2](https://www.iso.org/standard/42001) Documentation and information for users
+- NIST AI RMF: [GOVERN 1.1](https://www.nist.gov/itl/ai-risk-management-framework) Legal and regulatory requirements understood and managed; [GOVERN 1.6](https://www.nist.gov/itl/ai-risk-management-framework) Inventory of AI systems; [GOVERN 2.1](https://www.nist.gov/itl/ai-risk-management-framework) Roles and responsibilities documented; [MEASURE 2.8](https://www.nist.gov/itl/ai-risk-management-framework) Transparency and accountability examined
+
 **References.**
 
 - [OWASP LLM Top 10 — governance guidance](https://genai.owasp.org/llm-top-10/) — local copy: [`docs/OWASP-LLM-Top10.md`](OWASP-LLM-Top10.md)
@@ -940,6 +1020,12 @@ recommended controls, and every control lists the threats it helps mitigate.
 - Forensic logs discarded before the incident is discovered
 - IR playbook never updated once an AI system is in prod
 
+**Regulatory references (informative).**
+
+- EU AI Act: [Art. 73](https://eur-lex.europa.eu/eli/reg/2024/1689/oj) Reporting of serious incidents
+- ISO/IEC 42001: [A.3.3](https://www.iso.org/standard/42001) Reporting concerns; [A.8.4](https://www.iso.org/standard/42001) Communicating incidents
+- NIST AI RMF: [MANAGE 2.3](https://www.nist.gov/itl/ai-risk-management-framework) Response to previously unknown risks; [MANAGE 4.1](https://www.nist.gov/itl/ai-risk-management-framework) Post-deployment monitoring; [MANAGE 4.3](https://www.nist.gov/itl/ai-risk-management-framework) Incidents and errors communicated
+
 **References.**
 
 - [NIST AI Risk Management Framework](https://www.nist.gov/itl/ai-risk-management-framework)
@@ -947,9 +1033,42 @@ recommended controls, and every control lists the threats it helps mitigate.
 ---
 
 
+<a id="regulatory-crosswalk"></a>
+## Regulatory crosswalk
+
+Informative mapping of Quin's controls to the clauses their evidence is relevant to. It is not a compliance assessment or legal advice: whether a framework applies, and how, depends on the use case and the organisation.
+
+Frameworks:
+
+- [EU AI Act](https://eur-lex.europa.eu/eli/reg/2024/1689/oj) — Regulation (EU) 2024/1689
+- [ISO/IEC 42001](https://www.iso.org/standard/42001) — ISO/IEC 42001:2023, Annex A
+- [NIST AI RMF](https://www.nist.gov/itl/ai-risk-management-framework) — AI RMF 1.0 (NIST AI 100-1)
+
+| Control | EU AI Act | ISO/IEC 42001 | NIST AI RMF |
+|---|---|---|---|
+| [C001](#c001) Input Validation & Filtering | Art. 15 | A.6.2.2 | MEASURE 2.7 |
+| [C002](#c002) Output Validation & Handling | Art. 15 | A.6.2.4 | MEASURE 2.5, MEASURE 2.7 |
+| [C003](#c003) Access Control & Least Privilege | Art. 15 | A.9.4 | MEASURE 2.7 |
+| [C004](#c004) Supply Chain Security | Art. 15, Art. 25 | A.10.3 | GOVERN 6.1, GOVERN 6.2, MANAGE 3.1, MANAGE 3.2 |
+| [C005](#c005) Data Protection & Classification | Art. 10 | A.7.2, A.7.3 | MEASURE 2.10 |
+| [C006](#c006) Human Oversight & Approval Gates | Art. 14, Art. 26 | A.9.2 | MAP 3.5, MANAGE 2.4 |
+| [C007](#c007) Monitoring, Logging & Observability | Art. 12, Art. 19, Art. 26, Art. 72 | A.6.2.6, A.6.2.8 | MEASURE 2.4, MANAGE 4.1 |
+| [C008](#c008) Agent Governance & Boundaries | Art. 9 | A.6.2.2, A.9.4 | MAP 3.3 |
+| [C009](#c009) Testing & Adversarial Evaluation | Art. 9, Art. 15 | A.6.2.4 | MEASURE 2.6, MEASURE 2.7 |
+| [C010](#c010) Infrastructure Security | Art. 15 | A.4.5 | MEASURE 2.7 |
+| [C011](#c011) Model & Data Integrity | Art. 10, Art. 15 | A.7.4, A.7.5 | MEASURE 2.7 |
+| [C012](#c012) Rate Limiting & Resource Management | Art. 15 | A.4.5 | MEASURE 2.7 |
+| [C013](#c013) Transparency & AI Governance | Art. 11, Art. 13, Art. 50 | A.2.2, A.3.2, A.6.2.7, A.8.2 | GOVERN 1.1, GOVERN 1.6, GOVERN 2.1, MEASURE 2.8 |
+| [C014](#c014) Incident Response & Recovery | Art. 73 | A.3.3, A.8.4 | MANAGE 2.3, MANAGE 4.1, MANAGE 4.3 |
+
+Source of truth: `src/quin_scanner/rules/regulatory_mapping.yaml`.
+
+---
+
 ## Maintenance notes
 
-This file is regenerated from `src/quin_scanner/rules/risk_taxonomy.yaml`.
+This file is regenerated from `src/quin_scanner/rules/risk_taxonomy.yaml` and
+`src/quin_scanner/rules/regulatory_mapping.yaml`.
 
 - Edit prose, references, and KRIs in the YAML, then run
   `python scripts/generate_risk_framework_docs.py` to refresh this file.
@@ -958,3 +1077,4 @@ This file is regenerated from `src/quin_scanner/rules/risk_taxonomy.yaml`.
 - Anchors are stable: `#t001`..`#t014` for threats and `#c001`..`#c014` for
   controls. External links (including the HTML scan report) depend on those
   anchors — do not rename them without coordinating a downstream migration.
+- The regulatory crosswalk comes from src/quin_scanner/rules/regulatory_mapping.yaml; tests/test_regulatory.py validates it.
