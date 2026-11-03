@@ -238,12 +238,6 @@ def refs_for_label(label: str) -> list[RegulatoryRef]:
     return refs_for_control(control_id) if control_id else []
 
 
-def sarif_tag(ref: RegulatoryRef) -> str:
-    """framework/slug, e.g. eu-ai-act/art-14, iso-42001/a.9.2, nist-ai-rmf/manage-2.4."""
-    text = re.sub(r"\.(?=\s|$)", "", ref.id).lower()  # "Art. 14" -> "art 14"; dots inside IDs stay
-    return f"{ref.framework}/{re.sub(r'[^a-z0-9.]+', '-', text).strip('-')}"
-
-
 def controls_catalog(labels: Iterable[str]) -> dict[str, dict[str, Any]]:
     """Report `controls` field: every taxonomy control named by *labels*, sorted by ID."""
     from quin_scanner.risk_taxonomy import load_taxonomy

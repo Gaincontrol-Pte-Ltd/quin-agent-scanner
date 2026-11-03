@@ -207,11 +207,11 @@ Next to each control label on a risk signal (repo and agent level): compact chip
 
 ### 7.4 SARIF
 
-- Each rule built from a risk signal gets `properties.tags`: one tag per clause of its controls, `<framework>/<slug>` with the slug built from the clause ID: a word-final `.` is dropped, the rest lowercased, and characters other than `a-z0-9.` become `-` — e.g. `eu-ai-act/art-14`, `iso-42001/a.9.2`, `nist-ai-rmf/manage-2.4`. Sorted, deduplicated.
+- Each rule built from a risk signal gets `properties.tags`: only the ids of the frameworks that have at least one reference for the rule, in framework file order, a subset of `eu-ai-act`, `iso-42001`, `nist-ai-rmf`. Clause-level tags are not used: GitHub code scanning rejects an upload when a rule has more than 20 tags and only uses 10. The clauses are in `help.text`.
 - Rules that share an id combine their signals' controls.
 - Controls come from the threat's `recommended_controls` when the rule is a taxonomy threat, else from the signal's own `recommended_controls`.
-- Vulnerability rules (CVE/GHSA) get the tags of C004 Supply Chain Security.
-- Each such rule also gets `help.text`: `Relevant to (informative): EU AI Act Art. 14; ISO/IEC 42001 A.9.2; NIST AI RMF MANAGE 2.4.`
+- Vulnerability rules (CVE/GHSA) get the tags and help of C004 Supply Chain Security.
+- Each such rule also gets `help.text`: `Relevant to (informative): EU AI Act Art. 14; ISO/IEC 42001 A.9.2; NIST AI RMF MANAGE 2.4.` Clauses of each framework are listed in catalogue (YAML) order.
 - Rules with no mapped controls get neither.
 
 ## 8. Errors
@@ -224,9 +224,9 @@ Next to each control label on a risk signal (repo and agent level): compact chip
 - Loader: shipped file validates; fixture files with each kind of error are rejected with a message naming the problem; `refs_for_label` parsing.
 - Docs: drift check passes after regeneration; crosswalk table matches the YAML.
 - JSON: `controls` holds exactly the referenced controls, sorted; validates against schema 1.1; 1.0 reports still validate.
-- SARIF: tags and help text for a threat rule, a non-threat signal and a vulnerability rule; no tags when nothing maps; SARIF still validates against the SARIF schema test if one exists.
+- SARIF: framework tags (at most 3, for every threat and for vulnerabilities) and help text for a threat rule, a non-threat signal and a vulnerability rule; no tags when nothing maps; SARIF still validates against the SARIF schema test if one exists.
 - HTML: chips render for repo and agent signals; hostile-looking text stays text; mobile width does not overflow.
-- Determinism: `controls` and SARIF tags identical across `PYTHONHASHSEED` values.
+- Determinism: `controls` and SARIF tags and help identical across `PYTHONHASHSEED` values.
 - Corpus: snapshots unchanged (they do not include `controls`), `--check` exits 0.
 
 ## 10. Docs and release

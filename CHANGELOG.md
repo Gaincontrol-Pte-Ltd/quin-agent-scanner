@@ -30,7 +30,7 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Regulatory crosswalk: each control (C001–C014) maps to the EU AI Act, ISO/IEC 42001 Annex A and NIST AI RMF 1.0
   clauses it is relevant to (`src/quin_scanner/rules/regulatory_mapping.yaml`). Shown in `docs/risk-framework.md`, in a
   new optional `controls` field of the JSON/YAML report (schema 1.1), as chips in the HTML report and as SARIF rule tags
-  (e.g. `eu-ai-act/art-14`). Informative only, not a compliance assessment.
+  (the framework ids, such as `eu-ai-act`; the clauses are in the rule's help text). Informative only, not a compliance assessment.
 
 ### Detection changes
 

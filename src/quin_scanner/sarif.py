@@ -33,8 +33,8 @@ _SUPPLY_CHAIN_CONTROL = "C004"
 
 
 def _with_regulatory(rule: dict[str, Any], control_labels: Iterable[str]) -> dict[str, Any]:
-    """Add informative regulatory tags and help text for the rule's controls (nothing when none map)."""
-    from quin_scanner.regulatory import frameworks, refs_for_label, sarif_tag
+    """Add informative regulatory framework tags and clause help text for the rule's controls (nothing when none map)."""
+    from quin_scanner.regulatory import frameworks, refs_for_label
 
     refs, seen = [], set()
     for label in control_labels:
@@ -44,12 +44,15 @@ def _with_regulatory(rule: dict[str, Any], control_labels: Iterable[str]) -> dic
                 refs.append(ref)
     if not refs:
         return rule
-    parts = []
+    # Framework-level tags only: GitHub code scanning rejects rules with more than 20 tags.
+    parts, tags = [], []
     for fw in frameworks():
-        ids = [ref.id for ref in refs if ref.framework == fw.id]
+        wanted = {ref.id for ref in refs if ref.framework == fw.id}
+        ids = [clause.id for clause in fw.clauses if clause.id in wanted]  # catalogue order
         if ids:
             parts.append(f"{fw.name} {', '.join(ids)}")
-    rule["properties"] = {"tags": sorted({sarif_tag(ref) for ref in refs})}
+            tags.append(fw.id)
+    rule["properties"] = {"tags": tags}
     rule["help"] = {"text": "Relevant to (informative): " + "; ".join(parts) + "."}
     return rule
 

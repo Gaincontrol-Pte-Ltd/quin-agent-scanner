@@ -53,33 +53,51 @@ def _sarif(report):
     return json.loads(ReportGenerator.to_sarif(report))["runs"][0]["tool"]["driver"]["rules"]
 
 
-class TestSarif:
-    def test_threat_rule_uses_the_threats_controls(self):
-        from quin_scanner.regulatory import refs_for_control, sarif_tag
-        from quin_scanner.risk_taxonomy import load_taxonomy
+FRAMEWORK_IDS = ["eu-ai-act", "iso-42001", "nist-ai-rmf"]
 
+
+class TestSarif:
+    def test_threat_rule_has_framework_tags_and_clause_help(self):
         rule = next(r for r in _sarif(_report(risk_signals=[_signal("T006")])) if r["id"] == "T006")
-        threat = next(t for t in load_taxonomy().threats if t.id == "T006")
-        expected = sorted({sarif_tag(ref) for cid in threat.recommended_controls for ref in refs_for_control(cid)})
-        assert rule["properties"]["tags"] == expected
+        assert rule["properties"]["tags"] == FRAMEWORK_IDS
         assert rule["help"]["text"].startswith("Relevant to (informative): EU AI Act ")
         assert "ISO/IEC 42001 " in rule["help"]["text"] and "NIST AI RMF " in rule["help"]["text"]
 
     def test_signal_without_threat_uses_its_own_controls(self):
         signal = _signal(threat=None, controls=["C006: Human Oversight & Approval Gates"], signal="No approval gate")
         rule = _sarif(_report(risk_signals=[signal]))[0]
-        assert rule["properties"]["tags"] == ["eu-ai-act/art-14", "eu-ai-act/art-26", "iso-42001/a.9.2",
-                                              "nist-ai-rmf/manage-2.4", "nist-ai-rmf/map-3.5"]
+        assert rule["properties"]["tags"] == FRAMEWORK_IDS
         assert rule["help"]["text"] == (
             "Relevant to (informative): EU AI Act Art. 14, Art. 26; ISO/IEC 42001 A.9.2; NIST AI RMF MAP 3.5, MANAGE 2.4."
         )
+
+    def test_every_threat_and_vulnerability_rule_has_at_most_three_framework_tags(self):
+        # GitHub code scanning rejects a rule with more than 20 tags and only uses 10.
+        from quin_scanner.risk_taxonomy import load_taxonomy
+
+        threats = load_taxonomy().threats
+        signals = [_signal(t.id, list(t.recommended_controls), signal=f"signal {t.id}") for t in threats]
+        vuln = Vulnerability(cve_id="CVE-2024-1", severity="high", cvss_score=7.5, published=None,
+                             summary="x", source="osv", source_url=None)
+        rules = _sarif(_report(framework="CrewAI 0.80.0", risk_signals=signals, vulnerabilities=[vuln]))
+        by_id = {r["id"]: r for r in rules}
+        assert {t.id for t in threats} <= set(by_id) and "CVE-2024-1" in by_id
+        for rule in rules:
+            tags = rule.get("properties", {}).get("tags", [])
+            assert len(tags) <= 3 and set(tags) <= set(FRAMEWORK_IDS)
+            assert tags == [f for f in FRAMEWORK_IDS if f in tags]
+
+    def test_help_text_orders_clauses_by_catalogue_position(self):
+        # T001's controls give first-seen order Art. 15, Art. 14, Art. 26, Art. 9.
+        rule = next(r for r in _sarif(_report(risk_signals=[_signal("T001")])) if r["id"] == "T001")
+        assert "EU AI Act Art. 9, Art. 14, Art. 15, Art. 26;" in rule["help"]["text"]
 
     def test_vulnerability_rule_gets_supply_chain_tags(self):
         vuln = Vulnerability(cve_id="CVE-2024-1", severity="high", cvss_score=7.5, published=None,
                              summary="x", source="osv", source_url=None)
         rule = next(r for r in _sarif(_report(framework="CrewAI 0.80.0", vulnerabilities=[vuln])) if r["id"] == "CVE-2024-1")
-        assert "iso-42001/a.10.3" in rule["properties"]["tags"]
-        assert "nist-ai-rmf/govern-6.1" in rule["properties"]["tags"]
+        assert rule["properties"]["tags"] == FRAMEWORK_IDS
+        assert "ISO/IEC 42001 A.10.3" in rule["help"]["text"]
 
     def test_rule_without_mapped_controls_has_no_tags(self):
         signal = _signal(threat=None, controls=["Rotate the key"], signal="Free text")
@@ -87,15 +105,12 @@ class TestSarif:
         assert "properties" not in rule and "help" not in rule
 
     def test_shared_rule_id_combines_controls_of_all_indicators(self):
-        from quin_scanner.regulatory import refs_for_control, sarif_tag
-
         a = _signal(threat=None, controls=["C001: Input Validation"], signal="Hardcoded secret found in config file A")
         b = _signal(threat=None, controls=["C006: Human Oversight & Approval Gates"],
                     signal="Hardcoded secret found in config file B")
         rules = _sarif(_report(risk_signals=[a, b]))
         assert len(rules) == 1
-        expected = {sarif_tag(r) for cid in ("C001", "C006") for r in refs_for_control(cid)}
-        assert expected <= set(rules[0]["properties"]["tags"])
+        assert "Art. 14" in rules[0]["help"]["text"] and "Art. 15" in rules[0]["help"]["text"]
 
 
 class TestHtml:

@@ -16,7 +16,6 @@ from quin_scanner.regulatory import (
     problems,
     refs_for_control,
     refs_for_label,
-    sarif_tag,
 )
 from quin_scanner.risk_taxonomy import load_taxonomy
 
@@ -215,11 +214,6 @@ class TestLookups:
             "framework": "eu-ai-act", "id": "Art. 15", "title": "Accuracy, robustness and cybersecurity",
             "url": "https://eur-lex.europa.eu/eli/reg/2024/1689/oj",
         }
-
-    def test_sarif_tags(self):
-        tags = {sarif_tag(r) for r in refs_for_control("C006")}
-        assert tags == {"eu-ai-act/art-14", "eu-ai-act/art-26", "iso-42001/a.9.2",
-                        "nist-ai-rmf/map-3.5", "nist-ai-rmf/manage-2.4"}
 
 
 class TestControlsCatalog:
