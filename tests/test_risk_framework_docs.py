@@ -87,6 +87,8 @@ class TestCompleteness:
         text = DOC_PATH.read_text(encoding="utf-8")
         ids = re.findall(r'<a id="([^"]+)"></a>', text)
         for anchor_id in ids:
+            if anchor_id == "regulatory-crosswalk":  # the one named section anchor
+                continue
             assert re.match(r"^(t|c)\d{3}$", anchor_id), (
                 f"anchor id {anchor_id!r} does not match t0NN / c0NN — "
                 "changing this will break HTML-report deep links"
@@ -127,3 +129,33 @@ class TestReferentialIntegrity:
                 assert r.url.startswith(("http://", "https://")), (
                     f"control {c.id} ref has non-http url: {r.url}"
                 )
+
+
+def test_every_control_lists_its_regulatory_references():
+    from quin_scanner.regulatory import refs_for_control
+    from quin_scanner.risk_taxonomy import load_taxonomy
+
+    text = DOC_PATH.read_text(encoding="utf-8")
+    for control in load_taxonomy().controls:
+        section = text.split(f'<a id="{control.id.lower()}"></a>', 1)[1].split("\n---\n", 1)[0]
+        assert "**Regulatory references (informative).**" in section, control.id
+        for ref in refs_for_control(control.id):
+            assert ref.id in section, (control.id, ref.id)
+
+
+def test_crosswalk_section_matches_the_mapping():
+    from quin_scanner.regulatory import disclaimer, frameworks, refs_for_control
+    from quin_scanner.risk_taxonomy import load_taxonomy
+
+    text = DOC_PATH.read_text(encoding="utf-8")
+    assert '<a id="regulatory-crosswalk"></a>' in text
+    crosswalk = text.split('<a id="regulatory-crosswalk"></a>', 1)[1]
+    assert disclaimer() in crosswalk
+    for fw in frameworks():
+        assert fw.version in crosswalk
+    for control in load_taxonomy().controls:
+        refs = refs_for_control(control.id)
+        row = next(line for line in crosswalk.splitlines() if line.startswith(f"| [{control.id}]"))
+        for fw in frameworks():
+            cell = ", ".join(r.id for r in refs if r.framework == fw.id) or "—"
+            assert f"| {cell} " in row, (control.id, fw.id, row)

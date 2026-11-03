@@ -1025,7 +1025,7 @@ def test_controls_and_tags_do_not_depend_on_the_hash_seed(tmp_path):
 
 - [ ] **Step 2: README and CHANGELOG**
 
-README: in the section that describes report contents or the risk framework (find it with `grep -n "risk-framework" README.md`), add one sentence: "Each recommended control also lists the EU AI Act, ISO/IEC 42001 and NIST AI RMF clauses it is relevant to (an informative crosswalk, not a compliance verdict) — see [Regulatory crosswalk](docs/risk-framework.md#regulatory-crosswalk)."
+README: in the section that describes report contents or the risk framework (find it with `grep -n "risk-framework" README.md`), add one sentence: "Each recommended control also lists the EU AI Act, ISO/IEC 42001 and NIST AI RMF clauses it is relevant to (an informative crosswalk, not a compliance verdict) — see Regulatory crosswalk", where "Regulatory crosswalk" is a Markdown link to `docs/risk-framework.md#regulatory-crosswalk`.
 
 CHANGELOG `## [Unreleased]` → `### Added` (keep the existing structure):
 
