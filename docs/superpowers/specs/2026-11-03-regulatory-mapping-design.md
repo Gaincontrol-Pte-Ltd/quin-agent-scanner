@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Draft, approved in brainstorming 2026-11-03 |
+| Status Implemented on feat/regulatory-mapping (not yet released) |
 | Date | 2026-11-03 |
 | Target version | 1.1.0 (after 1.0.0; additive, schema 1.1) |
 | Depends on | F deterministic inventory core (PR #91), C1 CycloneDX AI-BOM (PR #93) |
@@ -168,9 +168,10 @@ Every clause in 5.2 is used by at least one control; the loader rejects unused c
 ## 6. Loader: `src/quin_scanner/regulatory.py`
 
 - Loads the YAML once (`yaml.safe_load`, cached).
-- `frameworks() -> list[Framework]` and `refs_for_control(control_id) -> list[RegulatoryRef]`, where `RegulatoryRef` has `framework` (id), `framework_name`, `id`, `title`, `url`. Order: frameworks in file order, clauses in the control's list order.
+- `frameworks() -> tuple[Framework, ...]` and `refs_for_control(control_id) -> list[RegulatoryRef]`, where `RegulatoryRef` has `framework` (id), `framework_name`, `id`, `title`, `url`. Order: frameworks in file order, clauses in the control's list order.
 - `refs_for_label("C006: Human Oversight & Approval Gates")` parses the control ID before the first `:`; unknown or unparsable labels return `[]`.
-- `validate()` raises `ValueError` listing every problem: control in the taxonomy without an entry, entry for a control not in the taxonomy, missing framework key, unknown clause ID, unused catalogue clause, duplicate IDs, missing required fields. A test calls it on the shipped file.
+- `problems(data, control_ids) -> list[str]` returns every problem in a parsed mapping file as a readable message (empty when valid): control in the taxonomy without an entry, entry for a control not in the taxonomy, missing framework key, unknown clause ID, unused catalogue clause, duplicate IDs, missing required fields. It also enforces: string-only IDs, the right list types, no duplicates, https URLs without spaces or `()<>"`, no `|` or newline in IDs, titles and names, and no `[]` in IDs.
+- `load_mapping()` runs `problems()` and raises `ValueError` naming the mapping file and listing the problems. A test loads the shipped file.
 
 ## 7. Where it appears
 
@@ -206,7 +207,8 @@ Next to each control label on a risk signal (repo and agent level): compact chip
 
 ### 7.4 SARIF
 
-- Each rule built from a risk signal gets `properties.tags`: one tag per clause of its controls, `<framework>/<slug>` with the clause ID lowercased, `.` kept, spaces and other characters replaced by `-` — e.g. `eu-ai-act/art-14`, `iso-42001/a.9.2`, `nist-ai-rmf/manage-2.4`. Sorted, deduplicated.
+- Each rule built from a risk signal gets `properties.tags`: one tag per clause of its controls, `<framework>/<slug>` with the slug built from the clause ID: a word-final `.` is dropped, the rest lowercased, and characters other than `a-z0-9.` become `-` — e.g. `eu-ai-act/art-14`, `iso-42001/a.9.2`, `nist-ai-rmf/manage-2.4`. Sorted, deduplicated.
+- Rules that share an id combine their signals' controls.
 - Controls come from the threat's `recommended_controls` when the rule is a taxonomy threat, else from the signal's own `recommended_controls`.
 - Vulnerability rules (CVE/GHSA) get the tags of C004 Supply Chain Security.
 - Each such rule also gets `help.text`: `Relevant to (informative): EU AI Act Art. 14; ISO/IEC 42001 A.9.2; NIST AI RMF MANAGE 2.4.`
@@ -214,7 +216,7 @@ Next to each control label on a risk signal (repo and agent level): compact chip
 
 ## 8. Errors
 
-- The shipped YAML is validated by a test; at runtime the loader trusts it (no per-scan validation cost).
+- The mapping is validated once per process, on first use (cached). A broken shipped file makes report generation fail with a message naming the file; tests validate the shipped file, so this cannot ship.
 - A control ID that is in the taxonomy but has no references in a framework simply has fewer `regulatory_refs` (possibly `[]`). A label whose ID is not in the taxonomy at all (e.g. free text) gets no `controls` entry and no tags; nothing fails.
 
 ## 9. Testing

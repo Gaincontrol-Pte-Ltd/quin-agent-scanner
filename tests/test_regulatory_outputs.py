@@ -142,3 +142,28 @@ process.stdout.write(JSON.stringify([regChips("C003: Access Control"), regChips(
         assert 'title="Art. 14 \u2014 Human oversight\nArt. 26 \u2014 Deployer obligations"' in chips
         assert "<img" not in chips and "&lt;img src=x onerror=1&gt;" in chips
         assert unknown == "" and nolabel == ""
+
+
+def test_controls_and_tags_do_not_depend_on_the_hash_seed():
+    import os
+    import sys
+    from pathlib import Path
+
+    import quin_scanner
+
+    src = str(Path(quin_scanner.__file__).resolve().parent.parent)
+    code = (
+        "import json;"
+        "from quin_scanner.models import RiskIndicator, ScanReport;"
+        "from quin_scanner.report import ReportGenerator;"
+        "r=ScanReport(repo_path='/x', scan_timestamp='2026-11-03T00:00:00+00:00', is_ai_application=True, confidence=1.0,"
+        " risk_signals=[RiskIndicator(signal='s%d'%i, threat_id='T%03d'%i, recommended_controls=['C%03d'%i]) for i in range(1,15)]);"
+        "print(json.dumps([json.loads(ReportGenerator.to_json(r))['controls'],"
+        " json.loads(ReportGenerator.to_sarif(r))['runs'][0]['tool']['driver']['rules']]))"
+    )
+    outs = set()
+    for seed in ("1", "2", "3"):
+        env = {**os.environ, "PYTHONHASHSEED": seed, "PYTHONPATH": src}
+        outs.add(subprocess.run([sys.executable, "-c", code], env=env, check=True, capture_output=True, text=True).stdout)
+    assert len(outs) == 1
+    assert '"C014"' in next(iter(outs))
