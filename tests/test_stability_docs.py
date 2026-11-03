@@ -48,7 +48,7 @@ def test_documented_commands_match_the_cli():
 
 def test_documented_report_fields_match_the_report():
     block = _between(SCHEMA.read_text(encoding="utf-8"), "report-fields")
-    rows = re.findall(r"^\| `([a-z_]+)` \| (always|optional) \|", block, re.M)
+    rows = re.findall(r"^\| `([a-z_]+)` \| (always|optional)\b[^|]*\|", block, re.M)
     always = {field for field, presence in rows if presence == "always"}
     optional = {field for field, presence in rows if presence == "optional"}
     actual = set(

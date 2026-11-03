@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status Implemented on feat/regulatory-mapping (not yet released) |
+| Status | Implemented on feat/regulatory-mapping (not yet released) |
 | Date | 2026-11-03 |
 | Target version | 1.1.0 (after 1.0.0; additive, schema 1.1) |
 | Depends on | F deterministic inventory core (PR #91), C1 CycloneDX AI-BOM (PR #93) |
