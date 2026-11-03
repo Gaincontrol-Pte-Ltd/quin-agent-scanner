@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import json
 
+import yaml
+
 from quin_scanner.models import AgentProfile, RiskIndicator, ScanReport, Vulnerability
 from quin_scanner.report import ReportGenerator
 
@@ -39,7 +41,8 @@ class TestJson:
         assert json.loads(ReportGenerator.to_json(report))["controls"] == {}
 
     def test_yaml_has_controls(self):
-        assert "controls:" in ReportGenerator.to_yaml(_report(risk_signals=[_signal()]))
+        data = yaml.safe_load(ReportGenerator.to_yaml(_report(risk_signals=[_signal()])))
+        assert list(data["controls"]) == ["C003"]
 
 
 def _sarif(report):
@@ -78,3 +81,14 @@ class TestSarif:
         signal = _signal(threat=None, controls=["Rotate the key"], signal="Free text")
         rule = _sarif(_report(risk_signals=[signal]))[0]
         assert "properties" not in rule and "help" not in rule
+
+    def test_shared_rule_id_combines_controls_of_all_indicators(self):
+        from quin_scanner.regulatory import refs_for_control, sarif_tag
+
+        a = _signal(threat=None, controls=["C001: Input Validation"], signal="Hardcoded secret found in config file A")
+        b = _signal(threat=None, controls=["C006: Human Oversight & Approval Gates"],
+                    signal="Hardcoded secret found in config file B")
+        rules = _sarif(_report(risk_signals=[a, b]))
+        assert len(rules) == 1
+        expected = {sarif_tag(r) for cid in ("C001", "C006") for r in refs_for_control(cid)}
+        assert expected <= set(rules[0]["properties"]["tags"])

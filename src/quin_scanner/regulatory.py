@@ -196,10 +196,11 @@ def load_mapping(path: Path | None = None) -> Mapping:
     """Load and validate the mapping (cached). Raises ValueError listing every problem."""
     from quin_scanner.risk_taxonomy import load_taxonomy
 
-    data = yaml.safe_load((path or _MAPPING_PATH).read_text(encoding="utf-8"))
+    source = path or _MAPPING_PATH
+    data = yaml.safe_load(source.read_text(encoding="utf-8"))
     found = problems(data, (c.id for c in load_taxonomy().controls))
     if found:
-        raise ValueError("invalid regulatory mapping: " + "; ".join(found))
+        raise ValueError(f"invalid regulatory mapping in {source}: " + "; ".join(found))
     return _parse(data)
 
 

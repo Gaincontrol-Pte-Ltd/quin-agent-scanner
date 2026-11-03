@@ -120,17 +120,14 @@ def _rule_from_indicator(indicator: RiskIndicator, threats_by_id: dict[str, Thre
         }
         if threat.external_refs:
             rule["helpUri"] = threat.external_refs[0].url
-        return _with_regulatory(rule, threat.recommended_controls)
+        return rule
 
-    return _with_regulatory(
-        {
-            "id": rule_id,
-            "shortDescription": {"text": indicator.signal},
-            "fullDescription": {"text": indicator.signal},
-            "defaultConfiguration": {"level": level},
-        },
-        indicator.recommended_controls,
-    )
+    return {
+        "id": rule_id,
+        "shortDescription": {"text": indicator.signal},
+        "fullDescription": {"text": indicator.signal},
+        "defaultConfiguration": {"level": level},
+    }
 
 
 def _vuln_rule_id(vuln: Vulnerability) -> str:
@@ -188,10 +185,15 @@ def to_sarif(report: ScanReport) -> str:
     results = [_result_from_indicator(indicator, agent_name) for indicator, agent_name in indicators]
 
     rules_by_id: dict[str, dict[str, Any]] = {}
+    labels_by_rule: dict[str, list[str]] = {}
     for indicator, _ in indicators:
         rule_id = _rule_id(indicator)
         if rule_id not in rules_by_id:
             rules_by_id[rule_id] = _rule_from_indicator(indicator, threats_by_id)
+        labels_by_rule.setdefault(rule_id, []).extend(indicator.recommended_controls)
+    for rule_id, labels in labels_by_rule.items():
+        threat = threats_by_id.get(rule_id)  # threat rules use the threat's controls, others the signals' own
+        _with_regulatory(rules_by_id[rule_id], threat.recommended_controls if threat else labels)
 
     vuln_location = _vulnerability_location(report)
     for vuln in report.vulnerabilities:

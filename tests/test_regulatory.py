@@ -91,7 +91,7 @@ class TestProblems:
         bad.write_text(yaml.safe_dump(data), encoding="utf-8")
         load_mapping.cache_clear()
         try:
-            with pytest.raises(ValueError, match="unknown iso-42001 clause A.6.2.88"):
+            with pytest.raises(ValueError, match=r"invalid regulatory mapping in .*bad\.yaml: .*unknown iso-42001 clause A.6.2.88"):
                 load_mapping(bad)
         finally:
             load_mapping.cache_clear()

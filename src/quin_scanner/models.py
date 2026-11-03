@@ -286,7 +286,7 @@ class AgentIntentSummary:
 
 
 def _controls_catalog(labels: list[str]) -> dict[str, Any]:
-    from quin_scanner.regulatory import controls_catalog
+    from quin_scanner.regulatory import controls_catalog  # local import: avoids a cycle with risk_taxonomy/regulatory
 
     return controls_catalog(labels)
 
