@@ -2,7 +2,11 @@
 from __future__ import annotations
 
 import json
+import re
+import shutil
+import subprocess
 
+import pytest
 import yaml
 
 from quin_scanner.models import AgentProfile, RiskIndicator, ScanReport, Vulnerability
@@ -92,3 +96,49 @@ class TestSarif:
         assert len(rules) == 1
         expected = {sarif_tag(r) for cid in ("C001", "C006") for r in refs_for_control(cid)}
         assert expected <= set(rules[0]["properties"]["tags"])
+
+
+class TestHtml:
+    def test_chips_code_and_data_are_present(self):
+        html = ReportGenerator.to_html(_report(risk_signals=[_signal()]))
+        assert "function regChips(" in html
+        assert "controlLink(c)+regChips(c)" in html
+        assert "#regulatory-crosswalk" in html
+        data = re.search(r"window\.__REPORT_DATA__ = (.*?);\n</script>", html, re.S).group(1)
+        assert "C003" in json.loads(data)["controls"]
+
+    def test_chip_styles_wrap_on_narrow_screens(self):
+        html = ReportGenerator.to_html(_report())
+        assert ".reg-chips{" in html and "flex-wrap:wrap" in html
+
+    @pytest.mark.skipif(shutil.which("node") is None, reason="node not installed")
+    def test_reg_chips_behaviour_in_node(self):
+        html = ReportGenerator.to_html(_report())
+
+        def grab(pattern):
+            return re.search(pattern, html, re.S).group(0)
+
+        src = "\n".join([
+            grab(r'var DOCS_BASE = "[^"]*";'),
+            grab(r"function esc\(s\)\{.*?\n  \}"),
+            grab(r"var REG_SHORT=.*?;"),
+            grab(r"function regChips\(label\)\{.*?\n  \}"),
+        ])
+        script = src + """
+var D = {controls: {
+  C003: {regulatory_refs: [
+    {framework: "eu-ai-act", id: "Art. 14", title: "Human oversight"},
+    {framework: "eu-ai-act", id: "Art. 26", title: "Deployer obligations"},
+    {framework: "iso-42001", id: "A.9.2", title: "Responsible use"},
+    {framework: "nist-ai-rmf", id: "MAP 3.5", title: "<img src=x onerror=1>"},
+    {framework: "nist-ai-rmf", id: "MANAGE 2.4", title: "Mechanisms"}]}}};
+process.stdout.write(JSON.stringify([regChips("C003: Access Control"), regChips("C999"), regChips("nope")]));
+"""
+        out = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True).stdout
+        chips, unknown, nolabel = json.loads(out)
+        assert "EU Art. 14, Art. 26" in chips
+        assert "ISO A.9.2" in chips
+        assert "NIST MAP 3.5, MANAGE 2.4" in chips
+        assert 'title="Art. 14 \u2014 Human oversight\nArt. 26 \u2014 Deployer obligations"' in chips
+        assert "<img" not in chips and "&lt;img src=x onerror=1&gt;" in chips
+        assert unknown == "" and nolabel == ""
