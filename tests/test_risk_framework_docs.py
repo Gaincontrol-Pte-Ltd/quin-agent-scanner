@@ -86,6 +86,7 @@ class TestCompleteness:
         """Anchor IDs must stay t0NN / c0NN — external deep-links depend on it."""
         text = DOC_PATH.read_text(encoding="utf-8")
         ids = re.findall(r'<a id="([^"]+)"></a>', text)
+        assert {i for i in ids if not re.fullmatch(r"(t|c)\d{3}", i)} == {"regulatory-crosswalk"}
         for anchor_id in ids:
             if anchor_id == "regulatory-crosswalk":  # the one named section anchor
                 continue
@@ -140,7 +141,7 @@ def test_every_control_lists_its_regulatory_references():
         section = text.split(f'<a id="{control.id.lower()}"></a>', 1)[1].split("\n---\n", 1)[0]
         assert "**Regulatory references (informative).**" in section, control.id
         for ref in refs_for_control(control.id):
-            assert ref.id in section, (control.id, ref.id)
+            assert f"[{ref.id}]({ref.url}) {ref.title}" in section, (control.id, ref.id)
 
 
 def test_crosswalk_section_matches_the_mapping():
@@ -156,6 +157,6 @@ def test_crosswalk_section_matches_the_mapping():
     for control in load_taxonomy().controls:
         refs = refs_for_control(control.id)
         row = next(line for line in crosswalk.splitlines() if line.startswith(f"| [{control.id}]"))
-        for fw in frameworks():
-            cell = ", ".join(r.id for r in refs if r.framework == fw.id) or "—"
-            assert f"| {cell} " in row, (control.id, fw.id, row)
+        cells = [c.strip() for c in row.strip().strip("|").split("|")]
+        expected = [", ".join(r.id for r in refs if r.framework == fw.id) or "—" for fw in frameworks()]
+        assert cells[1:] == expected, (control.id, row)

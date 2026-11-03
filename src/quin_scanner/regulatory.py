@@ -54,12 +54,21 @@ class Mapping:
     controls: dict[str, dict[str, tuple[str, ...]]]
 
 
+def _nonempty_str(value: Any) -> bool:
+    return isinstance(value, str) and bool(value.strip())
+
+
+def _markup_problem(value: str, *, is_id: bool = False) -> bool:
+    """True when *value* would break a Markdown table or link, or HTML."""
+    return "|" in value or "\n" in value or "\r" in value or (is_id and ("[" in value or "]" in value))
+
+
 def problems(data: Any, control_ids: Iterable[str]) -> list[str]:
     """Everything wrong with a parsed mapping file, as readable messages; empty when valid."""
     if not isinstance(data, dict):
         return ["the mapping file must be a mapping"]
     out: list[str] = []
-    if not str(data.get("disclaimer") or "").strip():
+    if not _nonempty_str(data.get("disclaimer")):
         out.append("missing disclaimer")
     raw_frameworks = data.get("frameworks")
     if not isinstance(raw_frameworks, list) or not raw_frameworks:
@@ -75,29 +84,61 @@ def problems(data: Any, control_ids: Iterable[str]) -> list[str]:
         if missing:
             out.append(f"framework {name}: missing {', '.join(missing)}")
             continue
-        fid = str(fw["id"])
+        fid = fw["id"]
+        if not isinstance(fid, str):
+            out.append(f"framework id {fid!r} must be a string (quote it)")
+            continue
         if fid in catalogue:
             out.append(f"duplicate framework id: {fid}")
+        if _markup_problem(fid, is_id=True):
+            out.append(f"framework {fid}: id must not contain | [ ] or newlines")
+        for key in ("name", "version", "url"):
+            if not _nonempty_str(fw[key]):
+                out.append(f"framework {fid}: {key} must be a non-empty string")
+            elif key == "url" and not fw[key].startswith("https://"):
+                out.append(f"framework {fid}: url must start with https://")
+            elif key != "url" and _markup_problem(fw[key]):
+                out.append(f"framework {fid}: {key} must not contain | or newlines")
         ids: set[str] = set()
+        if not isinstance(fw["clauses"], list):
+            out.append(f"framework {fid}: clauses must be a list")
+            catalogue[fid] = ids
+            continue
         for clause in fw["clauses"]:
             if not isinstance(clause, dict) or not clause.get("id") or not clause.get("title"):
                 out.append(f"framework {fid}: every clause needs an id and a title")
                 continue
-            clause_id = str(clause["id"])
+            clause_id = clause["id"]
+            if not isinstance(clause_id, str):
+                out.append(f"framework {fid}: clause id {clause_id!r} must be a string (quote it)")
+                continue
             if clause_id in ids:
                 out.append(f"framework {fid}: duplicate clause {clause_id}")
             ids.add(clause_id)
+            if not _nonempty_str(clause_id) or _markup_problem(clause_id, is_id=True):
+                out.append(f"framework {fid}: clause {clause_id!r}: id must be non-empty and not contain | [ ] or newlines")
+            title = clause["title"]
+            if not _nonempty_str(title) or _markup_problem(title):
+                out.append(f"framework {fid}: clause {clause_id}: title must be a non-empty string without | or newlines")
+            if "url" in clause and (not isinstance(clause["url"], str) or not clause["url"].startswith("https://")):
+                out.append(f"framework {fid}: clause {clause_id}: url must start with https://")
         catalogue[fid] = ids
 
     controls = data.get("controls")
     if not isinstance(controls, dict):
         return out + ["controls must be a mapping"]
+    keys = []
+    for key in controls:
+        if isinstance(key, str):
+            keys.append(key)
+        else:
+            out.append(f"control key {key!r} must be a string")
     expected = set(control_ids)
-    out.extend(f"control {cid} has no mapping entry" for cid in sorted(expected - set(controls)))
-    out.extend(f"mapping entry {cid} is not a control in the taxonomy" for cid in sorted(set(controls) - expected))
+    out.extend(f"control {cid} has no mapping entry" for cid in sorted(expected - set(keys)))
+    out.extend(f"mapping entry {cid} is not a control in the taxonomy" for cid in sorted(set(keys) - expected))
 
     used: dict[str, set[str]] = {fid: set() for fid in catalogue}
-    for cid in sorted(controls):
+    for cid in sorted(keys):
         entry = controls[cid]
         if not isinstance(entry, dict):
             out.append(f"control {cid}: entry must be a mapping")
@@ -107,10 +148,22 @@ def problems(data: Any, control_ids: Iterable[str]) -> list[str]:
             if fid not in catalogue:
                 out.append(f"control {cid}: unknown framework {fid}")
                 continue
-            for clause_id in clause_ids or []:
-                if str(clause_id) not in catalogue[fid]:
+            if clause_ids is None:
+                clause_ids = []
+            if not isinstance(clause_ids, list):
+                out.append(f"control {cid}: {fid} must be a list of clause IDs")
+                continue
+            seen: set[str] = set()
+            for clause_id in clause_ids:
+                if not isinstance(clause_id, str):
+                    out.append(f"control {cid}: {fid} clause {clause_id!r} must be a string (quote it)")
+                    continue
+                if clause_id in seen:
+                    out.append(f"control {cid}: duplicate {fid} clause {clause_id}")
+                seen.add(clause_id)
+                if clause_id not in catalogue[fid]:
                     out.append(f"control {cid}: unknown {fid} clause {clause_id}")
-                used[fid].add(str(clause_id))
+                used[fid].add(clause_id)
     for fid, ids in catalogue.items():
         out.extend(f"{fid} clause {clause_id} is not used by any control" for clause_id in sorted(ids - used[fid]))
     return out
@@ -119,15 +172,15 @@ def problems(data: Any, control_ids: Iterable[str]) -> list[str]:
 def _parse(data: dict[str, Any]) -> Mapping:
     frameworks = tuple(
         Framework(
-            id=str(fw["id"]), name=str(fw["name"]), version=str(fw["version"]), url=str(fw["url"]),
+            id=fw["id"], name=fw["name"], version=fw["version"], url=fw["url"],
             clauses=tuple(
-                Clause(id=str(c["id"]), title=str(c["title"]), url=str(c.get("url") or fw["url"])) for c in fw["clauses"]
+                Clause(id=c["id"], title=c["title"], url=c.get("url") or fw["url"]) for c in fw["clauses"]
             ),
         )
         for fw in data["frameworks"]
     )
     controls = {
-        str(cid): {str(fid): tuple(str(x) for x in (ids or [])) for fid, ids in entry.items()}
+        cid: {fid: tuple(ids or ()) for fid, ids in entry.items()}
         for cid, entry in data["controls"].items()
     }
     return Mapping(disclaimer=" ".join(str(data["disclaimer"]).split()), frameworks=frameworks, controls=controls)

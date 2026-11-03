@@ -96,6 +96,86 @@ class TestProblems:
         finally:
             load_mapping.cache_clear()
 
+class TestStricterValidation:
+    def _mutated(self, change):
+        data = copy.deepcopy(_data())
+        change(data)
+        return problems(data, CONTROL_IDS)
+
+    def test_clauses_must_be_a_list(self):
+        found = self._mutated(lambda d: d["frameworks"][0].__setitem__("clauses", "Art. 9"))
+        assert "framework eu-ai-act: clauses must be a list" in found
+
+    def test_control_framework_value_must_be_a_list(self):
+        found = self._mutated(lambda d: d["controls"]["C001"].__setitem__("iso-42001", "A.6.2.2"))
+        assert "control C001: iso-42001 must be a list of clause IDs" in found
+
+    def test_none_counts_as_empty(self):
+        found = self._mutated(lambda d: d["controls"]["C001"].__setitem__("iso-42001", None))
+        assert not any("must be a list" in f for f in found)
+
+    def test_non_string_clause_id_in_control(self):
+        found = self._mutated(lambda d: d["controls"]["C001"]["iso-42001"].append(7))
+        assert "control C001: iso-42001 clause 7 must be a string (quote it)" in found
+
+    def test_non_string_catalogue_clause_id(self):
+        found = self._mutated(lambda d: d["frameworks"][1]["clauses"].append({"id": 7, "title": "Seven"}))
+        assert "framework iso-42001: clause id 7 must be a string (quote it)" in found
+
+    def test_non_string_framework_id(self):
+        def change(d):
+            d["frameworks"][0]["id"] = 5
+        assert "framework id 5 must be a string (quote it)" in self._mutated(change)
+
+    def test_non_string_control_key_does_not_raise(self):
+        found = self._mutated(lambda d: d["controls"].__setitem__(15, {}))
+        assert "control key 15 must be a string" in found
+
+    def test_duplicate_clause_in_control(self):
+        found = self._mutated(lambda d: d["controls"]["C001"]["eu-ai-act"].append("Art. 15"))
+        assert "control C001: duplicate eu-ai-act clause Art. 15" in found
+
+    def test_blank_disclaimer(self):
+        assert "missing disclaimer" in self._mutated(lambda d: d.__setitem__("disclaimer", "   "))
+
+    def test_blank_framework_name(self):
+        found = self._mutated(lambda d: d["frameworks"][0].__setitem__("name", "  "))
+        assert "framework eu-ai-act: name must be a non-empty string" in found
+
+    def test_non_string_framework_version(self):
+        found = self._mutated(lambda d: d["frameworks"][2].__setitem__("version", 1.0))
+        assert "framework nist-ai-rmf: version must be a non-empty string" in found
+
+    def test_framework_url_must_be_https(self):
+        found = self._mutated(lambda d: d["frameworks"][0].__setitem__("url", "http://example.com"))
+        assert "framework eu-ai-act: url must start with https://" in found
+
+    def test_clause_url_must_be_https(self):
+        found = self._mutated(lambda d: d["frameworks"][0]["clauses"][0].__setitem__("url", "javascript:alert(1)"))
+        assert "framework eu-ai-act: clause Art. 9: url must start with https://" in found
+
+    def test_blank_clause_title(self):
+        found = self._mutated(lambda d: d["frameworks"][0]["clauses"][0].__setitem__("title", "  "))
+        assert "framework eu-ai-act: clause Art. 9: title must be a non-empty string without | or newlines" in found
+
+    def test_pipe_in_title(self):
+        found = self._mutated(lambda d: d["frameworks"][0]["clauses"][0].__setitem__("title", "A | B"))
+        assert "framework eu-ai-act: clause Art. 9: title must be a non-empty string without | or newlines" in found
+
+    def test_pipe_in_framework_name(self):
+        found = self._mutated(lambda d: d["frameworks"][0].__setitem__("name", "EU | AI"))
+        assert "framework eu-ai-act: name must not contain | or newlines" in found
+
+    def test_bracket_in_clause_id(self):
+        def change(d):
+            d["frameworks"][0]["clauses"][0]["id"] = "Art. [9]"
+        found = self._mutated(change)
+        assert any("clause 'Art. [9]': id must be non-empty and not contain" in f for f in found)
+
+    def test_newline_in_framework_id(self):
+        found = self._mutated(lambda d: d["frameworks"][0].__setitem__("id", "eu\nai"))
+        assert "framework eu\nai: id must not contain | [ ] or newlines" in found
+
 
 class TestLookups:
     def test_refs_for_control(self):
