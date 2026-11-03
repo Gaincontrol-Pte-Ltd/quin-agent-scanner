@@ -117,7 +117,7 @@ class TestHtml:
     def test_chips_code_and_data_are_present(self):
         html = ReportGenerator.to_html(_report(risk_signals=[_signal()]))
         assert "function regChips(" in html
-        assert "controlLink(c)+regChips(c)" in html
+        assert "controlLink(c)+chips" in html and "regChips(c)" in html
         assert "#regulatory-crosswalk" in html
         data = re.search(r"window\.__REPORT_DATA__ = (.*?);\n</script>", html, re.S).group(1)
         assert "C003" in json.loads(data)["controls"]
@@ -125,6 +125,19 @@ class TestHtml:
     def test_chip_styles_wrap_on_narrow_screens(self):
         html = ReportGenerator.to_html(_report())
         assert ".reg-chips{" in html and "flex-wrap:wrap" in html
+        chip_css = re.search(r"\.reg-chip\{[^}]*\}", html).group(0)
+        assert "white-space:normal" in chip_css and "overflow-wrap:anywhere" in chip_css and "max-width:100%" in chip_css
+        assert "nowrap" not in chip_css
+
+    def test_informative_note_is_rendered_once_per_signal_when_chips_exist(self):
+        html = ReportGenerator.to_html(_report())
+        note = "Regulatory references are informative, not a compliance assessment."
+        assert html.count(note) == 1
+        assert "if(anyChips)" in html
+
+    def test_control_link_and_chips_accept_leading_whitespace_alike(self):
+        html = ReportGenerator.to_html(_report())
+        assert html.count(r"/^\s*(C\d{3})\b/i") == 2
 
     @pytest.mark.skipif(shutil.which("node") is None, reason="node not installed")
     def test_reg_chips_behaviour_in_node(self):
@@ -154,7 +167,7 @@ process.stdout.write(JSON.stringify([regChips("C003: Access Control"), regChips(
         assert "EU Art. 14, Art. 26" in chips
         assert "ISO A.9.2" in chips
         assert "NIST MAP 3.5, MANAGE 2.4" in chips
-        assert 'title="Art. 14 \u2014 Human oversight\nArt. 26 \u2014 Deployer obligations"' in chips
+        assert 'title="Relevant to (informative) \u2014 Art. 14 \u2014 Human oversight\nArt. 26 \u2014 Deployer obligations"' in chips
         assert "<img" not in chips and "&lt;img src=x onerror=1&gt;" in chips
         assert unknown == "" and nolabel == ""
 
