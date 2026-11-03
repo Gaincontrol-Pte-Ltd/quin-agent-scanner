@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Iterable
 from typing import Any
 
 from quin_scanner.models import EvidenceRef, RiskIndicator, ScanReport, Vulnerability
@@ -26,6 +27,31 @@ def _slugify(text: str, max_words: int = 6) -> str:
     words = re.findall(r"[A-Za-z0-9]+", text)[:max_words]
     slug = "-".join(w.lower() for w in words)
     return slug or "risk-signal"
+
+
+_SUPPLY_CHAIN_CONTROL = "C004"
+
+
+def _with_regulatory(rule: dict[str, Any], control_labels: Iterable[str]) -> dict[str, Any]:
+    """Add informative regulatory tags and help text for the rule's controls (nothing when none map)."""
+    from quin_scanner.regulatory import frameworks, refs_for_label, sarif_tag
+
+    refs, seen = [], set()
+    for label in control_labels:
+        for ref in refs_for_label(label):
+            if (ref.framework, ref.id) not in seen:
+                seen.add((ref.framework, ref.id))
+                refs.append(ref)
+    if not refs:
+        return rule
+    parts = []
+    for fw in frameworks():
+        ids = [ref.id for ref in refs if ref.framework == fw.id]
+        if ids:
+            parts.append(f"{fw.name} {', '.join(ids)}")
+    rule["properties"] = {"tags": sorted({sarif_tag(ref) for ref in refs})}
+    rule["help"] = {"text": "Relevant to (informative): " + "; ".join(parts) + "."}
+    return rule
 
 
 def _rule_id(indicator: RiskIndicator) -> str:
@@ -94,14 +120,17 @@ def _rule_from_indicator(indicator: RiskIndicator, threats_by_id: dict[str, Thre
         }
         if threat.external_refs:
             rule["helpUri"] = threat.external_refs[0].url
-        return rule
+        return _with_regulatory(rule, threat.recommended_controls)
 
-    return {
-        "id": rule_id,
-        "shortDescription": {"text": indicator.signal},
-        "fullDescription": {"text": indicator.signal},
-        "defaultConfiguration": {"level": level},
-    }
+    return _with_regulatory(
+        {
+            "id": rule_id,
+            "shortDescription": {"text": indicator.signal},
+            "fullDescription": {"text": indicator.signal},
+            "defaultConfiguration": {"level": level},
+        },
+        indicator.recommended_controls,
+    )
 
 
 def _vuln_rule_id(vuln: Vulnerability) -> str:
@@ -135,7 +164,7 @@ def _rule_from_vulnerability(vuln: Vulnerability) -> dict[str, Any]:
     }
     if vuln.source_url:
         rule["helpUri"] = vuln.source_url
-    return rule
+    return _with_regulatory(rule, [_SUPPLY_CHAIN_CONTROL])
 
 
 def to_sarif(report: ScanReport) -> str:

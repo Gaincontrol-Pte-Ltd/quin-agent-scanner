@@ -16,6 +16,7 @@ import yaml
 
 _MAPPING_PATH = Path(__file__).parent / "rules" / "regulatory_mapping.yaml"
 _CONTROL_ID = re.compile(r"^\s*(C\d{3})\b", re.IGNORECASE)
+_URL_UNSAFE = re.compile(r'[\s()<>"]')
 _FRAMEWORK_FIELDS = ("id", "name", "version", "url", "clauses")
 
 
@@ -97,6 +98,8 @@ def problems(data: Any, control_ids: Iterable[str]) -> list[str]:
                 out.append(f"framework {fid}: {key} must be a non-empty string")
             elif key == "url" and not fw[key].startswith("https://"):
                 out.append(f"framework {fid}: url must start with https://")
+            elif key == "url" and _URL_UNSAFE.search(fw[key]):
+                out.append(f'framework {fid}: url must not contain spaces or ()<>"')
             elif key != "url" and _markup_problem(fw[key]):
                 out.append(f"framework {fid}: {key} must not contain | or newlines")
         ids: set[str] = set()
@@ -122,6 +125,8 @@ def problems(data: Any, control_ids: Iterable[str]) -> list[str]:
                 out.append(f"framework {fid}: clause {clause_id}: title must be a non-empty string without | or newlines")
             if "url" in clause and (not isinstance(clause["url"], str) or not clause["url"].startswith("https://")):
                 out.append(f"framework {fid}: clause {clause_id}: url must start with https://")
+            elif "url" in clause and _URL_UNSAFE.search(clause["url"]):
+                out.append(f'framework {fid}: clause {clause_id}: url must not contain spaces or ()<>"')
         catalogue[fid] = ids
 
     controls = data.get("controls")

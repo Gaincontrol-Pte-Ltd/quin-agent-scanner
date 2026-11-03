@@ -96,6 +96,7 @@ class TestProblems:
         finally:
             load_mapping.cache_clear()
 
+
 class TestStricterValidation:
     def _mutated(self, change):
         data = copy.deepcopy(_data())
@@ -153,6 +154,13 @@ class TestStricterValidation:
     def test_clause_url_must_be_https(self):
         found = self._mutated(lambda d: d["frameworks"][0]["clauses"][0].__setitem__("url", "javascript:alert(1)"))
         assert "framework eu-ai-act: clause Art. 9: url must start with https://" in found
+
+    def test_urls_must_not_contain_markup_characters(self):
+        for bad in ("https://x.org/a b", "https://x.org/a(1)", "https://x.org/<a>", 'https://x.org/"q"'):
+            found = self._mutated(lambda d: d["frameworks"][0].__setitem__("url", bad))
+            assert 'framework eu-ai-act: url must not contain spaces or ()<>"' in found
+            found = self._mutated(lambda d: d["frameworks"][0]["clauses"][0].__setitem__("url", bad))
+            assert 'framework eu-ai-act: clause Art. 9: url must not contain spaces or ()<>"' in found
 
     def test_blank_clause_title(self):
         found = self._mutated(lambda d: d["frameworks"][0]["clauses"][0].__setitem__("title", "  "))
