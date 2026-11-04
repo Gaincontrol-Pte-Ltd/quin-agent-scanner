@@ -964,6 +964,20 @@ def _sanitise_model_usages(
     return list(best.values()), test_count
 
 
+def _open_llm_provider(config: ScannerConfig):
+    """The configured LLM provider, or an error that says how to run without one."""
+    try:
+        return config.provider_factory()
+    except ValueError:
+        raise  # unknown provider: the message already names it
+    except Exception as e:
+        raise RuntimeError(
+            f"Cannot start LLM analysis with provider '{config.llm_provider}': {str(e).rstrip('.')}. "
+            "Pass --llm-api-key or set the provider's API key variable, "
+            "or use --no-llm for static-only scanning."
+        ) from e
+
+
 class ScanOrchestrator:
     """Ties together repo access, file indexing, scanners, LLM synthesis, and reporting."""
 
@@ -973,6 +987,10 @@ class ScanOrchestrator:
         # 0. Load the skills baseline first: a missing/malformed file fails the scan (BaselineError).
         skills_baseline = load_baseline(config.skills_baseline_path) if config.skills_baseline_path else None
         skills_baseline_result: BaselineResult | None = None
+
+        # 0b. Open the LLM provider before any scanning, so a missing key or an unknown provider fails
+        # at once instead of after a long scan whose results would be thrown away.
+        llm_provider = None if config.no_llm else _open_llm_provider(config)
 
         # 1. Build file index
         if verbose:
@@ -1121,7 +1139,7 @@ class ScanOrchestrator:
         skills_provider = None
         if not config.no_llm:
             summaries = _pre_summarise(all_findings)
-            provider = config.provider_factory()
+            provider = llm_provider
             skills_provider = provider
             if verbose:
                 _log("\nRunning risk classification (pass 1)...")
