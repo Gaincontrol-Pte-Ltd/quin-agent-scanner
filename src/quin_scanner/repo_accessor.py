@@ -19,7 +19,7 @@ from quin_scanner import _http
 _WINDOWS_PATH = re.compile(r"^(?:[A-Za-z]:[\\/]|\\\\)")
 
 # The owner/repo shorthand fetches every file with its own HTTP request. From about this many files on, that is
-# slow enough (pallets/flask, 263 files: 37 s against 3 s for a clone) to be worth a pointer to the URL form.
+# slow enough (pallets/flask, 236 files: 37 s against 3 s for a clone) to be worth a pointer to the URL form.
 _SLOW_SHORTHAND_FILES = 150
 
 

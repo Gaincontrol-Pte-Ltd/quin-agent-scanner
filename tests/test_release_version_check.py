@@ -18,9 +18,16 @@ STABLE = '"Development Status :: 5 - Production/Stable"'
 
 def make_repo(tmp_path, *, version, module_version=None, classifier=BETA, changelog_version=None):
     (tmp_path / "src" / "quin_scanner").mkdir(parents=True)
-    (tmp_path / "pyproject.toml").write_text(f'[project]\nversion = "{version}"\nclassifiers = [{classifier}]\n')
-    (tmp_path / "src" / "quin_scanner" / "__init__.py").write_text(f'__version__ = "{module_version or version}"\n')
-    (tmp_path / "CHANGELOG.md").write_text(f"## [Unreleased]\n\n## [{changelog_version or version}] — 2026-11-04\n\nText.\n")
+    (tmp_path / "pyproject.toml").write_text(
+        f'[project]\nversion = "{version}"\nclassifiers = [{classifier}]\n', encoding="utf-8"
+    )
+    (tmp_path / "src" / "quin_scanner" / "__init__.py").write_text(
+        f'__version__ = "{module_version or version}"\n', encoding="utf-8"
+    )
+    # The em dash matches the real CHANGELOG; written as UTF-8 so the test does not depend on the platform encoding.
+    (tmp_path / "CHANGELOG.md").write_text(
+        f"## [Unreleased]\n\n## [{changelog_version or version}] — 2026-11-04\n\nText.\n", encoding="utf-8"
+    )
     return tmp_path
 
 
@@ -68,5 +75,5 @@ def test_this_repository_reports_the_version_it_declares():
     """The version lives in pyproject.toml and in quin_scanner/__init__.py; they must not drift apart."""
     import quin_scanner
 
-    declared = re.search(r'^version\s*=\s*"([^"]+)"', (ROOT / "pyproject.toml").read_text(), re.MULTILINE).group(1)
+    declared = re.search(r'^version\s*=\s*"([^"]+)"', (ROOT / "pyproject.toml").read_text(encoding="utf-8"), re.MULTILINE).group(1)
     assert quin_scanner.__version__ == declared
