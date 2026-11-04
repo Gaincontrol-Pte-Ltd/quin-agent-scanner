@@ -96,8 +96,8 @@ class TestToHtml:
         html = ReportGenerator.to_html(report)
         # The raw </script> must NOT appear in the HTML output
         assert "</script><script>alert(1)</script>" not in html
-        # The escaped version should be present
-        assert "<\\/script>" in html
+        # The data is embedded with < > & as \\u escapes
+        assert "\\u003c/script\\u003e" in html
 
     def test_xss_in_match_text(self):
         """Ensure </script> in match_text is also escaped."""
@@ -117,6 +117,26 @@ class TestToHtml:
         html = ReportGenerator.to_html(report)
         # The template has its own </script> tags but the injected one must be escaped
         assert '</script><img' not in html
+
+
+    def test_embedded_data_round_trips_and_hides_html_sequences(self):
+        """`<!--` + `<script` inside a script block puts the HTML parser in the double-escaped state; keep the data free of them."""
+        payloads = ["<!--<script>", "</script>", "<!--", "]]>", "a & b", "line\u2028sep\u2029"]
+        report = _minimal_report(
+            artifacts=[
+                ScanFinding(scanner_name="S", category="c", file_path=f"f{i}.py", line_number=1,
+                            match_text=p, capability_tag="t", confidence=1.0)
+                for i, p in enumerate(payloads)
+            ]
+        )
+        html = ReportGenerator.to_html(report)
+        start = html.index("window.__REPORT_DATA__ = ") + len("window.__REPORT_DATA__ = ")
+        end = html.index(";\n", start)
+        block = html[start:end]
+        for bad in ("<", ">", "&", "\u2028", "\u2029"):
+            assert bad not in block
+        data = json.loads(block)
+        assert [a["match_text"] for a in data["artifacts"]] == payloads
 
 
 class TestToString:
