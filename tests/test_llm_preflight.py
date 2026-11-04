@@ -18,7 +18,7 @@ def repo(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)  # no .env to pick up
     project = tmp_path / "app"
     project.mkdir()
-    (project / "main.py").write_text("print('hello')\n")
+    (project / "main.py").write_text("print('hello')\n", encoding="utf-8")
     return project
 
 

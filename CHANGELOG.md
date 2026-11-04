@@ -9,6 +9,10 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.0.0rc3] — 2026-11-04
+
+**Third release candidate for 1.0.** It fixes a security problem in the HTML report that affects every earlier release, makes a missing LLM key fail at once, and replaces the license file with the exact Apache-2.0 text. The CLI, report schema, rule IDs, config, baseline and Action interfaces are unchanged from `1.0.0rc2`, so there is no migration; the soak period restarts with this release.
+
 ### Security
 
 - **HTML report: a scanned repository could blank the report.** The report embedded its JSON data with only `</` escaped, so a name such as `<!--<script>` in an agent, tool or file path left the browser showing the page header and nothing else, which let a repository hide its agents from whoever opened the report. `<`, `>` and `&` are now escaped inside the embedded data, so the report renders in full and shows such names as plain text. Affects `1.0.0rc1`, `1.0.0rc2` and the 0.1 betas; JSON, YAML and SARIF output were not affected.
@@ -16,6 +20,11 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Changed
 
 - **A missing LLM API key now stops the scan at once.** `quin-scanner scan`, `scan-batch` and `scan-org` run LLM analysis by default. Without a key the scan used to run to the end and then fail with the SDK's own message, discarding the whole result (minutes on a large repository). The provider is now opened before scanning, so the command fails in about a second with one line that says what to do: pass `--llm-api-key`, set the provider's key variable, or use `--no-llm`. An unknown `--llm-provider` fails the same way. Exit code (1) and the cases that fail are unchanged.
+- **A note for large repositories scanned with the `owner/repo` shorthand.** The shorthand fetches every file with its own request, which is slow at this size (`pallets/flask`, 236 files: 37 s, against 3 s for a clone). From 150 files on, one line on stderr names the URL form (`https://github.com/owner/repo`), which clones once. Results are identical; only the note is new.
+- **`LICENSE` is now the exact Apache-2.0 text, and a `NOTICE` file carries the copyright line.** The old file was a reworded copy that GitHub could not recognise; the license itself is unchanged (`Apache-2.0` in the package metadata and the README). Both files ship in the wheel and the sdist.
+- The release workflow now stops before building if the tag, `pyproject.toml`, `quin_scanner.__version__` and the CHANGELOG disagree (the `--version` of a published wheel can no longer differ from its tag).
+- Dependency updates within the existing ceilings: `google-genai` 2.34.0 and `certifi` 2026.10.23.
+
 
 ## [1.0.0rc2] — 2026-11-01
 
@@ -331,7 +340,8 @@ This changelog was not split per beta, so the sections below also list changes f
 
 ---
 
-[Unreleased]: https://github.com/Gaincontrol-Pte-Ltd/quin-agent-scanner/compare/v1.0.0rc2...HEAD
+[Unreleased]: https://github.com/Gaincontrol-Pte-Ltd/quin-agent-scanner/compare/v1.0.0rc3...HEAD
+[1.0.0rc3]: https://github.com/Gaincontrol-Pte-Ltd/quin-agent-scanner/releases/tag/v1.0.0rc3
 [1.0.0rc2]: https://github.com/Gaincontrol-Pte-Ltd/quin-agent-scanner/releases/tag/v1.0.0rc2
 [1.0.0rc1]: https://github.com/Gaincontrol-Pte-Ltd/quin-agent-scanner/releases/tag/v1.0.0rc1
 [0.1.0b5]: https://github.com/Gaincontrol-Pte-Ltd/quin-agent-scanner/releases/tag/v0.1.0b5
