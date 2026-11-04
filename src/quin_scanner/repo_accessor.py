@@ -18,6 +18,10 @@ from quin_scanner import _http
 
 _WINDOWS_PATH = re.compile(r"^(?:[A-Za-z]:[\\/]|\\\\)")
 
+# The owner/repo shorthand fetches every file with its own HTTP request. From about this many files on, that is
+# slow enough (pallets/flask, 263 files: 37 s against 3 s for a clone) to be worth a pointer to the URL form.
+_SLOW_SHORTHAND_FILES = 150
+
 
 def to_repo_path(path: PurePath) -> str:
     """A repo-relative path as a string with forward slashes on every OS."""
@@ -281,7 +285,14 @@ class GitHubMCPAccessor(RepoAccessor):
                 RuntimeWarning,
                 stacklevel=3,
             )
-        return [item["path"] for item in data.get("tree", []) if item["type"] == "blob"]
+        paths = [item["path"] for item in data.get("tree", []) if item["type"] == "blob"]
+        if len(paths) >= _SLOW_SHORTHAND_FILES:
+            sys.stderr.write(
+                f"Note: {self.owner}/{self.repo} has {len(paths)} files, and the owner/repo shorthand fetches them "
+                f"one at a time, which is slow at this size. https://github.com/{self.owner}/{self.repo} "
+                "clones once and is much faster.\n"
+            )
+        return paths
 
     def _headers(self) -> dict[str, str]:
         h: dict[str, str] = {
