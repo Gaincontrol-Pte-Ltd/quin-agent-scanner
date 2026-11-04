@@ -33,5 +33,5 @@ def test_html_template_has_skill_card_renderer_and_styles():
 
 def test_skills_payload_is_valid_json_inside_the_page():
     html = ReportGenerator.to_html(_report())
-    # "<\/" is the escaped form of "</" used when embedding JSON in a <script> tag
-    assert "evil<\\/script>" in html
+    # "<" and ">" are embedded as < / > so the data cannot close the script tag
+    assert "evil\\u003c/script\\u003e" in html
