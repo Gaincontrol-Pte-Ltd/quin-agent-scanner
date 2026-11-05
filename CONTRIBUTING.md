@@ -67,7 +67,7 @@ Releases are tag-driven. Pushing a `v*.*.*` tag runs `.github/workflows/publish.
 1. Land the work on `main` with CI green and `CHANGELOG.md` updated under `[Unreleased]`.
 2. In a release PR: move the `[Unreleased]` entries into a new `## [x.y.z] — YYYY-MM-DD` section, update the compare links at the bottom, and bump the version in `pyproject.toml`, `src/quin_scanner/__init__.py` and the `quin-scanner` entry in `uv.lock`. Check them with `python3 scripts/check_release_version.py vX.Y.Z`; the publish workflow runs the same check before building and stops on a mismatch.
 3. After the PR is merged, tag the merge commit and push the tag: `git tag vX.Y.Z && git push origin vX.Y.Z` (PEP 440 style, e.g. `v0.1.0b5` or `v0.1.0`).
-4. Watch the "Publish to PyPI" run, then check `pip install quin-scanner==X.Y.Z` in a clean environment, check that both files have a provenance attestation (`https://pypi.org/integrity/quin-scanner/X.Y.Z/<file>/provenance` returns 200) and publish GitHub release notes from the changelog section.
+4. Watch the "Publish to PyPI" run, then check `pip install quin-scanner==X.Y.Z` in a clean environment, check that both files have a provenance attestation (`https://pypi.org/integrity/quin-scanner/X.Y.Z/<file>/provenance` returns 200) and the GitHub Release the workflow created from the changelog section (a pre-release for `a`/`b`/`rc` versions).
 
 ---
 
@@ -160,7 +160,7 @@ Features are grouped into numbered drops.
 
 | Drop | Theme | Status |
 |---|---|---|
-| v0.1.0 | Scan Any Repo for AI | 🧪 Beta (published to PyPI as 0.1.0b1 to 0.1.0b4; no stable 0.1.0 yet) |
+| v1.0.0 | Scan Any Repo for AI | ✅ Stable (1.0.0) |
 | v0.2.0 | Understand the Risk | Planned |
 | v0.3.0 | Prove Compliance | Planned |
 | v0.4.0 | Automate in CI | Planned |
