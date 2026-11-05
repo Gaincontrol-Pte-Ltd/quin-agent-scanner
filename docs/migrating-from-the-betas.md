@@ -2,7 +2,7 @@
 
 This page is for anyone running `0.1.0b5` or earlier. Most setups keep working unchanged. The changes below are the ones that can make an existing pipeline, script or Action step behave differently. Each says who is affected and what to do. The full list is in the [CHANGELOG](../CHANGELOG.md).
 
-From 1.0 the CLI, the report schema, rule IDs and the config, baseline and Action interfaces are stable and follow the [stability policy](stability.md), so this is the last migration of this kind.
+From 1.0.0 the CLI, the report schema, rule IDs and the config, baseline and Action interfaces are stable and follow the [stability policy](stability.md), so this is the last migration of this kind.
 
 ## Changes that can break an existing setup
 
