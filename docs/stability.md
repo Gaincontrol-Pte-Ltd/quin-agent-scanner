@@ -1,6 +1,6 @@
 # Stability and Support Policy
 
-> **Status:** this policy applies from `1.0.0`, released 2026-11-11.
+> **Status:** this policy applies from `1.0.0`, released 2026-11-13.
 
 Quin follows [Semantic Versioning 2.0](https://semver.org/) for the stable surfaces listed here. Everything else is internal and may change in any release.
 
