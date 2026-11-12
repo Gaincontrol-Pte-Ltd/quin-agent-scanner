@@ -9,6 +9,17 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.0.0] — 2026-11-13
+
+**First stable release.** The code is the same as `1.0.0rc3`: only the version number, the package classifier and the documentation change, so there is nothing to migrate from any release candidate. From this release the CLI and its exit codes, the JSON/YAML report schema (`schema_version` 1.0), SARIF output and rule IDs, and the config, baseline and GitHub Action interfaces follow the [stability policy](https://github.com/Gaincontrol-Pte-Ltd/quin-agent-scanner/blob/v1.0.0/docs/stability.md): a breaking change needs a deprecation first and a new major version. Upgrading from a 0.1 beta? Read [Migrating from the betas](https://github.com/Gaincontrol-Pte-Ltd/quin-agent-scanner/blob/v1.0.0/docs/migrating-from-the-betas.md). Everything that changed since `0.1.0b5` is in the `1.0.0rc1`, `1.0.0rc2` and `1.0.0rc3` entries of the [CHANGELOG](https://github.com/Gaincontrol-Pte-Ltd/quin-agent-scanner/blob/v1.0.0/CHANGELOG.md).
+
+### Changed
+
+- **`@v1` follows stable releases.** `uses: Gaincontrol-Pte-Ltd/quin-agent-scanner@v1` now runs `1.0.0` and moves with each later 1.x release; until now `v1` pointed at `0.1.0b4`. `@beta` stays on the latest pre-release, and an exact tag such as `@v1.0.0` stays reproducible. The README and docs examples use `@v1`.
+- **`pip install quin-scanner` installs 1.0.0** without `--pre`. The package is classified `Development Status :: 5 - Production/Stable`.
+- **Security support moves to 1.x.** The 0.1 betas no longer receive fixes; upgrade to 1.0.0 (see [SECURITY.md](https://github.com/Gaincontrol-Pte-Ltd/quin-agent-scanner/blob/v1.0.0/SECURITY.md)).
+- The stability policy no longer lists macOS and Windows support as planned: CI has tested Linux, macOS and Windows on Python 3.11 to 3.13 since `1.0.0rc1`, and the policy already said so in its current section, which now appears once.
+
 ## [1.0.0rc3] — 2026-11-04
 
 **Third release candidate for 1.0.** It fixes a security problem in the HTML report that affects every earlier release, makes a missing LLM key fail at once, and replaces the license file with the exact Apache-2.0 text. The CLI, report schema, rule IDs, config, baseline and Action interfaces are unchanged from `1.0.0rc2`, so there is no migration; the soak period restarts with this release.
@@ -340,7 +351,8 @@ This changelog was not split per beta, so the sections below also list changes f
 
 ---
 
-[Unreleased]: https://github.com/Gaincontrol-Pte-Ltd/quin-agent-scanner/compare/v1.0.0rc3...HEAD
+[Unreleased]: https://github.com/Gaincontrol-Pte-Ltd/quin-agent-scanner/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/Gaincontrol-Pte-Ltd/quin-agent-scanner/releases/tag/v1.0.0
 [1.0.0rc3]: https://github.com/Gaincontrol-Pte-Ltd/quin-agent-scanner/releases/tag/v1.0.0rc3
 [1.0.0rc2]: https://github.com/Gaincontrol-Pte-Ltd/quin-agent-scanner/releases/tag/v1.0.0rc2
 [1.0.0rc1]: https://github.com/Gaincontrol-Pte-Ltd/quin-agent-scanner/releases/tag/v1.0.0rc1

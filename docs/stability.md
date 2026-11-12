@@ -1,6 +1,6 @@
 # Stability and Support Policy
 
-> **Status:** this policy takes effect with `1.0.0`. `1.0.0rc3` is the current release candidate (the soak period restarted with it): every surface below is frozen for it, and a change to one restarts the soak period. Until `1.0.0` is released, a breaking change is still possible if a problem found in the release candidate requires it, and it would be announced in the CHANGELOG.
+> **Status:** this policy applies from `1.0.0`, released 2026-11-13.
 
 Quin follows [Semantic Versioning 2.0](https://semver.org/) for the stable surfaces listed here. Everything else is internal and may change in any release.
 
@@ -118,7 +118,7 @@ Inputs and outputs are part of the contract; new inputs are always optional with
 | `version` | The quin-scanner version that was run. |
 <!-- action-outputs:end -->
 
-**Versions and tags.** By default the action installs the scanner from the tag you pin, so `@v0.1.0b5` runs exactly 0.1.0b5. The `beta` tag follows pre-releases; from `1.0.0` a major tag (`v1`) follows stable releases. Pin an exact tag for reproducible builds. (The `v1` tag is frozen at `v0.1.0b4`, which predates this behaviour and installs the latest PyPI release.)
+**Versions and tags.** By default the action installs the scanner from the tag you pin, so `@v1.0.0` runs exactly 1.0.0. The major tag `v1` follows stable 1.x releases and `beta` follows pre-releases. Pin an exact tag for reproducible builds.
 
 ## Supported platforms and Python versions
 
@@ -137,14 +137,6 @@ The LLM providers use the vendor SDKs `openai`, `anthropic` and `google-genai`. 
 <!-- sdk-ranges:end -->
 
 CI runs the whole test suite twice: on the locked (newest tested) versions, and on the **oldest allowed runtime versions** (every direct dependency resolved to its lowest allowed version). A floor is raised when the oldest version stops passing. The other runtime dependencies (`click>=8.2`, `pyyaml`, `httpx`, `python-dotenv`) have floors only.
-
-## Supported platforms and Python versions
-
-CI runs Python 3.11, 3.12 and 3.13. Linux is supported today; macOS and Windows support is *(planned for 1.0)* and will be tested in CI before it is promised. Dropping a platform or Python version is announced one minor release ahead.
-
-## Dependencies
-
-The LLM providers use the vendor SDKs `openai`, `anthropic` and `google-genai`. Each has a version range in `pyproject.toml`: an upper bound within the major version Quin has been tested with (today only `anthropic` has one; upper bounds for `openai` and `google-genai` are *(planned)*); a new major SDK version is adopted only after the provider contract tests (`tests/test_llm_providers.py`) pass against it and a live call has been made.
 
 ## Support
 
