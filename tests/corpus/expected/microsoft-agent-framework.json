@@ -63,7 +63,7 @@
     "tool-use"
   ],
   "confidence": 0.99,
-  "framework": "AutoGen",
+  "framework": "Microsoft Agent Framework 1.23.0",
   "is_ai_application": true,
   "mcp_servers": [],
   "models": [

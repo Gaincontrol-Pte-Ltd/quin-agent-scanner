@@ -1,0 +1,21 @@
+{
+  "agents": [],
+  "artifacts": 34,
+  "capability_tags": [
+    "agent-skills",
+    "embeddings",
+    "llm-api",
+    "multi-agent",
+    "orchestration",
+    "prompt-templates",
+    "rag",
+    "tool-use"
+  ],
+  "confidence": 0.99,
+  "framework": "Semantic Kernel",
+  "is_ai_application": true,
+  "mcp_servers": [],
+  "models": [],
+  "risk_signals": {},
+  "tools": 9
+}
