@@ -33,9 +33,6 @@ jobs:
         run: npm ci
 
       - name: Lint
-        # Reports only: src/pages/Home.tsx still has React render-purity errors that need
-        # a refactor. Remove continue-on-error once they are fixed.
-        continue-on-error: true
         run: npm run lint
 
       - name: Build

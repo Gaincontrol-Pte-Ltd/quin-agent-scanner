@@ -45,7 +45,16 @@ const STEPS = [
 ];
 
 /* ── Floating particle ───────────────────────────── */
-function Particle({ x, y, delay, size }: { x: number; y: number; delay: number; size: number }) {
+// Random once per page load, not on every render: render must stay pure.
+const PARTICLES = Array.from({ length: 24 }, (_, i) => ({
+  x: Math.random() * 100,
+  y: 20 + Math.random() * 70,
+  delay: i * 0.45,
+  size: 1.5 + Math.random() * 2,
+  duration: 3 + Math.random() * 3,
+}));
+
+function Particle({ x, y, delay, size, duration }: { x: number; y: number; delay: number; size: number; duration: number }) {
   return (
     <div aria-hidden style={{
       position: 'absolute',
@@ -54,7 +63,7 @@ function Particle({ x, y, delay, size }: { x: number; y: number; delay: number; 
       borderRadius: '50%',
       background: C.quin,
       opacity: 0,
-      animation: `particle-rise ${3 + Math.random() * 3}s ease-out ${delay}s infinite`,
+      animation: `particle-rise ${duration}s ease-out ${delay}s infinite`,
     }} />
   );
 }
@@ -190,15 +199,6 @@ export default function Home() {
   const [scanError, setScanError]     = useState('');
   const [stepIdx, setStepIdx]         = useState(0);
 
-  const particles = useRef(
-    Array.from({ length: 24 }, (_, i) => ({
-      x: Math.random() * 100,
-      y: 20 + Math.random() * 70,
-      delay: i * 0.45,
-      size: 1.5 + Math.random() * 2,
-    }))
-  );
-
   const stepRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -209,7 +209,6 @@ export default function Home() {
 
   useEffect(() => {
     if (!scanJobId) return;
-    setStepIdx(0);
     stepRef.current = setInterval(() => {
       setStepIdx((i) => (i < STEPS.length - 1 ? i + 1 : i));
     }, 2800);
@@ -242,6 +241,7 @@ export default function Home() {
         branch: branch || 'main',
       });
       setShowOptions(false);
+      setStepIdx(0);
       setScanJobId(job_id);
     } catch (err) {
       setStartError(err instanceof Error ? err.message : 'Failed to start scan');
@@ -272,7 +272,7 @@ export default function Home() {
 
       {/* Particle field */}
       <div aria-hidden style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
-        {particles.current.map((p, i) => <Particle key={i} {...p} />)}
+        {PARTICLES.map((p, i) => <Particle key={i} {...p} />)}
       </div>
 
       {/* Ambient blobs */}
