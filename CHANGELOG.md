@@ -9,6 +9,10 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- **`-f -` writes the report to stdout** in `scan` and `skills scan` (#103). It used to create a file literally named `-` in the current directory, so a `scan` report could not be piped (`quin-scanner scan . --no-llm -o json -f - | jq .agents`). The report is written as UTF-8 with LF line endings even where the console uses another encoding (cp1252 on Windows); progress and messages stay on stderr. Without `-f`, `scan` still writes into `./report/`, and exit codes are unchanged.
+
 ## [1.0.0] — 2026-11-13
 
 **First stable release.** The code is the same as `1.0.0rc3`: only the version number, the package classifier and the documentation change, so there is nothing to migrate from any release candidate. From this release the CLI and its exit codes, the JSON/YAML report schema (`schema_version` 1.0), SARIF output and rule IDs, and the config, baseline and GitHub Action interfaces follow the [stability policy](https://github.com/Gaincontrol-Pte-Ltd/quin-agent-scanner/blob/v1.0.0/docs/stability.md): a breaking change needs a deprecation first and a new major version. Upgrading from a 0.1 beta? Read [Migrating from the betas](https://github.com/Gaincontrol-Pte-Ltd/quin-agent-scanner/blob/v1.0.0/docs/migrating-from-the-betas.md). Everything that changed since `0.1.0b5` is in the `1.0.0rc1`, `1.0.0rc2` and `1.0.0rc3` entries of the [CHANGELOG](https://github.com/Gaincontrol-Pte-Ltd/quin-agent-scanner/blob/v1.0.0/CHANGELOG.md).
