@@ -686,13 +686,54 @@ _FRAMEWORKS_LOOKUP: dict | None = None
 _FRAMEWORK_TO_PACKAGES: dict[str, list[str]] | None = None
 
 
-def _detect_framework(findings: list) -> str:
+# Folders whose manifests and markers describe an example or a test, not the repository itself.
+_SECONDARY_DIR_SEGMENTS = frozenset({
+    "examples", "example", "demos", "demo", "docs", "doc",
+    "test", "tests", "sample", "samples", "notebooks",
+})
+
+
+def _normalise_package_name(name: str) -> str:
+    """PEP 503-style: case and `_`/`.`/`-` runs do not distinguish package names (npm scopes keep their `@` and `/`)."""
+    return re.sub(r"[-_.]+", "-", name.strip().lower())
+
+
+def _declared_package_names(accessor: RepoAccessor, file_index: FileIndex) -> set[str]:
+    """Names of the packages this repository publishes: `pyproject.toml` ([project] or [tool.poetry]) and
+    `package.json`, outside example, test and docs folders. Unreadable or malformed manifests are skipped."""
+    import json
+    import tomllib
+
+    names: set[str] = set()
+    for path in file_index.all_files():
+        filename = Path(path).name
+        if filename not in ("pyproject.toml", "package.json"):
+            continue
+        if {part.lower() for part in Path(path).parts[:-1]} & _SECONDARY_DIR_SEGMENTS:
+            continue
+        try:
+            text = accessor.read_file(path)
+            if filename == "package.json":
+                data = json.loads(text)
+                name = data.get("name") if isinstance(data, dict) else None
+            else:
+                data = tomllib.loads(text)
+                name = data.get("project", {}).get("name") or data.get("tool", {}).get("poetry", {}).get("name")
+        except Exception:
+            continue
+        if isinstance(name, str) and name.strip():
+            names.add(_normalise_package_name(name))
+    return names
+
+
+def _detect_framework(findings: list, declared_packages: set[str] | frozenset[str] = frozenset()) -> str:
     """Rule-based framework detection from scanner findings.
 
-    Priority: file markers > code pattern imports > package names.
-    Code pattern imports rank above packages because internal imports (e.g.
-    ``from metagpt.xxx``) reveal what the repo IS, while dependency listings
-    may include other frameworks used as optional integrations.
+    Priority: published package > file markers > code pattern imports > package names.
+    A package the repository publishes (``declared_packages``, its own manifest names) says what it IS, even when
+    it imports a sibling product somewhere (#84). Code pattern imports rank above dependencies because internal
+    imports (e.g. ``from metagpt.xxx``) reveal what the repo is, while dependency listings may include other
+    frameworks used as optional integrations.
     """
     global _FRAMEWORKS_LOOKUP
     if _FRAMEWORKS_LOOKUP is None:
@@ -701,11 +742,13 @@ def _detect_framework(findings: list) -> str:
     file_markers = _FRAMEWORKS_LOOKUP.get("file_markers", {})
     packages = _FRAMEWORKS_LOOKUP.get("packages", {})
 
-    # Pass 1: file markers (highest priority) — skip markers found in example/demo/test dirs
-    _SECONDARY_DIR_SEGMENTS = frozenset({
-        "examples", "example", "demos", "demo", "docs", "doc",
-        "test", "tests", "sample", "samples", "notebooks",
-    })
+    # Pass 0: the repository publishes a framework package (most specific first, as in the lookup)
+    if declared_packages:
+        for pkg, framework in packages.items():
+            if _normalise_package_name(pkg) in declared_packages:
+                return framework
+
+    # Pass 1: file markers — skip markers found in example/demo/test dirs
     for f in findings:
         if f.scanner_name == "FrameworkMarkerScanner":
             path_parts = set(Path(f.file_path).parts[:-1])
@@ -1128,7 +1171,7 @@ class ScanOrchestrator:
         ]
 
         # 5c. Rule-based framework candidate (passed to synthesis as anchor)
-        framework_candidate = _detect_framework(all_findings)
+        framework_candidate = _detect_framework(all_findings, _declared_package_names(cached_accessor, file_index))
         if verbose and test_model_count:
             _log(f"  {test_model_count} test-file model reference{'s' if test_model_count != 1 else ''} excluded")
 

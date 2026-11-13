@@ -13,6 +13,10 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - **A file name given to `-o` gets a hint (#104).** `-o` sets the report format and `-f` the file, the reverse of many tools, so `-o report.html` failed with only "is not one of 'json', 'yaml', 'html', 'sarif'". When the value looks like a file name or path, the error now adds what to type instead: `-o html -f report.html` for `scan` and `skills scan`, and `-o json -d DIR` for `scan-batch` and `scan-org`, which write one file per target. Option names and the exit code (2) are unchanged; `skills baseline -o FILE` is not affected.
 
+### Detection changes
+
+- **A repository that publishes a framework is labelled with that framework (#84).** The framework label went to the first "self-import" of a framework found anywhere in the code, so an umbrella repository that imports a sibling product in one file took that sibling's name: `langchain-ai/langchain` (one test helper imports `deepagents`) was labelled *LangChain Deep Agents*, `microsoft/semantic-kernel` (an interop shim imports `agent_framework`) *Microsoft Agent Framework*, and `microsoft/agent-framework` *AutoGen*. The package names a repository declares for itself (`[project]` or `[tool.poetry]` `name` in `pyproject.toml`, `name` in `package.json`, outside example, test and docs folders) now decide first, in the existing lookup priority. Corpus: microsoft-agent-framework goes from `AutoGen` to `Microsoft Agent Framework 1.23.0`; the other entries are unchanged; two new entries (langchain-monorepo, semantic-kernel) guard the fix. Applications that only depend on a framework are not affected.
+
 ### Fixed
 
 - **`-f -` writes the report to stdout** in `scan` and `skills scan` (#103). It used to create a file literally named `-` in the current directory, so a `scan` report could not be piped (`quin-scanner scan . --no-llm -o json -f - | jq .agents`). The report is written as UTF-8 with LF line endings even where the console uses another encoding (cp1252 on Windows); progress and messages stay on stderr. Without `-f`, `scan` still writes into `./report/`, and exit codes are unchanged.

@@ -179,3 +179,21 @@ entries:
   source:
     repo: https://github.com/spf13/cobra
     commit: adbc8813901bba65827259daa8e22ff94ec1f30e
+# Umbrella framework repositories that import a sibling product somewhere (issue #84): their label must come from the
+# package they publish, not from the first sibling import found.
+- name: langchain-monorepo
+  kind: agents
+  source:
+    repo: https://github.com/langchain-ai/langchain
+    commit: 980e4a80d01f699ba359db139cd7c8bfc348c110
+    paths:
+    - libs/langchain_v1
+    - libs/standard-tests
+- name: semantic-kernel
+  kind: agents
+  source:
+    repo: https://github.com/microsoft/semantic-kernel
+    commit: 3bbde09a91d51609e67a70296ed2137ed9cbdbe3
+    paths:
+    - python/semantic_kernel/functions
+    - python/samples/concepts/functions
