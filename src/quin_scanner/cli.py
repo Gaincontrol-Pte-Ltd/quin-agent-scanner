@@ -21,6 +21,25 @@ from quin_scanner.scanners.skills.baseline import BaselineError
 
 load_dotenv(find_dotenv(usecwd=True))
 
+# `-f -` means stdout, as in most Unix tools.
+STDOUT = "-"
+
+
+def _echo_report(text: str) -> None:
+    """Write a report to stdout as UTF-8 with LF line endings, whatever the stream's own encoding.
+
+    A pipe on Windows defaults to cp1252, which cannot encode most non-English names.
+    """
+    text = text if text.endswith("\n") else text + "\n"
+    buffer = getattr(sys.stdout, "buffer", None)
+    if buffer is None:  # a replaced text-only stream: it decides the encoding
+        sys.stdout.write(text)
+        sys.stdout.flush()
+        return
+    sys.stdout.flush()
+    buffer.write(text.encode("utf-8"))
+    buffer.flush()
+
 
 def _prepare_output_file(path: str, exit_code: int) -> None:
     """Create the folder of an output file and check it can be written, before any scanning starts.
@@ -179,7 +198,42 @@ def _warn_if_no_llm_key(cfg: ScannerConfig) -> None:
         )
 
 
-_OUTPUT_CHOICES = click.Choice(["json", "yaml", "html", "sarif"])
+_FORMAT_BY_SUFFIX = {".json": "json", ".yaml": "yaml", ".yml": "yaml", ".html": "html", ".htm": "html", ".sarif": "sarif"}
+
+
+class _FormatChoice(click.Choice):
+    """An output-format choice whose error points to the file option when it is given a file name.
+
+    In most tools `-o` is the output file; here it is the format (and frozen in 1.x), so `-o report.html` is an
+    easy mistake (#104).
+    """
+
+    def __init__(self, choices: list[str], target_option: str) -> None:
+        super().__init__(choices)
+        self.target_option = target_option  # "-f" for a single file, "-d" for one file per target
+
+    def convert(self, value, param, ctx):
+        try:
+            return super().convert(value, param, ctx)
+        except click.BadParameter as e:
+            if isinstance(value, str) and self._looks_like_a_path(value):
+                e.message = f"{e.message.rstrip('.')}. -o sets the report format; {self._hint(value)}."
+            raise
+
+    @staticmethod
+    def _looks_like_a_path(value: str) -> bool:
+        return Path(value).suffix.lower() in _FORMAT_BY_SUFFIX or "/" in value or "\\" in value
+
+    def _hint(self, value: str) -> str:
+        fmt = _FORMAT_BY_SUFFIX.get(Path(value).suffix.lower())
+        format_part = f"-o {fmt} " if fmt in self.choices else ""
+        if self.target_option == "-d":
+            return f"these commands write one file per target into a folder: use {format_part}-d DIR"
+        return f"to write to a file, use {format_part}-f {value}"
+
+
+_OUTPUT_CHOICES = _FormatChoice(["json", "yaml", "html", "sarif"], target_option="-f")
+_BATCH_OUTPUT_CHOICES = _FormatChoice(["json", "yaml", "html", "sarif"], target_option="-d")
 
 
 @click.group(context_settings={"help_option_names": ["-h", "--help"]})
@@ -222,7 +276,7 @@ def cli() -> None:
 @cli.command()
 @click.argument("target")
 @click.option("--output", "-o", default="html", type=_OUTPUT_CHOICES, show_default=True, help="Output format")
-@click.option("--output-file", "-f", default=None, help="Write output to a specific file")
+@click.option("--output-file", "-f", default=None, help="Write output to a specific file ('-' for stdout)")
 @click.option("--output-dir", "-d", default="./report", show_default=True, help="Write output to this directory (auto-names the file)")
 @click.option(
     "--llm-provider", default=None,
@@ -288,12 +342,13 @@ def scan(
     Examples:
       quin-scanner scan ./my-project
       quin-scanner scan owner/repo --no-llm -o yaml
+      quin-scanner scan ./my-project --no-llm -o json -f - | jq .agents
       quin-scanner scan owner/repo --min-confidence 0.7 -d reports/
       quin-scanner scan ./my-agent --detect-zino --no-llm
       quin-scanner scan ./my-agent --skills-baseline skills-baseline.yaml
       quin-scanner scan owner/repo --llm-provider anthropic --llm-model claude-sonnet-4-20250514
     """
-    if output_file:
+    if output_file and output_file != STDOUT:
         _prepare_output_file(output_file, exit_code=1)
     try:
         cfg = _build_config(
@@ -341,7 +396,9 @@ def scan(
 
         # Output
         rendered = ReportGenerator.to_string(report, output)
-        if output_file:
+        if output_file == STDOUT:
+            _echo_report(rendered)
+        elif output_file:
             ReportGenerator.write_to_file(report, output_file, output)
             click.echo(f"Report written to {output_file}", err=True)
         elif output_dir:
@@ -350,7 +407,7 @@ def scan(
             ReportGenerator.write_to_file(report, str(out_path), output)
             click.echo(f"Report written to {out_path}", err=True)
         else:
-            click.echo(rendered)
+            _echo_report(rendered)
 
         for line in skill_summary_lines(report):
             click.echo(line, err=True)
@@ -366,7 +423,7 @@ def scan(
 
 @cli.command("scan-batch")
 @click.argument("targets_file", type=click.Path(exists=True))
-@click.option("--output", "-o", default="html", type=_OUTPUT_CHOICES, show_default=True, help="Output format")
+@click.option("--output", "-o", default="html", type=_BATCH_OUTPUT_CHOICES, show_default=True, help="Output format")
 @click.option("--output-dir", "-d", default="./report", show_default=True, help="Directory for per-repo output files")
 @click.option(
     "--llm-provider", default=None,
@@ -484,7 +541,7 @@ def scan_batch(
 
 @cli.command("scan-org")
 @click.argument("org_name")
-@click.option("--output", "-o", type=_OUTPUT_CHOICES, default="html", show_default=True, help="Output format")
+@click.option("--output", "-o", type=_BATCH_OUTPUT_CHOICES, default="html", show_default=True, help="Output format")
 @click.option("--output-dir", "-d", default="./report", type=click.Path(), show_default=True, help="Directory for per-repo output files")
 @click.option("--github-token", envvar="GITHUB_TOKEN", default=None, help="GitHub PAT (overrides GITHUB_TOKEN env var)")
 @click.option("--skip-archived", is_flag=True, default=False, help="Skip archived repositories")
@@ -704,7 +761,7 @@ def skills() -> None:
 @skills.command("scan")
 @click.argument("target")
 @click.option(
-    "--output", "-o", default="terminal", type=click.Choice(["terminal", "json", "sarif"]),
+    "--output", "-o", default="terminal", type=_FormatChoice(["terminal", "json", "sarif"], target_option="-f"),
     show_default=True, help="Output format",
 )
 @click.option("--output-file", "-f", default=None, help="Write output to a file instead of stdout")
@@ -771,7 +828,7 @@ def skills_scan(
     from quin_scanner.scanners.skills.baseline import load_baseline
     from quin_scanner.scanners.skills.runner import open_skill_target, run_skill_scan
 
-    if output_file:
+    if output_file and output_file != STDOUT:
         _prepare_output_file(output_file, exit_code=2)
     try:
         baseline = load_baseline(baseline_file) if baseline_file else None
@@ -800,7 +857,7 @@ def skills_scan(
     else:
         rendered = _skills_terminal(report, result.notes)
 
-    if output_file:
+    if output_file and output_file != STDOUT:
         try:
             Path(output_file).write_text(rendered + "\n", encoding="utf-8", newline="\n")
         except OSError as e:
