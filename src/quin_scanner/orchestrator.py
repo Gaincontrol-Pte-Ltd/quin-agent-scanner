@@ -332,7 +332,11 @@ _TEST_PATH_PATTERNS = re.compile(
 )
 
 # Placeholder model name patterns to reject entirely
-_PLACEHOLDER_PREFIXES = ("your_", "test-", "mock-", "fake-", "dummy-", "example-")
+_PLACEHOLDER_PREFIXES = ("your_", "test-", "mock-", "fake-", "dummy-", "example-", "my-", "my_")
+# A name containing one of these words is a test double, not a model: stub-model, conformance-stub, mock_llm.
+_PLACEHOLDER_WORDS = frozenset({"stub", "mock", "fake", "dummy", "placeholder"})
+# A capitalised word without digits or separators is a class name (Embeddings, ChatOpenAI), not a model ID.
+_CLASS_NAME = re.compile(r"^[A-Z][A-Za-z]*$")
 _PLACEHOLDER_EXACT = frozenset({
     "model_id", "model_name", "model", "<model>", "your-model-here",
     "your-model", "placeholder", "model_id_here", "model-id",
@@ -348,6 +352,10 @@ def _is_placeholder_model(model_name: str) -> bool:
     if lower in _PLACEHOLDER_EXACT:
         return True
     if any(lower.startswith(p) for p in _PLACEHOLDER_PREFIXES):
+        return True
+    if _PLACEHOLDER_WORDS & set(re.split(r"[-_.:/]+", lower)):
+        return True
+    if _CLASS_NAME.match(model_name):
         return True
     # Template values like YOUR_VALUE_HERE
     if lower.startswith("your_") or lower.startswith("your-"):
@@ -982,10 +990,16 @@ def _sanitise_model_usages(
     """
     from quin_scanner.models import ModelUsage
 
+    from quin_scanner.model_identifier import _split_colon_prefix
+
     production: list[ModelUsage] = []
     test_count = 0
 
     for u in usages:
+        # "openai:gpt-5.4" is gpt-5.4 from openai: only the code scanner split the prefix (#86)
+        provider_hint, name = _split_colon_prefix(u.model_name)
+        if provider_hint:
+            u.model_name, u.provider = name, provider_hint
         if _is_placeholder_model(u.model_name):
             continue
         if _is_test_path(u.file_path):

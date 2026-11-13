@@ -16,6 +16,12 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Detection changes
 
 - **A repository that publishes a framework is labelled with that framework (#84).** The framework label went to the first "self-import" of a framework found anywhere in the code, so an umbrella repository that imports a sibling product in one file took that sibling's name: `langchain-ai/langchain` (one test helper imports `deepagents`) was labelled *LangChain Deep Agents*, `microsoft/semantic-kernel` (an interop shim imports `agent_framework`) *Microsoft Agent Framework*, and `microsoft/agent-framework` *AutoGen*. The package names a repository declares for itself (`[project]` or `[tool.poetry]` `name` in `pyproject.toml`, `name` in `package.json`, outside example, test and docs folders) now decide first, in the existing lookup priority. Corpus: microsoft-agent-framework goes from `AutoGen` to `Microsoft Agent Framework 1.23.0`; the other entries are unchanged; two new entries (langchain-monorepo, semantic-kernel) guard the fix. Applications that only depend on a framework are not affected.
+- **`model_usages` lists each model once and drops names that are not models (#86).**
+  - A `provider:` prefix (`openai:gpt-5.4`) was split only in source code; in `.env`, YAML, JSON and TOML it stayed in the name, so the same model appeared twice (`gpt-5.4` and `openai:gpt-5.4`) and some snapshots showed `anthropic:anthropic:claude-sonnet-4-6`. The prefix now always moves into `provider`.
+  - Class names (`Embeddings`, `ChatOpenAI`), tutorial placeholders (`my-llm`, `my_model`) and test doubles (`stub-model`, `conformance-stub`, `mock_llm`) are no longer reported as models.
+  - `text-embedding-004`, `text-embedding-005` and `text-multilingual-embedding-002` are Google's embedding models, not OpenAI's.
+  - A model assigned in code to a name containing `embed` (`self.embedding_model = "..."`) gets `role: embedding`, as in YAML config already.
+  - Corpus: gpt-researcher loses `Embeddings` and reports `text-embedding-004` as Google; langchain-deep-agents loses three doubled-prefix duplicates. Other entries are unchanged.
 
 ### Fixed
 
