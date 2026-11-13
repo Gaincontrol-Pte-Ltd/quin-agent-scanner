@@ -68,9 +68,9 @@ Reports and the `skills scan` JSON envelope carry a `schema_version` of the form
 
 Machine-readable results go to a file or to stdout; progress, warnings and errors go to stderr.
 
-- `scan` writes one report file: to `-f/--output-file`, otherwise into `-d/--output-dir` (default `./report`) with a generated name.
+- `scan` writes one report file: to `-f/--output-file`, otherwise into `-d/--output-dir` (default `./report`) with a generated name. `-f -` writes the report to stdout instead (UTF-8, LF line endings).
 - `scan-batch` and `scan-org` write one report file per target into `--output-dir`. `scan-org` also prints a JSON list to stdout with one object per scanned repository: `repo`, `is_ai_application`, `confidence`.
-- `skills scan` prints to stdout (the terminal table, or JSON/SARIF with `-o`) unless `-f` is given.
+- `skills scan` prints to stdout (the terminal table, or JSON/SARIF with `-o`) unless `-f` is given; `-f -` also means stdout.
 - `skills baseline` writes the baseline file given with `-o`.
 
 ## Commands
