@@ -9,6 +9,10 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.0.1] — 2026-11-13
+
+**First patch release of 1.x.** The CLI, report schema (`schema_version` 1.0), exit codes, rule IDs, config, baseline and Action interfaces are unchanged from `1.0.0`. It fixes `-f -` (which wrote a file named `-`) so a `scan` report can be piped, explains the `-o`/`-f` mix-up in its error, labels umbrella framework repositories by the package they publish, and cleans up `model_usages`. The two detection changes move results for some repositories; see *Detection changes*.
+
 ### Changed
 
 - **A file name given to `-o` gets a hint (#104).** `-o` sets the report format and `-f` the file, the reverse of many tools, so `-o report.html` failed with only "is not one of 'json', 'yaml', 'html', 'sarif'". When the value looks like a file name or path, the error now adds what to type instead: `-o html -f report.html` for `scan` and `skills scan`, and `-o json -d DIR` for `scan-batch` and `scan-org`, which write one file per target. Option names and the exit code (2) are unchanged; `skills baseline -o FILE` is not affected.
@@ -369,7 +373,8 @@ This changelog was not split per beta, so the sections below also list changes f
 
 ---
 
-[Unreleased]: https://github.com/Gaincontrol-Pte-Ltd/quin-agent-scanner/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/Gaincontrol-Pte-Ltd/quin-agent-scanner/compare/v1.0.1...HEAD
+[1.0.1]: https://github.com/Gaincontrol-Pte-Ltd/quin-agent-scanner/releases/tag/v1.0.1
 [1.0.0]: https://github.com/Gaincontrol-Pte-Ltd/quin-agent-scanner/releases/tag/v1.0.0
 [1.0.0rc3]: https://github.com/Gaincontrol-Pte-Ltd/quin-agent-scanner/releases/tag/v1.0.0rc3
 [1.0.0rc2]: https://github.com/Gaincontrol-Pte-Ltd/quin-agent-scanner/releases/tag/v1.0.0rc2
