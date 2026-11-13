@@ -198,7 +198,42 @@ def _warn_if_no_llm_key(cfg: ScannerConfig) -> None:
         )
 
 
-_OUTPUT_CHOICES = click.Choice(["json", "yaml", "html", "sarif"])
+_FORMAT_BY_SUFFIX = {".json": "json", ".yaml": "yaml", ".yml": "yaml", ".html": "html", ".htm": "html", ".sarif": "sarif"}
+
+
+class _FormatChoice(click.Choice):
+    """An output-format choice whose error points to the file option when it is given a file name.
+
+    In most tools `-o` is the output file; here it is the format (and frozen in 1.x), so `-o report.html` is an
+    easy mistake (#104).
+    """
+
+    def __init__(self, choices: list[str], target_option: str) -> None:
+        super().__init__(choices)
+        self.target_option = target_option  # "-f" for a single file, "-d" for one file per target
+
+    def convert(self, value, param, ctx):
+        try:
+            return super().convert(value, param, ctx)
+        except click.BadParameter as e:
+            if isinstance(value, str) and self._looks_like_a_path(value):
+                e.message = f"{e.message.rstrip('.')}. -o sets the report format; {self._hint(value)}."
+            raise
+
+    @staticmethod
+    def _looks_like_a_path(value: str) -> bool:
+        return Path(value).suffix.lower() in _FORMAT_BY_SUFFIX or "/" in value or "\\" in value
+
+    def _hint(self, value: str) -> str:
+        fmt = _FORMAT_BY_SUFFIX.get(Path(value).suffix.lower())
+        format_part = f"-o {fmt} " if fmt in self.choices else ""
+        if self.target_option == "-d":
+            return f"these commands write one file per target into a folder: use {format_part}-d DIR"
+        return f"to write to a file, use {format_part}-f {value}"
+
+
+_OUTPUT_CHOICES = _FormatChoice(["json", "yaml", "html", "sarif"], target_option="-f")
+_BATCH_OUTPUT_CHOICES = _FormatChoice(["json", "yaml", "html", "sarif"], target_option="-d")
 
 
 @click.group(context_settings={"help_option_names": ["-h", "--help"]})
@@ -388,7 +423,7 @@ def scan(
 
 @cli.command("scan-batch")
 @click.argument("targets_file", type=click.Path(exists=True))
-@click.option("--output", "-o", default="html", type=_OUTPUT_CHOICES, show_default=True, help="Output format")
+@click.option("--output", "-o", default="html", type=_BATCH_OUTPUT_CHOICES, show_default=True, help="Output format")
 @click.option("--output-dir", "-d", default="./report", show_default=True, help="Directory for per-repo output files")
 @click.option(
     "--llm-provider", default=None,
@@ -506,7 +541,7 @@ def scan_batch(
 
 @cli.command("scan-org")
 @click.argument("org_name")
-@click.option("--output", "-o", type=_OUTPUT_CHOICES, default="html", show_default=True, help="Output format")
+@click.option("--output", "-o", type=_BATCH_OUTPUT_CHOICES, default="html", show_default=True, help="Output format")
 @click.option("--output-dir", "-d", default="./report", type=click.Path(), show_default=True, help="Directory for per-repo output files")
 @click.option("--github-token", envvar="GITHUB_TOKEN", default=None, help="GitHub PAT (overrides GITHUB_TOKEN env var)")
 @click.option("--skip-archived", is_flag=True, default=False, help="Skip archived repositories")
@@ -726,7 +761,7 @@ def skills() -> None:
 @skills.command("scan")
 @click.argument("target")
 @click.option(
-    "--output", "-o", default="terminal", type=click.Choice(["terminal", "json", "sarif"]),
+    "--output", "-o", default="terminal", type=_FormatChoice(["terminal", "json", "sarif"], target_option="-f"),
     show_default=True, help="Output format",
 )
 @click.option("--output-file", "-f", default=None, help="Write output to a file instead of stdout")
