@@ -116,6 +116,10 @@ _KNOWN_MODELS: dict[str, str] = {
     "gemini-1.5-flash": "google",
     "gemini-pro": "google",
     "gemini-ultra": "google",
+    # Google embedding models named like OpenAI's ("text-embedding-" would otherwise classify them as openai)
+    "text-embedding-004": "google",
+    "text-embedding-005": "google",
+    "text-multilingual-embedding-002": "google",
     # Meta/Ollama
     "llama3.2": "meta",
     "llama3.1": "meta",
@@ -258,13 +262,16 @@ class ModelIdentifier:
                     provider_hint, model_name = _split_colon_prefix(raw)
                     if _is_plausible_model_name(model_name):
                         provider = provider_hint or classify_provider(model_name)
+                        # The name being assigned says the role (embedding_model = "...", embed_model: "..."),
+                        # as the YAML scanner already reads it from the key
+                        role = "embedding" if "embed" in line[:m.start(1)].lower() else "unknown"
                         usages.append(ModelUsage(
                             provider=provider,
                             model_name=model_name,
                             source="code",
                             file_path=path,
                             line_number=lineno,
-                            role="unknown",
+                            role=role,
                         ))
         return usages
 

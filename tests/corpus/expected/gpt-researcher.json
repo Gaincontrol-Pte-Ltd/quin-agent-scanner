@@ -27,11 +27,10 @@
     "gpt-researcher"
   ],
   "models": [
+    "google:text-embedding-004",
     "openai:gpt-4o",
     "openai:gpt-5.4",
-    "openai:text-embedding-004",
-    "openai:text-embedding-3-large",
-    "unknown:Embeddings"
+    "openai:text-embedding-3-large"
   ],
   "risk_signals": {},
   "tools": 2
