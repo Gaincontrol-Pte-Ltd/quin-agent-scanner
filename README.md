@@ -38,7 +38,7 @@ Quin maps the AI and agent components present in a repository, preserves the evi
 |---|---|
 | **Repository scanning** | Local directories, GitHub repositories and organizations, Azure DevOps repositories, and target lists. Scan a selected GitHub branch; run single-repository, batch, organization, or CI scans. |
 | **AI framework and dependency discovery** | AI SDKs and agent frameworks, model providers and model IDs, vector databases, embedding packages, and voice or image AI dependencies. See [Supported Frameworks](#supported-frameworks). |
-| **Agent and prompt discovery** | Named agents and agent configurations, system prompts, prompt templates, agent skills, and related source files. |
+| **Agent and prompt discovery** | Agents and every place each one is created (instances), with the tools and model passed at each instance and a flag when instances differ; system prompts, prompt templates, agent skills and related source files. Each agent, instance and tool has a stable ID. Test and example code is included and tagged. |
 | **Tools and MCP discovery** | Tool definitions, external-service usage, MCP servers and transports, and tool usage evidence. Quin can link detected agents to tools explicitly listed in supported Python `tools=[...]` calls and JavaScript/TypeScript agent objects. It records both source locations when it also detects the tool definition. |
 | **Skill security analysis** | Agent Skills (`SKILL.md` packages for Claude Code, Codex and OpenCode), MCP tool definitions, and agent instruction files (`CLAUDE.md`, `AGENTS.md`, `GEMINI.md`, Cursor, Windsurf, Cline, Roo and Copilot rules, checked with the text rules only). Quin scores each skill 0–100 (SAFE / CAUTION / HIGH_RISK) using static rules for prompt injection, hidden content, exfiltration, dangerous code, supply chain, excessive permissions and MCP tool poisoning. With an LLM enabled, findings are also confirmed or disputed. See [Skill rules](docs/skill-rules.md). |
 | **Model endpoint discovery** | Model usage by provider, model, source, and role; LLM endpoint addresses and endpoint types. Credentials in endpoint URLs and expressions are redacted. |
@@ -50,7 +50,7 @@ Quin maps the AI and agent components present in a repository, preserves the evi
 | **Reports and CI** | HTML, JSON, YAML, and SARIF reports. The HTML report includes inventory, coverage, relationships, agents, models, tools/MCP (with per-skill risk cards), infrastructure, artifacts, and raw data. The GitHub Action can publish SARIF findings, including high and critical skill findings, as code-scanning annotations. |
 | **Static-only operation** | Use `--no-llm` to run repository discovery without an LLM provider or API key. Use `--no-vuln-check` to skip external vulnerability lookups. |
 
-Quin’s detections are evidence for review, not proof that an application is safe or unsafe. Relationship mapping is currently based on explicit source-code tool lists; config-only agent/tool relationships may not be linked.
+Quin’s detections are evidence for review, not proof that an application is safe or unsafe. Agent-to-tool links come from explicit `tools=[...]` lists in source code and the `tools` of CrewAI `agents.yaml` entries; tools attached through MCP servers, toolkits or variables are not linked yet.
 
 ---
 

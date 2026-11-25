@@ -1,5 +1,8 @@
 {
   "agents": [
+    "",
+    "",
+    "",
     "Assistant",
     "Critic",
     "GittyAgent",
@@ -9,10 +12,6 @@
     "assistant",
     "assistant",
     "assistant",
-    "assistant",
-    "assistant",
-    "assistant",
-    "critic",
     "critic",
     "finance_agent",
     "hr_agent",
@@ -21,7 +20,6 @@
     "router",
     "search_assistant",
     "teachable_agent",
-    "user",
     "user",
     "user_proxy",
     "weather_agent",
@@ -47,5 +45,5 @@
     "openai:text-embedding-3-small"
   ],
   "risk_signals": {},
-  "tools": 11
+  "tools": 4
 }

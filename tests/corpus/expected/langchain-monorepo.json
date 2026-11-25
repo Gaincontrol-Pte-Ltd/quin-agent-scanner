@@ -1,5 +1,18 @@
 {
-  "agents": [],
+  "agents": [
+    "async_agent",
+    "async_multi_agent",
+    "async_multi_turn_streaming_agent",
+    "async_streaming_agent",
+    "multi_turn_agent",
+    "multi_turn_streaming_agent",
+    "parent",
+    "streaming_agent",
+    "subagent",
+    "supervisor",
+    "test_agent",
+    "weather_agent"
+  ],
   "artifacts": 1935,
   "capability_tags": [
     "agent-instructions",
@@ -33,5 +46,5 @@
     "unknown:some-other-model"
   ],
   "risk_signals": {},
-  "tools": 18
+  "tools": 132
 }

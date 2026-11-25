@@ -28,6 +28,8 @@
     "artifacts": {"type": "array", "items": {"$ref": "#/$defs/finding"}},
     "model_usages": {"type": "array", "items": {"$ref": "#/$defs/modelUsage"}},
     "agent_tool_relationships": {"type": "array", "items": {"$ref": "#/$defs/relationship"}},
+    "llm_inferred_agents": {"type": "array", "items": {"$ref": "#/$defs/llmInferred"}, "description": "Agents the LLM suggested with no code evidence; not part of the inventory."},
+    "llm_inferred_tools": {"type": "array", "items": {"$ref": "#/$defs/llmInferred"}, "description": "Tools the LLM suggested with no code evidence; not part of the inventory."},
     "inventory": {"type": "array", "items": {"$ref": "#/$defs/finding"}},
     "coverage": {"type": "object", "description": "Open map: documented keys are stable, others informational."},
     "llm_endpoints": {"type": "array", "items": {"$ref": "#/$defs/endpoint"}},
@@ -84,7 +86,45 @@
         "risk_signals": {"type": "array", "items": {"$ref": "#/$defs/riskSignal"}},
         "skills": {"type": "array", "items": {"type": "string"}},
         "tools": {"type": "array", "items": {"type": "string"}},
-        "source_file": {"type": "string"}
+        "source_file": {"type": "string"},
+        "id": {"type": "string", "description": "Stable ID: agent:<name>; agent:<name>@<definition path> on a name collision; agent:@<path>#<n> without a literal name."},
+        "identity": {"type": "string", "description": "strong (literal name) or weak (no literal name)."},
+        "scope": {"type": "string", "description": "production, test or example: production if any instance is."},
+        "flags": {"type": "array", "items": {"type": "string"}, "description": "name_collision, tool_divergence, model_divergence, ambiguous_instance."},
+        "provenance": {"type": "object", "additionalProperties": {"type": "string"}, "description": "Field name to static or llm."},
+        "instances": {"type": "array", "items": {"$ref": "#/$defs/agentInstance"}}
+      }
+    },
+    "instanceTool": {
+      "type": "object",
+      "required": ["name", "tool_id", "resolved"],
+      "properties": {
+        "name": {"type": "string"},
+        "tool_id": {"type": ["string", "null"], "description": "ID of the tool definition, null when none was found."},
+        "resolved": {"type": "boolean"}
+      }
+    },
+    "agentInstance": {
+      "type": "object",
+      "required": ["id", "file", "line", "scope", "multiplicity", "model", "tools"],
+      "properties": {
+        "id": {"type": "string", "description": "<agent id>/<path>#<n>."},
+        "file": {"type": "string"},
+        "line": {"type": ["integer", "null"]},
+        "scope": {"type": "string"},
+        "multiplicity": {"type": "string", "description": "one, or many when created inside a loop."},
+        "model": {"type": ["string", "null"]},
+        "tools": {"type": "array", "items": {"$ref": "#/$defs/instanceTool"}},
+        "tools_known": {"type": "boolean", "description": "False when the instance's tools are not statically known (for example tools=get_tools()); absent in older reports."}
+      }
+    },
+    "llmInferred": {
+      "type": "object",
+      "required": ["name", "evidence", "file"],
+      "properties": {
+        "name": {"type": "string"},
+        "evidence": {"type": "string"},
+        "file": {"type": "string"}
       }
     },
     "toolUsage": {
@@ -95,7 +135,9 @@
         "tool_type": {"type": "string", "description": "tool_definition, external_service, skill or mcp_tool."},
         "service_category": {"type": "string"},
         "source_file": {"type": "string"},
-        "line_number": {"type": ["integer", "null"]}
+        "line_number": {"type": ["integer", "null"]},
+        "id": {"type": "string"},
+        "scope": {"type": "string"}
       }
     },
     "mcpServer": {
@@ -152,7 +194,10 @@
         "line_number": {"type": ["integer", "null"]},
         "tool_source_file": {"type": "string"},
         "tool_line_number": {"type": ["integer", "null"]},
-        "evidence": {"type": "string"}
+        "evidence": {"type": "string"},
+        "agent_id": {"type": "string"},
+        "instance_id": {"type": "string"},
+        "tool_id": {"type": ["string", "null"]}
       }
     },
     "endpoint": {
