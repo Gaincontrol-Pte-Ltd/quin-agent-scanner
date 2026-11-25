@@ -26,6 +26,12 @@ jobs:
       - name: Set up Python
         run: uv python install 3.11
 
+      - name: Check the tag matches the code
+        # PyPI versions cannot be re-published: stop before building if the tag, pyproject.toml,
+        # quin_scanner.__version__ and the CHANGELOG disagree.
+        if: github.event_name == 'push'
+        run: python3 scripts/check_release_version.py "$GITHUB_REF_NAME"
+
       - name: Build package
         run: uv build
 

@@ -11,7 +11,7 @@ Point Quin at a repo and get back: every AI agent, what it does, what tools it h
 
 Learn more at [gaincontrol.ai/quin](https://gaincontrol.ai/quin).
 
-> **Note:** This is version **1.0.0rc2**, the current release candidate for 1.0. The interfaces in the [stability policy](docs/stability.md) are frozen; `1.0.0` follows after a soak period without contract changes. Scan results are provided **as-is** and may be incomplete, inaccurate, or contain false positives/negatives. **Always review and validate findings independently before making security, compliance, or architectural decisions based on them.** The authors and contributors of Quin accept no responsibility or liability for any actions taken, or not taken, based on the output of this tool. If you encounter any issues, please [open an issue](https://github.com/Gaincontrol-Pte-Ltd/quin-agent-scanner/issues) or email us at [pixiedust@gaincontrol.ai](mailto:pixiedust@gaincontrol.ai) -- your feedback helps us improve the scanner.
+> **Note:** Scan results are provided **as-is** and may be incomplete, inaccurate, or contain false positives/negatives. **Always review and validate findings independently before making security, compliance, or architectural decisions based on them.** The authors and contributors of Quin accept no responsibility or liability for any actions taken, or not taken, based on the output of this tool. If you encounter any issues, please [open an issue](https://github.com/Gaincontrol-Pte-Ltd/quin-agent-scanner/issues) or email us at [pixiedust@gaincontrol.ai](mailto:pixiedust@gaincontrol.ai) -- your feedback helps us improve the scanner.
 
 ---
 
@@ -216,7 +216,7 @@ Common `scan` options:
 
 | Option | Meaning |
 |---|---|
-| `-o json\|yaml\|html\|sarif\|cyclonedx`, `-f FILE`, `-d DIR` | Output format, file, or output directory. `cyclonedx` writes a CycloneDX 1.6 AI-BOM ([docs/ai-bom.md](docs/ai-bom.md)). |
+| `-o json\|yaml\|html\|sarif\|cyclonedx`, `-f FILE`, `-d DIR` | Output format, file (`-f -` for stdout), or output directory. `cyclonedx` writes a CycloneDX 1.6 AI-BOM ([docs/ai-bom.md](docs/ai-bom.md)). |
 | `--no-llm` | Static analysis only; no LLM provider or API key. |
 | `--llm-provider`, `--llm-model`, `--llm-api-key`, `--openai-compatible-url`, `-c/--config` | Choose and configure the LLM provider. |
 | `--no-vuln-check`, `--vuln-search-provider` | Skip or configure vulnerability lookups. |
@@ -251,15 +251,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: Gaincontrol-Pte-Ltd/quin-agent-scanner@beta
+      - uses: Gaincontrol-Pte-Ltd/quin-agent-scanner@v1
 ```
 
-**Versions and tags.** The action installs the scanner from the tag you pin, so `@v0.1.0b5` runs exactly 0.1.0b5, `@beta` follows the latest pre-release, and from `1.0.0` a major tag (`@v1`) follows stable releases. Pin an exact tag for reproducible builds. Set the `version` input to install a specific release or range from PyPI instead.
+**Versions and tags.** The action installs the scanner from the tag you pin: `@v1` follows stable 1.x releases, `@v1.0.0` runs exactly 1.0.0, and `@beta` follows the latest pre-release. Pin an exact tag for reproducible builds. Set the `version` input to install a specific release or range from PyPI instead.
 
 By default this runs in `--no-llm` mode — static findings plus CVE vulnerability checks (via OSV.dev), no API key required. For richer agent/risk analysis, pass an LLM API key:
 
 ```yaml
-      - uses: Gaincontrol-Pte-Ltd/quin-agent-scanner@beta
+      - uses: Gaincontrol-Pte-Ltd/quin-agent-scanner@v1
         with:
           llm-provider: anthropic
           llm-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -268,7 +268,7 @@ By default this runs in `--no-llm` mode — static findings plus CVE vulnerabili
 Gate a pull request on risky skills and keep a JSON report:
 
 ```yaml
-      - uses: Gaincontrol-Pte-Ltd/quin-agent-scanner@beta
+      - uses: Gaincontrol-Pte-Ltd/quin-agent-scanner@v1
         with:
           fail-on: high_risk
           skills-baseline: skills-baseline.yaml
@@ -393,7 +393,7 @@ Sample HTML reports for several supported frameworks live in [`examples/reports/
 ### Prerequisites
 
 - **Python 3.11+** -- [download](https://www.python.org/downloads/). Quin runs on **Linux, macOS and Windows**; CI runs the full test suite on all three
-- **An LLM API key** _(optional)_ -- OpenAI, Anthropic, Google, or a local Ollama model. Not needed with `--no-llm`, and not needed for `quin-scanner skills scan`, which is static unless you pass an LLM option
+- **An LLM API key** _(needed unless you pass `--no-llm`)_ -- OpenAI, Anthropic, Google, or a local Ollama model. `quin-scanner scan` runs LLM analysis by default; with no key it stops at once and says so, and `--no-llm` runs the static scan without one. `quin-scanner skills scan` is static unless you pass an LLM option
 - **git** -- for scanning GitHub repos
 - **GitHub token** _(optional)_ -- for private repos or org scanning
 
@@ -471,7 +471,7 @@ Precedence: `--vuln-search-provider` CLI flag > `VULN_SEARCH_PROVIDER` env var >
 
 ## Stability
 
-Quin `1.0.0rc2` is the current release candidate for 1.0. From `1.0.0`, the CLI and its exit codes, the JSON/YAML report schema, SARIF output and rule IDs, and the config, baseline and GitHub Action interfaces follow semantic versioning with a deprecation window; see the [stability policy](docs/stability.md). The **Python import API** (`import quin_scanner`) is not public: the CLI is the supported interface. The web UI in [`ui/`](ui/) is experimental. Upgrading from a beta? See [Migrating from the betas](docs/migrating-from-the-betas.md).
+Quin 1.x is stable: the CLI and its exit codes, the JSON/YAML report schema, SARIF output and rule IDs, and the config, baseline and GitHub Action interfaces follow semantic versioning with a deprecation window; see the [stability policy](docs/stability.md). The **Python import API** (`import quin_scanner`) is not public: the CLI is the supported interface. The web UI in [`ui/`](ui/) is experimental. Upgrading from a beta? See [Migrating from the betas](docs/migrating-from-the-betas.md).
 
 ---
 
