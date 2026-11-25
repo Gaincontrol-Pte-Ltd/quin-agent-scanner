@@ -9,6 +9,10 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **`--format` is a long alias for `-o`** on `scan`, `scan-batch`, `scan-org` and `skills scan` (#104). In many tools `-o` is the output file; in Quin it is the format and `-f` the file, and both letters are frozen in 1.x. `--format json -f report.json` now reads the way most people expect. `-o` and `--output` keep working unchanged, and `skills baseline -o FILE` (where `-o` is the file) is not affected.
+
 ### Changed
 
 - **The code-pattern scan skips rules that cannot match a file (#88).** Every code-pattern rule ran its regex on every line of every source file of its language, about 6.8 million searches on `microsoft/agent-framework`. Each rule's regex is now read once for the text any match must contain (`from\s+openai` needs both `from` and `openai`; an alternation needs one of its alternatives), and a rule whose required text is absent from a file is not run on that file. Rules for which this cannot be worked out safely still run everywhere. Reports are unchanged; on `microsoft/agent-framework` the scanner does about 0.4 million searches and its share of the scan falls from 1.6 s to 0.4 s.
