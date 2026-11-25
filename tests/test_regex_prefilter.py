@@ -283,3 +283,11 @@ def test_scanner_findings_equal_unfiltered(tmp_path):
     got = _scan(CodePatternScanner(), root)
     assert got == _scan(_Unfiltered(), root)
     assert len(got) > 1000
+
+
+def test_without_the_private_regex_parser_every_rule_runs(monkeypatch):
+    import quin_scanner.regex_prefilter as rp
+
+    monkeypatch.setattr(rp, "_p", None)
+    assert rp.required_literals(r"from\s+openai") is None
+    assert rp.TextProbe("nothing here").may_match(None) is True

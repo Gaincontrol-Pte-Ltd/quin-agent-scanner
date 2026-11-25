@@ -15,8 +15,11 @@ unknown opcode) contributes no clause, and a pattern with no clause left always 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from re import _constants as _c  # type: ignore[attr-defined]
-from re import _parser as _p  # type: ignore[attr-defined]
+try:  # the regex parser is private: if a future Python moves it, every rule simply always runs
+    from re import _constants as _c  # type: ignore[attr-defined]
+    from re import _parser as _p  # type: ignore[attr-defined]
+except ImportError:  # pragma: no cover - only on a Python that renames these modules
+    _c = _p = None
 
 
 @dataclass(frozen=True, order=True)
@@ -84,6 +87,8 @@ def _sequence(items, ignorecase: bool) -> list[Clause]:
 
 def required_literals(pattern: str, flags: int = 0) -> tuple[Clause, ...] | None:
     """Clauses every match of ``pattern`` satisfies, most selective first, or ``None``."""
+    if _p is None:
+        return None
     try:
         parsed = _p.parse(pattern, flags)
         all_flags = parsed.state.flags | flags
