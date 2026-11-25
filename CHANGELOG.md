@@ -9,6 +9,10 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- **The `owner/repo` shorthand downloads the repository as one archive (#87).** It used to read every file with its own request to raw.githubusercontent.com, so scan time grew with the file count: `pallets/flask` (236 files) took 39 s and `modelcontextprotocol/python-sdk` (1,726 files) 738 s. It now fetches `GET /repos/{owner}/{repo}/tarball/{ref}` once, with the token when one is set (private repositories need the same access as before, and `git` is still not required), and extracts it into a temporary directory that is removed after the scan: 3.4 s and 15.2 s, about the same as the `https://github.com/owner/repo` form. Reports are identical to the per-file path's for the same commit. The file list still comes from the Git Trees API, now at the commit the archive was made from. The archive is treated as untrusted: absolute paths, `..`, links and special files reject it, symlinks are written as their target text (what the API returns for them) and never created, and it is capped at 1 GiB and 200,000 entries. If the archive cannot be used, one line on stderr says so and files are read one request at a time as before. Two progress lines on stderr mark the download and the extraction; the 150-file note pointing to the URL form is removed.
+
 ## [1.0.1] — 2026-11-13
 
 **First patch release of 1.x.** The CLI, report schema (`schema_version` 1.0), exit codes, rule IDs, config, baseline and Action interfaces are unchanged from `1.0.0`. It fixes `-f -` (which wrote a file named `-`) so a `scan` report can be piped, explains the `-o`/`-f` mix-up in its error, labels umbrella framework repositories by the package they publish, and cleans up `model_usages`. The two detection changes move results for some repositories; see *Detection changes*.
