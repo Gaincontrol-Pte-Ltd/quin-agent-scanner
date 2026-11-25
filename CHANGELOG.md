@@ -9,8 +9,13 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **`--format` is a long alias for `-o`** on `scan`, `scan-batch`, `scan-org` and `skills scan` (#104). In many tools `-o` is the output file; in Quin it is the format and `-f` the file, and both letters are frozen in 1.x. `--format json -f report.json` now reads the way most people expect. `-o` and `--output` keep working unchanged, and `skills baseline -o FILE` (where `-o` is the file) is not affected.
+
 ### Changed
 
+- **The code-pattern scan skips rules that cannot match a file (#88).** Every code-pattern rule ran its regex on every line of every source file of its language, about 6.8 million searches on `microsoft/agent-framework`. Each rule's regex is now read once for the text any match must contain (`from\s+openai` needs both `from` and `openai`; an alternation needs one of its alternatives), and a rule whose required text is absent from a file is not run on that file. Rules for which this cannot be worked out safely still run everywhere. Reports are unchanged; on `microsoft/agent-framework` the scanner does about 0.4 million searches and its share of the scan falls from 1.6 s to 0.4 s.
 - **The `owner/repo` shorthand downloads the repository as one archive (#87).** It used to read every file with its own request to raw.githubusercontent.com, so scan time grew with the file count: `pallets/flask` (236 files) took 39 s and `modelcontextprotocol/python-sdk` (1,726 files) 738 s. It now fetches `GET /repos/{owner}/{repo}/tarball/{ref}` once, with the token when one is set (private repositories need the same access as before, and `git` is still not required), and extracts it into a temporary directory that is removed after the scan: 3.4 s and 15.2 s, about the same as the `https://github.com/owner/repo` form. Reports are identical to the per-file path's for the same commit. The file list still comes from the Git Trees API, now at the commit the archive was made from. The archive is treated as untrusted: absolute paths, `..`, links and special files reject it, symlinks are written as their target text (what the API returns for them) and never created, and it is capped at 1 GiB and 200,000 entries. If the archive cannot be used, one line on stderr says so and files are read one request at a time as before. Two progress lines on stderr mark the download and the extraction; the 150-file note pointing to the URL form is removed.
 
 ## [1.0.1] — 2026-11-13
