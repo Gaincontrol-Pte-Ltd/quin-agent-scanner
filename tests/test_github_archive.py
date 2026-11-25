@@ -341,3 +341,17 @@ def test_the_checks_do_not_depend_on_tarfile_data_filter(tmp_path, monkeypatch):
         extract(archive, tmp_path / "out")
     archive.write_bytes(repo_tarball())
     assert sorted(extract(archive, tmp_path / "ok").files) == sorted(FILES)
+
+
+@pytest.mark.parametrize("path, ok", [
+    ("src/app.py", True),
+    ("src/CON", False), ("docs/nul.txt", False), ("lpt1.md", False), ("a/com9", False), ("a/CONOUT$", False),
+    ("a/console.py", True), ("a/COM10", True),
+    ("trail.", False), ("trail /x.py", False),
+    ("a:b", False), ("a\\b", False),
+])
+def test_windows_names_that_map_elsewhere_are_read_with_their_own_request(path, ok):
+    from quin_scanner._github_archive import _representable
+
+    assert _representable(path, windows=True) is ok
+    assert _representable("a/CON", windows=False) is True

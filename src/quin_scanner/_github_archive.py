@@ -143,11 +143,28 @@ def extract(archive: Path, dest: Path, *, max_members: int = MAX_MEMBERS, max_by
     return result
 
 
-def _representable(repo_path: str) -> bool:
-    """False for names this OS would map onto a different path (a backslash; on Windows also ':' streams and the like)."""
+_WINDOWS_DEVICES = frozenset(
+    {"CON", "PRN", "AUX", "NUL", "CONIN$", "CONOUT$"} | {f"{d}{i}" for d in ("COM", "LPT") for i in range(1, 10)}
+)
+
+
+def _representable(repo_path: str, *, windows: bool | None = None) -> bool:
+    """False for names this OS would map onto a different path or a device.
+
+    Everywhere: a backslash. On Windows also ':' (streams) and the other forbidden characters, a part ending in a dot or
+    space (Windows drops them, so ``a.`` would become ``a``), and device names such as ``CON`` or ``nul.txt``, which
+    open the device instead of a file.
+    """
     if "\\" in repo_path:
         return False
-    return os.name != "nt" or not any(c in repo_path for c in ':*?"<>|')
+    if not (os.name == "nt" if windows is None else windows):
+        return True
+    if any(c in repo_path for c in ':*?"<>|'):
+        return False
+    for part in repo_path.split("/"):
+        if part.endswith((".", " ")) or part.split(".")[0].rstrip(" ").upper() in _WINDOWS_DEVICES:
+            return False
+    return True
 
 
 def _write(tar: tarfile.TarFile, member: tarfile.TarInfo, target: Path, content: bytes | None, budget: int) -> int | None:
