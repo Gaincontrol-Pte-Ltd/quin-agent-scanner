@@ -72,6 +72,7 @@ Exit codes:
 Examples:
   quin-scanner scan ./my-project
   quin-scanner scan owner/repo --no-llm -o yaml
+  quin-scanner scan ./my-project --no-llm -o json -f - | jq .agents
   quin-scanner scan owner/repo --min-confidence 0.7 -d reports/
   quin-scanner scan ./my-agent --detect-zino --no-llm
   quin-scanner scan ./my-agent --skills-baseline skills-baseline.yaml
@@ -87,7 +88,7 @@ Arguments: `TARGET`
 | Option | Type | Default | Environment variable | Description |
 |---|---|---|---|---|
 | `--output`, `-o` | `json` \| `yaml` \| `html` \| `sarif` | `html` |  | Output format |
-| `--output-file`, `-f` | text |  |  | Write output to a specific file |
+| `--output-file`, `-f` | text |  |  | Write output to a specific file ('-' for stdout) |
 | `--output-dir`, `-d` | text | `./report` |  | Write output to this directory (auto-names the file) |
 | `--llm-provider` | text |  |  | LLM provider for agent intent analysis (openai\|anthropic\|google\|ollama\|openai-compatible) |
 | `--llm-model` | text |  |  | Override the default model for the provider |

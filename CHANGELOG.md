@@ -9,10 +9,6 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-### Security
-
-- **A crafted string in a scanned repository could blank the HTML report.** The report data is embedded in the HTML page as JSON inside a `<script>` tag, and only `</` was escaped. A value such as an agent name `<!--<script>` changed how the browser parses the rest of the page, so the report showed nothing. `<`, `>` and `&` (and U+2028/U+2029) are now written as JSON `\u` escapes, which the page reads back unchanged. This affects the HTML reports of all earlier releases, including `1.0.0rc1` and `1.0.0rc2`; JSON, YAML and SARIF output were not affected.
-
 ### Added
 
 - **Agents and their instances.** Each entry in `agents` is now one logical agent, identified by its name and instructions, with an `instances` list of every place in the code that creates it (file, line, scope, model, the tools passed there, and `multiplicity: many` when created inside a loop). New agent fields: `id`, `identity` (`strong` with a literal name, `weak` without), `scope`, `flags`, `provenance`, `instances`. New instance field `tools_known`: `false` when the tools are not statically known (for example `tools=get_tools()`), so an empty `tools` list then means "unknown", not "no tools". `tool_usages` and `agent_tool_relationships` gain stable IDs (`id`, `agent_id`, `instance_id`, `tool_id`) and `tool_usages` a `scope`. IDs never contain line numbers or prompt text, so unrelated edits do not change them: `agent:<name>`, `agent:<name>@<path>` when two different agents share a name, `agent:@<path>#<n>` for an agent without a literal name; `tool:<name>`, or `tool:<name>@<path>` when several files define the name.
@@ -36,7 +32,57 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - An agent's `skills` are the instance tools that link to a skill and its `tools` are the other instance tools; `agent_tool_relationships` lists one link per instance tool, built from the same evidence.
 - Tools and skills named like a dependency or a model are no longer removed (the old filter was meant for LLM output): for example the `gpt-researcher` and `browser-use` skills of those repositories are now listed.
 - The agent and tool scanners now also read test files to tag their agents and tools, and the separate pass that re-read files for agent-tool relationships is gone. On the corpus repositories `coverage.file_read_attempts` is lower (for example agno 2104 → 1894, Microsoft Agent Framework 3453 → 3201) and `files_read` is unchanged.
-- Corpus (agents, tools before → after): agno 50 → 401, 45 → 49; autogen 26 → 24, 11 → 4; browser-use 0 → 123 (all unnamed `Agent(task=...)` calls), 27 → 27; ChatDev 40 → 155, 1 → 1; crewAI examples 11 → 51, 18 → 20; gpt-researcher 8 → 9, 2 → 3; langchain deep agents 0 → 0, 18 → 20; LangGraph 5 → 5, 19 → 18; Microsoft Agent Framework 50 → 480, 37 → 246; OpenAI Agents SDK 50 → 150, 33 → 94; Strands Agents 0 → 8, 14 → 17. Google ADK, LangChain, Mastra, MCP servers, the skill collections and the non-AI repositories (Flask, Express, cobra) are unchanged.
+- Corpus (agents, tools before → after): agno 50 → 401, 45 → 49; autogen 26 → 24, 11 → 4; browser-use 0 → 123 (all unnamed `Agent(task=...)` calls), 27 → 27; ChatDev 40 → 155, 1 → 1; crewAI examples 11 → 51, 18 → 20; gpt-researcher 8 → 9, 2 → 3; langchain deep agents 0 → 0, 18 → 20; LangChain monorepo 0 → 12, 18 → 132 (`libs/standard-tests`: all 12 agents and 122 of the tools are `scope: test`); LangGraph 5 → 5, 19 → 18; Microsoft Agent Framework 50 → 480, 37 → 246; OpenAI Agents SDK 50 → 150, 33 → 94; Semantic Kernel 0 → 0, 9 → 7 (`TimePlugin` and `StaticTextPlugin` are `add_plugin` registrations, now references); Strands Agents 0 → 8, 14 → 17. Google ADK, LangChain, Mastra, MCP servers, the skill collections and the non-AI repositories (Flask, Express, cobra) are unchanged.
+
+## [1.0.1] — 2026-11-13
+
+**First patch release of 1.x.** The CLI, report schema (`schema_version` 1.0), exit codes, rule IDs, config, baseline and Action interfaces are unchanged from `1.0.0`. It fixes `-f -` (which wrote a file named `-`) so a `scan` report can be piped, explains the `-o`/`-f` mix-up in its error, labels umbrella framework repositories by the package they publish, and cleans up `model_usages`. The two detection changes move results for some repositories; see *Detection changes*.
+
+### Changed
+
+- **A file name given to `-o` gets a hint (#104).** `-o` sets the report format and `-f` the file, the reverse of many tools, so `-o report.html` failed with only "is not one of 'json', 'yaml', 'html', 'sarif'". When the value looks like a file name or path, the error now adds what to type instead: `-o html -f report.html` for `scan` and `skills scan`, and `-o json -d DIR` for `scan-batch` and `scan-org`, which write one file per target. Option names and the exit code (2) are unchanged; `skills baseline -o FILE` is not affected.
+
+### Detection changes
+
+- **A repository that publishes a framework is labelled with that framework (#84).** The framework label went to the first "self-import" of a framework found anywhere in the code, so an umbrella repository that imports a sibling product in one file took that sibling's name: `langchain-ai/langchain` (one test helper imports `deepagents`) was labelled *LangChain Deep Agents*, `microsoft/semantic-kernel` (an interop shim imports `agent_framework`) *Microsoft Agent Framework*, and `microsoft/agent-framework` *AutoGen*. The package names a repository declares for itself (`[project]` or `[tool.poetry]` `name` in `pyproject.toml`, `name` in `package.json`, outside example, test and docs folders) now decide first, in the existing lookup priority. Corpus: microsoft-agent-framework goes from `AutoGen` to `Microsoft Agent Framework 1.23.0`; the other entries are unchanged; two new entries (langchain-monorepo, semantic-kernel) guard the fix. Applications that only depend on a framework are not affected.
+- **`model_usages` lists each model once and drops names that are not models (#86).**
+  - A `provider:` prefix (`openai:gpt-5.4`) was split only in source code; in `.env`, YAML, JSON and TOML it stayed in the name, so the same model appeared twice (`gpt-5.4` and `openai:gpt-5.4`) and some snapshots showed `anthropic:anthropic:claude-sonnet-4-6`. The prefix now always moves into `provider`.
+  - Class names (`Embeddings`, `ChatOpenAI`), tutorial placeholders (`my-llm`, `my_model`) and test doubles (`stub-model`, `conformance-stub`, `mock_llm`) are no longer reported as models.
+  - `text-embedding-004`, `text-embedding-005` and `text-multilingual-embedding-002` are Google's embedding models, not OpenAI's.
+  - A model assigned in code to a name containing `embed` (`self.embedding_model = "..."`) gets `role: embedding`, as in YAML config already.
+  - Corpus: gpt-researcher loses `Embeddings` and reports `text-embedding-004` as Google; langchain-deep-agents loses three doubled-prefix duplicates. Other entries are unchanged.
+
+### Fixed
+
+- **`-f -` writes the report to stdout** in `scan` and `skills scan` (#103). It used to create a file literally named `-` in the current directory, so a `scan` report could not be piped (`quin-scanner scan . --no-llm -o json -f - | jq .agents`). The report is written as UTF-8 with LF line endings even where the console uses another encoding (cp1252 on Windows); progress and messages stay on stderr. Without `-f`, `scan` still writes into `./report/`, and exit codes are unchanged.
+
+## [1.0.0] — 2026-11-13
+
+**First stable release.** The code is the same as `1.0.0rc3`: only the version number, the package classifier and the documentation change, so there is nothing to migrate from any release candidate. From this release the CLI and its exit codes, the JSON/YAML report schema (`schema_version` 1.0), SARIF output and rule IDs, and the config, baseline and GitHub Action interfaces follow the [stability policy](https://github.com/Gaincontrol-Pte-Ltd/quin-agent-scanner/blob/v1.0.0/docs/stability.md): a breaking change needs a deprecation first and a new major version. Upgrading from a 0.1 beta? Read [Migrating from the betas](https://github.com/Gaincontrol-Pte-Ltd/quin-agent-scanner/blob/v1.0.0/docs/migrating-from-the-betas.md). Everything that changed since `0.1.0b5` is in the `1.0.0rc1`, `1.0.0rc2` and `1.0.0rc3` entries of the [CHANGELOG](https://github.com/Gaincontrol-Pte-Ltd/quin-agent-scanner/blob/v1.0.0/CHANGELOG.md).
+
+### Changed
+
+- **`@v1` follows stable releases.** `uses: Gaincontrol-Pte-Ltd/quin-agent-scanner@v1` now runs `1.0.0` and moves with each later 1.x release; until now `v1` pointed at `0.1.0b4`. `@beta` stays on the latest pre-release, and an exact tag such as `@v1.0.0` stays reproducible. The README and docs examples use `@v1`.
+- **`pip install quin-scanner` installs 1.0.0** without `--pre`. The package is classified `Development Status :: 5 - Production/Stable`.
+- **Security support moves to 1.x.** The 0.1 betas no longer receive fixes; upgrade to 1.0.0 (see [SECURITY.md](https://github.com/Gaincontrol-Pte-Ltd/quin-agent-scanner/blob/v1.0.0/SECURITY.md)).
+- The stability policy no longer lists macOS and Windows support as planned: CI has tested Linux, macOS and Windows on Python 3.11 to 3.13 since `1.0.0rc1`, and the policy already said so in its current section, which now appears once.
+
+## [1.0.0rc3] — 2026-11-04
+
+**Third release candidate for 1.0.** It fixes a security problem in the HTML report that affects every earlier release, makes a missing LLM key fail at once, and replaces the license file with the exact Apache-2.0 text. The CLI, report schema, rule IDs, config, baseline and Action interfaces are unchanged from `1.0.0rc2`, so there is no migration; the soak period restarts with this release.
+
+### Security
+
+- **HTML report: a scanned repository could blank the report.** The report embedded its JSON data with only `</` escaped, so a name such as `<!--<script>` in an agent, tool or file path left the browser showing the page header and nothing else, which let a repository hide its agents from whoever opened the report. `<`, `>` and `&` are now escaped inside the embedded data, so the report renders in full and shows such names as plain text. Affects `1.0.0rc1`, `1.0.0rc2` and the 0.1 betas; JSON, YAML and SARIF output were not affected.
+
+### Changed
+
+- **A missing LLM API key now stops the scan at once.** `quin-scanner scan`, `scan-batch` and `scan-org` run LLM analysis by default. Without a key the scan used to run to the end and then fail with the SDK's own message, discarding the whole result (minutes on a large repository). The provider is now opened before scanning, so the command fails in about a second with one line that says what to do: pass `--llm-api-key`, set the provider's key variable, or use `--no-llm`. An unknown `--llm-provider` fails the same way. Exit code (1) and the cases that fail are unchanged.
+- **A note for large repositories scanned with the `owner/repo` shorthand.** The shorthand fetches every file with its own request, which is slow at this size (`pallets/flask`, 236 files: 37 s, against 3 s for a clone). From 150 files on, one line on stderr names the URL form (`https://github.com/owner/repo`), which clones once. Results are identical; only the note is new.
+- **`LICENSE` is now the exact Apache-2.0 text, and a `NOTICE` file carries the copyright line.** The old file was a reworded copy that GitHub could not recognise; the license itself is unchanged (`Apache-2.0` in the package metadata and the README). Both files ship in the wheel and the sdist.
+- The release workflow now stops before building if the tag, `pyproject.toml`, `quin_scanner.__version__` and the CHANGELOG disagree (the `--version` of a published wheel can no longer differ from its tag).
+- Dependency updates within the existing ceilings: `google-genai` 2.34.0 and `certifi` 2026.10.23.
+
 
 ## [1.0.0rc2] — 2026-11-01
 
@@ -352,7 +398,10 @@ This changelog was not split per beta, so the sections below also list changes f
 
 ---
 
-[Unreleased]: https://github.com/Gaincontrol-Pte-Ltd/quin-agent-scanner/compare/v1.0.0rc2...HEAD
+[Unreleased]: https://github.com/Gaincontrol-Pte-Ltd/quin-agent-scanner/compare/v1.0.1...HEAD
+[1.0.1]: https://github.com/Gaincontrol-Pte-Ltd/quin-agent-scanner/releases/tag/v1.0.1
+[1.0.0]: https://github.com/Gaincontrol-Pte-Ltd/quin-agent-scanner/releases/tag/v1.0.0
+[1.0.0rc3]: https://github.com/Gaincontrol-Pte-Ltd/quin-agent-scanner/releases/tag/v1.0.0rc3
 [1.0.0rc2]: https://github.com/Gaincontrol-Pte-Ltd/quin-agent-scanner/releases/tag/v1.0.0rc2
 [1.0.0rc1]: https://github.com/Gaincontrol-Pte-Ltd/quin-agent-scanner/releases/tag/v1.0.0rc1
 [0.1.0b5]: https://github.com/Gaincontrol-Pte-Ltd/quin-agent-scanner/releases/tag/v0.1.0b5
