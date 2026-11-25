@@ -9,6 +9,10 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **`--format` is a long alias for `-o`** on `scan`, `scan-batch`, `scan-org` and `skills scan` (#104). In many tools `-o` is the output file; in Quin it is the format and `-f` the file, and both letters are frozen in 1.x. `--format json -f report.json` now reads the way most people expect. `-o` and `--output` keep working unchanged, and `skills baseline -o FILE` (where `-o` is the file) is not affected.
+
 ## [1.0.1] — 2026-11-13
 
 **First patch release of 1.x.** The CLI, report schema (`schema_version` 1.0), exit codes, rule IDs, config, baseline and Action interfaces are unchanged from `1.0.0`. It fixes `-f -` (which wrote a file named `-`) so a `scan` report can be piped, explains the `-o`/`-f` mix-up in its error, labels umbrella framework repositories by the package they publish, and cleans up `model_usages`. The two detection changes move results for some repositories; see *Detection changes*.

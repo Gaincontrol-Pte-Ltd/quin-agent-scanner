@@ -216,7 +216,7 @@ Common `scan` options:
 
 | Option | Meaning |
 |---|---|
-| `-o json\|yaml\|html\|sarif`, `-f FILE`, `-d DIR` | Output format, file (`-f -` for stdout), or output directory. |
+| `-o json\|yaml\|html\|sarif` (or `--format`), `-f FILE`, `-d DIR` | Output format, file (`-f -` for stdout), or output directory. `-o` is the format and `-f` the file. |
 | `--no-llm` | Static analysis only; no LLM provider or API key. |
 | `--llm-provider`, `--llm-model`, `--llm-api-key`, `--openai-compatible-url`, `-c/--config` | Choose and configure the LLM provider. |
 | `--no-vuln-check`, `--vuln-search-provider` | Skip or configure vulnerability lookups. |
