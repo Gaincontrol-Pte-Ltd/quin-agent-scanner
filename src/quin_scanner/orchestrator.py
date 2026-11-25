@@ -338,7 +338,11 @@ _TEST_PATH_PATTERNS = re.compile(
 )
 
 # Placeholder model name patterns to reject entirely
-_PLACEHOLDER_PREFIXES = ("your_", "test-", "mock-", "fake-", "dummy-", "example-")
+_PLACEHOLDER_PREFIXES = ("your_", "test-", "mock-", "fake-", "dummy-", "example-", "my-", "my_")
+# A name containing one of these words is a test double, not a model: stub-model, conformance-stub, mock_llm.
+_PLACEHOLDER_WORDS = frozenset({"stub", "mock", "fake", "dummy", "placeholder"})
+# A capitalised word without digits or separators is a class name (Embeddings, ChatOpenAI), not a model ID.
+_CLASS_NAME = re.compile(r"^[A-Z][A-Za-z]*$")
 _PLACEHOLDER_EXACT = frozenset({
     "model_id", "model_name", "model", "<model>", "your-model-here",
     "your-model", "placeholder", "model_id_here", "model-id",
@@ -354,6 +358,10 @@ def _is_placeholder_model(model_name: str) -> bool:
     if lower in _PLACEHOLDER_EXACT:
         return True
     if any(lower.startswith(p) for p in _PLACEHOLDER_PREFIXES):
+        return True
+    if _PLACEHOLDER_WORDS & set(re.split(r"[-_.:/]+", lower)):
+        return True
+    if _CLASS_NAME.match(model_name):
         return True
     # Template values like YOUR_VALUE_HERE
     if lower.startswith("your_") or lower.startswith("your-"):
@@ -813,13 +821,54 @@ _FRAMEWORKS_LOOKUP: dict | None = None
 _FRAMEWORK_TO_PACKAGES: dict[str, list[str]] | None = None
 
 
-def _detect_framework(findings: list) -> str:
+# Folders whose manifests and markers describe an example or a test, not the repository itself.
+_SECONDARY_DIR_SEGMENTS = frozenset({
+    "examples", "example", "demos", "demo", "docs", "doc",
+    "test", "tests", "sample", "samples", "notebooks",
+})
+
+
+def _normalise_package_name(name: str) -> str:
+    """PEP 503-style: case and `_`/`.`/`-` runs do not distinguish package names (npm scopes keep their `@` and `/`)."""
+    return re.sub(r"[-_.]+", "-", name.strip().lower())
+
+
+def _declared_package_names(accessor: RepoAccessor, file_index: FileIndex) -> set[str]:
+    """Names of the packages this repository publishes: `pyproject.toml` ([project] or [tool.poetry]) and
+    `package.json`, outside example, test and docs folders. Unreadable or malformed manifests are skipped."""
+    import json
+    import tomllib
+
+    names: set[str] = set()
+    for path in file_index.all_files():
+        filename = Path(path).name
+        if filename not in ("pyproject.toml", "package.json"):
+            continue
+        if {part.lower() for part in Path(path).parts[:-1]} & _SECONDARY_DIR_SEGMENTS:
+            continue
+        try:
+            text = accessor.read_file(path)
+            if filename == "package.json":
+                data = json.loads(text)
+                name = data.get("name") if isinstance(data, dict) else None
+            else:
+                data = tomllib.loads(text)
+                name = data.get("project", {}).get("name") or data.get("tool", {}).get("poetry", {}).get("name")
+        except Exception:
+            continue
+        if isinstance(name, str) and name.strip():
+            names.add(_normalise_package_name(name))
+    return names
+
+
+def _detect_framework(findings: list, declared_packages: set[str] | frozenset[str] = frozenset()) -> str:
     """Rule-based framework detection from scanner findings.
 
-    Priority: file markers > code pattern imports > package names.
-    Code pattern imports rank above packages because internal imports (e.g.
-    ``from metagpt.xxx``) reveal what the repo IS, while dependency listings
-    may include other frameworks used as optional integrations.
+    Priority: published package > file markers > code pattern imports > package names.
+    A package the repository publishes (``declared_packages``, its own manifest names) says what it IS, even when
+    it imports a sibling product somewhere (#84). Code pattern imports rank above dependencies because internal
+    imports (e.g. ``from metagpt.xxx``) reveal what the repo is, while dependency listings may include other
+    frameworks used as optional integrations.
     """
     global _FRAMEWORKS_LOOKUP
     if _FRAMEWORKS_LOOKUP is None:
@@ -828,11 +877,13 @@ def _detect_framework(findings: list) -> str:
     file_markers = _FRAMEWORKS_LOOKUP.get("file_markers", {})
     packages = _FRAMEWORKS_LOOKUP.get("packages", {})
 
-    # Pass 1: file markers (highest priority) — skip markers found in example/demo/test dirs
-    _SECONDARY_DIR_SEGMENTS = frozenset({
-        "examples", "example", "demos", "demo", "docs", "doc",
-        "test", "tests", "sample", "samples", "notebooks",
-    })
+    # Pass 0: the repository publishes a framework package (most specific first, as in the lookup)
+    if declared_packages:
+        for pkg, framework in packages.items():
+            if _normalise_package_name(pkg) in declared_packages:
+                return framework
+
+    # Pass 1: file markers — skip markers found in example/demo/test dirs
     for f in findings:
         if f.scanner_name == "FrameworkMarkerScanner":
             path_parts = set(Path(f.file_path).parts[:-1])
@@ -1066,10 +1117,16 @@ def _sanitise_model_usages(
     """
     from quin_scanner.models import ModelUsage
 
+    from quin_scanner.model_identifier import _split_colon_prefix
+
     production: list[ModelUsage] = []
     test_count = 0
 
     for u in usages:
+        # "openai:gpt-5.4" is gpt-5.4 from openai: only the code scanner split the prefix (#86)
+        provider_hint, name = _split_colon_prefix(u.model_name)
+        if provider_hint:
+            u.model_name, u.provider = name, provider_hint
         if _is_placeholder_model(u.model_name):
             continue
         if _is_test_path(u.file_path):
@@ -1091,6 +1148,20 @@ def _sanitise_model_usages(
     return list(best.values()), test_count
 
 
+def _open_llm_provider(config: ScannerConfig):
+    """The configured LLM provider, or an error that says how to run without one."""
+    try:
+        return config.provider_factory()
+    except ValueError:
+        raise  # unknown provider: the message already names it
+    except Exception as e:
+        raise RuntimeError(
+            f"Cannot start LLM analysis with provider '{config.llm_provider}': {str(e).rstrip('.')}. "
+            "Pass --llm-api-key or set the provider's API key variable, "
+            "or use --no-llm for static-only scanning."
+        ) from e
+
+
 class ScanOrchestrator:
     """Ties together repo access, file indexing, scanners, LLM synthesis, and reporting."""
 
@@ -1100,6 +1171,10 @@ class ScanOrchestrator:
         # 0. Load the skills baseline first: a missing/malformed file fails the scan (BaselineError).
         skills_baseline = load_baseline(config.skills_baseline_path) if config.skills_baseline_path else None
         skills_baseline_result: BaselineResult | None = None
+
+        # 0b. Open the LLM provider before any scanning, so a missing key or an unknown provider fails
+        # at once instead of after a long scan whose results would be thrown away.
+        llm_provider = None if config.no_llm else _open_llm_provider(config)
 
         # 1. Build file index
         if verbose:
@@ -1240,7 +1315,7 @@ class ScanOrchestrator:
         ]
 
         # 5c. Rule-based framework candidate (passed to synthesis as anchor)
-        framework_candidate = _detect_framework(all_findings)
+        framework_candidate = _detect_framework(all_findings, _declared_package_names(cached_accessor, file_index))
         if verbose and test_model_count:
             _log(f"  {test_model_count} test-file model reference{'s' if test_model_count != 1 else ''} excluded")
 
@@ -1252,7 +1327,7 @@ class ScanOrchestrator:
         digest: _Digest | None = None
         if not config.no_llm:
             summaries = _pre_summarise(all_findings)
-            provider = config.provider_factory()
+            provider = llm_provider
             skills_provider = provider
             if verbose:
                 _log("\nRunning risk classification (pass 1)...")
