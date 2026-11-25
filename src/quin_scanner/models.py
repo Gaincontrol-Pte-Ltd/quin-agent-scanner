@@ -187,13 +187,30 @@ class MCPServer:
     name: str
     transport: str = "unknown"           # "stdio" | "http" | "sse" | "unknown"
     source_file: str = ""
+    source: str = "config"               # "config": named in a client config file; "code": implemented in the repository
+    # Only for source "code" (and only serialised then):
+    line: int | None = None
+    scope: str = "production"            # "production" | "test" | "example"
+    language: str = ""                   # "python" | "typescript" | "javascript"
+    sdk: str = ""                        # the package the server class comes from: "mcp", "fastmcp", "@modelcontextprotocol/sdk", ...
+    tools: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        data: dict[str, Any] = {
             "name": self.name,
             "transport": self.transport,
             "source_file": self.source_file,
+            "source": self.source,
         }
+        if self.source == "code":
+            data.update({
+                "line": self.line,
+                "scope": self.scope,
+                "language": self.language,
+                "sdk": self.sdk,
+                "tools": list(self.tools),
+            })
+        return data
 
 
 @dataclass

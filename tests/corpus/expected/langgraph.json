@@ -18,8 +18,10 @@
   "confidence": 0.99,
   "framework": "LangGraph 1.0.1",
   "is_ai_application": true,
-  "mcp_servers": [],
+  "mcp_servers": [
+    "Email Tools"
+  ],
   "models": [],
   "risk_signals": {},
-  "tools": 18
+  "tools": 21
 }

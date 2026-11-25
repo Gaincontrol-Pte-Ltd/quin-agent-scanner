@@ -165,7 +165,14 @@
   "confidence": 0.99,
   "framework": "OpenAI Agents SDK 0.24.0",
   "is_ai_application": true,
-  "mcp_servers": [],
+  "mcp_servers": [
+    "Echo Server",
+    "Echo Server",
+    "Echo Server",
+    "FastAPI Example Server",
+    "Prompt Server",
+    "Reference Policy Server"
+  ],
   "models": [
     "openai:gpt-4.1",
     "openai:gpt-4o-mini",
@@ -182,5 +189,5 @@
     "unknown:some-custom-model"
   ],
   "risk_signals": {},
-  "tools": 94
+  "tools": 105
 }

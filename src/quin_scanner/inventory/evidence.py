@@ -47,7 +47,7 @@ class AgentSite:
 class ToolSite:
     """One place that defines a tool (not a reference to one in a tools=[...] list)."""
     name: str
-    kind: str                                  # the scanner's label: "@tool", "BaseTool", "config", "function", ...
+    kind: str                                  # the scanner's label: "@tool", "BaseTool", "config", "function", "mcp" (an MCP server tool), ...
     file_path: str
     line: int | None
 

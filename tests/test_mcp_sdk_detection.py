@@ -1,7 +1,7 @@
-"""A repository that builds on the MCP SDK is recognised (issue #71, reduced scope).
+"""A repository that builds on the MCP SDK is recognised (issue #71).
 
-Listing the servers a repository implements, separately from the ones it configures, needs a new report field
-and is deferred to schema 1.1; these tests pin that `mcp_servers` is unchanged.
+Since schema 1.1 the servers it implements are listed in `mcp_servers` with `source: code`
+(tests/test_mcp_code_servers.py).
 """
 from __future__ import annotations
 
@@ -46,9 +46,12 @@ def test_a_typescript_mcp_server_project_is_recognised(tmp_path):
     assert "tool-use" in report["capability_tags"]
 
 
-def test_implemented_servers_are_not_listed_as_configured_servers(tmp_path):
-    # Deferred to schema 1.1: mcp_servers keeps its meaning (servers named in configuration files).
-    assert _scan(tmp_path, PY_SERVER)["mcp_servers"] == []
+def test_implemented_servers_are_listed_apart_from_configured_servers(tmp_path):
+    # Schema 1.1: an implemented server is an mcp_servers entry with source "code", never a configured one.
+    for name, files in (("py", PY_SERVER), ("ts", TS_SERVER)):
+        (tmp_path / name).mkdir()
+        servers = _scan(tmp_path / name, files)["mcp_servers"]
+        assert [(s["name"], s["source"]) for s in servers] == [("demo", "code")]
 
 
 def test_depending_on_the_sdk_does_not_name_a_framework(tmp_path):

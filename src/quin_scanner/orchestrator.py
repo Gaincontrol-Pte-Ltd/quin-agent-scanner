@@ -36,7 +36,7 @@ from quin_scanner.vuln_checker import VulnChecker, parse_framework_ref
 from quin_scanner.repo_accessor import RepoAccessor
 from quin_scanner.file_fingerprint import compute_file_fingerprint
 from quin_scanner.scanners.zino import ZinoScanner, classify_governance
-from quin_scanner.scanners.mcp_scanner import discover_mcp_servers
+from quin_scanner.scanners.mcp_scanner import discover_implemented_mcp_servers, discover_mcp_servers
 from quin_scanner.scanners.base import BaseScanner, EvidenceProducer
 from quin_scanner.scanners.ci_scanner import CIScanner
 from quin_scanner.scanners.code_pattern import CodePatternScanner
@@ -620,6 +620,7 @@ def _skill_tool_usages(skill_scanner: SkillScanner | None) -> list[ToolUsage]:
 
 def _build_inventory(
     scanners: list[BaseScanner], skill_scanner: SkillScanner | None, tool_services: list[ToolUsage],
+    mcp_tool_sites: list[ToolSite] | None = None,
 ) -> tuple[Inventory, str | None]:
     """Resolve the scanners' typed evidence into the inventory; on an internal error, weak agents and no tool definitions.
 
@@ -628,7 +629,7 @@ def _build_inventory(
     scanners take them from the FileIndex, which already uses ``/``.
     """
     agent_sites: list[AgentSite] = []
-    tool_sites: list[ToolSite] = []
+    tool_sites: list[ToolSite] = list(mcp_tool_sites or [])
     extras: list[ToolUsage] = list(tool_services)
     try:
         for scanner in scanners:
@@ -786,10 +787,12 @@ def _classify_tool_usages(
     """Classify tool_usages in-place as skill / mcp_tool based on heuristics.
 
     - Skill: source_file is a .md file inside a skill-like directory
-    - MCP tool: tool_name matches an MCP server name
+    - MCP tool: tool_name matches a configured MCP server name (tools of implemented servers are typed by the resolver)
     - Everything else keeps its existing tool_type
     """
-    mcp_names = {s.name.lower() for s in mcp_servers}
+    # Configured servers only: an implemented server's tools are already typed by the resolver, and its name is often
+    # generic ("calculator", "test"), so matching it would retype unrelated tools.
+    mcp_names = {s.name.lower() for s in mcp_servers if getattr(s, "source", "config") != "code"}
 
     for t in tool_usages:
         # Don't reclassify external_service or already-identified skill entries
@@ -1285,11 +1288,16 @@ class ScanOrchestrator:
         mcp_servers = (
             discover_mcp_servers(tracked_accessor, file_index) if "mcp" in config.enabled_scanners else []
         ) or _extract_mcp_servers(all_findings)
+        # Servers the repository implements (source: code), and their tools as inventory evidence.
+        mcp_tool_sites: list[ToolSite] = []
+        if "mcp" in config.enabled_scanners:
+            implemented, mcp_tool_sites = discover_implemented_mcp_servers(cached_accessor, file_index)
+            mcp_servers = mcp_servers + implemented
         infra = _extract_infra(all_findings)
         tool_services = _extract_tool_services(all_findings)
 
         # 4b. The inventory of record: agents with instances, tools and agent-tool links from static evidence only.
-        agent_inventory, inventory_error = _build_inventory(scanners, skill_scanner, tool_services)
+        agent_inventory, inventory_error = _build_inventory(scanners, skill_scanner, tool_services, mcp_tool_sites)
         # Classify tool types and split agent skills now, so the synthesis LLM sees the inventory as reported.
         _classify_tool_usages(agent_inventory.tools, mcp_servers)
         _split_agent_skills(agent_inventory.agents, agent_inventory.tools)
@@ -1366,7 +1374,8 @@ class ScanOrchestrator:
             evidence_facts = EvidenceFacts(
                 system_types=frozenset(classification.system_types if classification else []),
                 capability_tags=frozenset(capability_tags),
-                mcp_servers_count=len(mcp_servers),
+                # Servers implemented only in test or example code do not make the repository MCP-enabled.
+                mcp_servers_count=sum(1 for s in mcp_servers if s.source != "code" or s.scope == "production"),
                 agent_instances_count=len(agent_inventory.agents),
                 tool_definitions_count=sum(1 for t in agent_inventory.tools if t.tool_type == "tool_definition"),
                 external_service_categories=frozenset(

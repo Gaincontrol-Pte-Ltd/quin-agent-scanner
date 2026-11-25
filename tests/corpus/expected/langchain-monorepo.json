@@ -27,8 +27,32 @@
   "framework": "LangChain 1.8.0",
   "is_ai_application": true,
   "mcp_servers": [
+    "booking",
+    "calc",
+    "calc",
+    "calc",
+    "calculator",
+    "calendar",
+    "crm",
     "docs-langchain",
-    "reference-langchain"
+    "files",
+    "flaky",
+    "greet",
+    "in-process",
+    "langchain",
+    "langchain",
+    "langchain",
+    "langchain",
+    "langchain",
+    "legacy",
+    "reference-langchain",
+    "restaurant",
+    "survey",
+    "test",
+    "unanswerable",
+    "unavailable",
+    "weather",
+    "weather"
   ],
   "models": [
     "anthropic:claude-opus-4-7",
@@ -46,5 +70,5 @@
     "unknown:some-other-model"
   ],
   "risk_signals": {},
-  "tools": 132
+  "tools": 154
 }

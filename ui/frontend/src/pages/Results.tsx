@@ -216,8 +216,9 @@ function McpRow({ s }: { s: MCPServer }) {
   return (
     <tr>
       <td style={{ fontWeight: 600, fontSize: '.85rem' }}>{s.name}</td>
-      <td><span style={{ fontSize: '.72rem', padding: '2px 7px', borderRadius: 4, background: '#ecfdf5', color: '#065f46', border: '1px solid #a7f3d0', fontFamily: 'Fira Code, monospace' }}>{s.transport}</span></td>
-      <td style={{ fontFamily: 'Fira Code, monospace', fontSize: '.75rem', color: T.muted }}>{s.source_file ?? '—'}</td>
+      <td style={{ fontSize: '.78rem', color: T.muted }}>{s.source === 'code' ? `Implemented (${(s.tools ?? []).length} tools)` : 'Configured'}</td>
+      <td><span style={{ fontSize: '.72rem', padding: '2px 7px', borderRadius: 4, background: '#ecfdf5', color: '#065f46', border: '1px solid #a7f3d0', fontFamily: 'Fira Code, monospace' }}>{s.source === 'code' ? '—' : s.transport}</span></td>
+      <td style={{ fontFamily: 'Fira Code, monospace', fontSize: '.75rem', color: T.muted }}>{s.source_file ? (s.line != null ? `${s.source_file}:${s.line}` : s.source_file) : '—'}</td>
     </tr>
   );
 }
@@ -497,7 +498,7 @@ export default function Results() {
           )}
 
           {activeTab === 'mcp' && (
-            <DataTable headers={['Server Name', 'Transport', 'Source File']} empty={report.mcp_servers.length === 0}>
+            <DataTable headers={['Server Name', 'Origin', 'Transport', 'Source File']} empty={report.mcp_servers.length === 0}>
               {report.mcp_servers.map((s, i) => <McpRow key={i} s={s} />)}
             </DataTable>
           )}
