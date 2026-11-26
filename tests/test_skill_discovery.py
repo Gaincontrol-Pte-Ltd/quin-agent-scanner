@@ -104,6 +104,18 @@ def test_discover_mcp_sources_finds_tool_definitions(tmp_path):
     assert sorted(rec.files) == ["server.py", "tools.json"]
 
 
+def test_discover_mcp_sources_includes_typescript_server_files(tmp_path):
+    # A low-level TypeScript server uses none of the high-level markers (#71); an SDK client is not a server.
+    _write(tmp_path, "src/index.ts", 'import { Server } from "@modelcontextprotocol/sdk/server/index.js";\n'
+                                     'const server = new Server({ name: "low" }, {});\n')
+    _write(tmp_path, "src/tool.ts", 'import { McpServer } from "@modelcontextprotocol/server";\n')
+    _write(tmp_path, "src/client.ts", 'import { Client } from "@modelcontextprotocol/sdk/client/index.js";\n')
+    _write(tmp_path, "mcp.json", '{"mcpServers": {"fs": {"command": "npx", "args": ["@modelcontextprotocol/server-filesystem"]}}}')
+    accessor, fi = _index(tmp_path)
+    rec = discover_mcp_sources(accessor, fi)
+    assert rec is not None and sorted(rec.files) == ["src/index.ts", "src/tool.ts"]
+
+
 def test_discover_mcp_sources_reports_read_cap(monkeypatch, tmp_path):
     monkeypatch.setattr("quin_scanner.scanners.skills.discovery._MCP_MAX_FILES_READ", 2)
     for i in range(4):

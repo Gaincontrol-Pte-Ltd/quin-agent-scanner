@@ -35,7 +35,7 @@ Within a major schema version:
 | `agents` | always | list of object | Agents (one per logical agent) with their instances, tools, skills and risk signals. |
 | `tool_usages` | always | list of object | Tool definitions, external services, skills and MCP tools in use. |
 | `risk_signals` | always | list of object | Repo-level risks (threat ID, severity, controls, evidence). |
-| `mcp_servers` | always | list of object | MCP servers and transports found in config. |
+| `mcp_servers` | always | list of object | MCP servers named in config files and (1.1+) implemented in the repository. |
 | `infra` | always | object or null | Infrastructure profile (Docker, CI, IaC), `null` when none found. |
 | `vulnerabilities` | always | list of object | Known vulnerabilities for the detected framework version. |
 | `artifacts` | always | list of object | Deduplicated scanner findings. |
@@ -67,6 +67,8 @@ Within a major schema version:
 **Tool usage** (1.1 additions): `id` (`tool:<name>`, or `tool:<name>@<path>` when two files define the name) and `scope`.
 
 **Agent-tool relationship** (1.1 additions): `agent_id`, `instance_id`, `tool_id` (string or null).
+
+**MCP server**: `name`, `transport`, `source_file`. 1.1 additions: `source`, `config` for a server named in an MCP client config file (`.mcp.json`, `claude_desktop_config.json`, ...) and `code` for one the repository implements (`FastMCP(...)`, `MCPServer(...)` or the low-level `Server(...)` from the Python SDK, `new McpServer(...)` or `new Server(...)` from the TypeScript SDK). A `code` entry also has `line`, `scope`, `language`, `sdk` (the package the server class comes from) and `tools` (the names of the tools registered on it, each also a tool usage of type `mcp_tool` with its own ID and scope); its `name` is the literal name given to the constructor, else the nearest package name (`pyproject.toml` or `package.json`), else the directory name, and its `transport` is `unknown` (a server's transport is chosen when it is run, not where it is built). Entries without `source` come from a report older than 1.1 and are `config` entries.
 
 **LLM-inferred item**: `name`, `evidence`, `file`. These have no ID and are never part of the inventory, the BOM or divergence findings.
 
