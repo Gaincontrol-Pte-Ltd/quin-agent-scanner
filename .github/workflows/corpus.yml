@@ -33,11 +33,11 @@ jobs:
             exit 0
           fi
           changed="$(git diff --name-only "origin/$BASE_REF...HEAD")"
-          if grep -E -q '^(src/quin_scanner/(scanners|rules)/|src/quin_scanner/(orchestrator|file_index|repo_accessor|models|config|cli|risk_taxonomy)\.py|tests/corpus/|scripts/run_corpus\.py|pyproject\.toml|uv\.lock)' <<<"$changed"; then
+          if grep -E -q '^(src/quin_scanner/(scanners|rules)/|src/quin_scanner/(orchestrator|file_index|repo_accessor|models|config|cli|risk_taxonomy)\.py|src/quin_scanner/(cyclonedx|report)\.py|tests/cyclonedx_support\.py|tests/cyclonedx_schema/|tests/corpus/|scripts/run_corpus\.py|pyproject\.toml|uv\.lock)' <<<"$changed"; then
             echo "relevant=true" >> "$GITHUB_OUTPUT"
           else
             echo "relevant=false" >> "$GITHUB_OUTPUT"
-            echo "No scanner, rule or corpus files changed; skipping the corpus run."
+            echo "No scanner, rule, BOM or corpus files changed; skipping the corpus run."
           fi
 
       - name: Snapshots changed without a CHANGELOG entry

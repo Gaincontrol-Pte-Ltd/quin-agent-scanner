@@ -34,13 +34,18 @@ def skills(tmp_path):
     return tmp_path / "skills"
 
 
-@pytest.mark.parametrize("fmt, parse", [("json", json.loads), ("yaml", yaml.safe_load), ("sarif", json.loads)])
+@pytest.mark.parametrize(
+    "fmt, parse", [("json", json.loads), ("yaml", yaml.safe_load), ("sarif", json.loads), ("cyclonedx", json.loads)]
+)
 def test_scan_dash_writes_the_report_to_stdout(tmp_path, repo, monkeypatch, fmt, parse):
     monkeypatch.chdir(tmp_path)
     result = CliRunner().invoke(cli, ["scan", str(repo), *FAST, "-o", fmt, "-f", "-"])
     assert result.exit_code == 0, result.stderr
     data = parse(result.stdout)
-    if fmt != "sarif":
+    if fmt == "cyclonedx":
+        assert data["bomFormat"] == "CycloneDX"
+        assert "Größe – 検索" in [c["name"] for c in data.get("components", [])]
+    elif fmt != "sarif":
         assert data["is_ai_application"] is True
         assert "Größe – 検索" in [a["name"] for a in data["agents"]]
     assert not (tmp_path / "-").exists()

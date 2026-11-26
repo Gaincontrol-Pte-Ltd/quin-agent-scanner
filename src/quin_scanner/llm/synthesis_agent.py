@@ -90,9 +90,9 @@ Rules:
 - agent_type must be one of: supervisor, utility, worker, unknown
 
 - framework: Identify the PRIMARY AI framework the repo is built WITH (not a dependency it
-  uses). Use the FRAMEWORK CANDIDATE (rule-based) in the evidence as your anchor. If the
-  candidate is more specific than what you detect, prefer your detection. If the candidate
-  is 'unknown', derive from all available evidence. NEVER return 'unknown' if any framework
+  uses). When the FRAMEWORK CANDIDATE is not 'unknown', return it unchanged unless the
+  evidence clearly shows a different primary framework. If the candidate is 'unknown',
+  derive it from all available evidence. NEVER return 'unknown' if any framework
   evidence is present — use 'LangChain', 'CrewAI', 'AutoGen', 'OpenAI Agents SDK',
   'Anthropic Agent SDK', 'Google ADK', 'Strands Agents', 'Microsoft Agent Framework',
   'LangChain Deep Agents', 'Agno', 'Mastra',
@@ -206,7 +206,7 @@ def _build_evidence_block(
     lines: list[str] = []
 
     lines.append(f"FRAMEWORK CANDIDATE (rule-based): {framework_candidate}")
-    lines.append("Confirm if correct, or override with a more specific framework name.\n")
+    lines.append("Confirm it, or name the framework if the candidate is unknown.\n")
 
     lines.append(f"Capability tags: {', '.join(capability_tags) if capability_tags else 'none'}")
 
@@ -403,7 +403,7 @@ def _parse_synthesis_response(raw: str) -> SynthesisResult:
 
     return SynthesisResult(
         is_ai_application=bool(data.get("is_ai_application", False)),
-        framework=data.get("framework", "unknown") or "unknown",
+        framework=_clean_text(data.get("framework"), _MAX_NAME) or "unknown",
         summary=data.get("summary", ""),
         enrichment=enrichment,
         tool_enrichment=tool_enrichment,

@@ -17,7 +17,7 @@ Within a major schema version:
 - Paths are repo-relative and use `/` as the separator. `line_number` is 1-based or `null`.
 - `confidence` is a number from 0.0 to 1.0.
 - Severities are `critical`, `high`, `medium`, `low` or `info`. Skill verdicts are `SAFE`, `CAUTION` or `HIGH_RISK`.
-- `metadata` and `coverage` are **open maps**: their keys depend on the flags used and the scanners that ran (for example `skills_*` coverage keys appear only when the skills scanner ran, and `files_skipped_too_large` only when a file over 10 MiB was skipped). Keys documented here are stable; other keys are informational and may change. Informational `metadata` keys added in 1.1, each present only when it applies: `inventory_error`, `llm_unenriched_agents`, `llm_unlisted_tools`, `llm_unknown_ids` and `llm_unlisted_ids`.
+- `metadata` and `coverage` are **open maps**: their keys depend on the flags used and the scanners that ran (for example `skills_*` coverage keys appear only when the skills scanner ran, and `files_skipped_too_large` only when a file over 10 MiB was skipped). Keys documented here are stable; other keys are informational and may change. Informational `metadata` keys added in 1.1, each present only when it applies: `inventory_error`, `llm_unenriched_agents`, `llm_unlisted_tools`, `llm_unknown_ids`, `llm_unlisted_ids`, `framework_source` (`static` or `llm`: where `framework` came from; absent when it is `unknown`) and `llm_framework` (the LLM's framework when it differs from the static one, which is kept).
 
 ## Top-level report fields
 

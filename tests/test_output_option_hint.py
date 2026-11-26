@@ -18,6 +18,7 @@ def _err(args):
     ("out/x.sarif", "-o sarif -f out/x.sarif"),
     ("r.YML", "-o yaml -f r.YML"),
     ("reports/latest", "-f reports/latest"),
+    ("bom.cdx.json", "-o cyclonedx -f bom.cdx.json"),
 ])
 def test_scan_points_a_file_name_to_dash_f(tmp_path, value, suggestion):
     err = _err(["scan", str(tmp_path), "--no-llm", "-o", value])

@@ -193,7 +193,8 @@
             "json",
             "yaml",
             "html",
-            "sarif"
+            "sarif",
+            "cyclonedx"
           ]
         }
       },
@@ -412,7 +413,8 @@
             "json",
             "yaml",
             "html",
-            "sarif"
+            "sarif",
+            "cyclonedx"
           ]
         }
       },
@@ -578,7 +580,8 @@
             "json",
             "yaml",
             "html",
-            "sarif"
+            "sarif",
+            "cyclonedx"
           ]
         }
       },
