@@ -398,8 +398,10 @@ def _resolve_tools(tool_sites: Iterable[ToolSite], extra_tools: Iterable[ToolUsa
     for name, files in by_name.items():
         collision = len(files) > 1
         for path, sites in files.items():
+            # A tool registered on an MCP server the repository implements (#71) is an MCP tool.
+            tool_type = "mcp_tool" if any(s.kind == "mcp" for s in sites) else "tool_definition"
             tools.append(ToolUsage(
-                tool_name=name, tool_type="tool_definition", source_file=path, line_number=sites[0].line,
+                tool_name=name, tool_type=tool_type, source_file=path, line_number=sites[0].line,
                 id=f"tool:{name}@{path}" if collision else f"tool:{name}", scope=scope_of(path),
             ))
     # Skills and external services, in a fixed order: the first of a name (case-insensitive) wins, except that an

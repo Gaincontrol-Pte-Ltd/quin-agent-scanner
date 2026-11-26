@@ -425,6 +425,22 @@ class TestServices:
             ("service:mcp:fs", "a/.mcp.json"), ("service:mcp:fs#2", "b/.mcp.json"),
         ]
 
+    def test_implemented_mcp_server_carries_scope_sdk_and_tools(self):
+        server = MCPServer(name="mcp-git", source_file="src/git/server.py", source="code", line=515, scope="test",
+                           language="python", sdk="mcp", tools=["git_status", "git_add"])
+        (service,) = _valid(build_bom(_report(mcp_servers=[server])))["services"]
+        assert {p["name"]: p["value"] for p in service["properties"]} == {
+            "quin:language": "python", "quin:line": "515", "quin:mcp-source": "code", "quin:scope": "test",
+            "quin:sdk": "mcp", "quin:source-file": "src/git/server.py", "quin:tools": "git_add,git_status",
+            "quin:transport": "unknown",
+        }
+
+    def test_same_named_implemented_servers_in_one_file_are_ordered_by_line(self):
+        servers = [MCPServer(name="s", source_file="t.ts", source="code", line=line, scope="test") for line in (30, 10)]
+        services = _valid(build_bom(_report(mcp_servers=servers)))["services"]
+        lines = [{p["name"]: p["value"] for p in s["properties"]}["quin:line"] for s in services]
+        assert [s["bom-ref"] for s in services] == ["service:mcp:s", "service:mcp:s#2"] and lines == ["10", "30"]
+
     def test_endpoints_grouped_by_host(self):
         endpoints = [_endpoint(), _endpoint(url="https://llm.internal.example/v2"), _endpoint(),
                      _endpoint(url="http://localhost:11434", host="localhost", kind="local")]

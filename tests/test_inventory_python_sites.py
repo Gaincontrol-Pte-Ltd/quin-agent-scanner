@@ -205,3 +205,73 @@ def test_tools_given_records_any_tools_keyword():
         "c = Agent(name='c', tools=[x])\n"
     )
     assert [(s.tool_refs, s.tools_given) for s in (a, b, c)] == [(None, False), (None, True), (("x",), True)]
+
+
+# LangChain / LangGraph agent factories (#85)
+
+def test_imported_create_agent_is_a_weak_site_with_keyword_tools_model_and_prompt():
+    (site,) = _sites(
+        "from langchain.agents import create_agent\n"
+        'agent = create_agent(model="openai:gpt-5.5", tools=[get_weather, search], system_prompt="Be brief.")\n'
+    )
+    assert (site.role, site.kind, site.name, site.line) == ("both", "constructor", None, 2)
+    assert site.tool_refs == ("get_weather", "search")
+    assert site.model_expr == "openai:gpt-5.5"
+    assert site.instructions == InstructionsRef.literal("Be brief.")
+    assert site.tools_given is True
+
+
+def test_factory_reads_positional_model_and_tools_and_prompt_keyword():
+    (site,) = _sites(
+        "from langgraph.prebuilt import create_react_agent\n"
+        'graph = create_react_agent("anthropic:claude-sonnet-4-6", [lookup], prompt="You look things up.", name="lookup")\n'
+    )
+    assert (site.name, site.tool_refs, site.model_expr) == ("lookup", ("lookup",), "anthropic:claude-sonnet-4-6")
+    assert site.instructions == InstructionsRef.literal("You look things up.")
+
+
+@pytest.mark.parametrize("call, refs, given", [
+    ("create_agent(model)", (), False),               # no tools: none passed
+    ("create_agent(model, tools=None)", (), True),
+    ("create_agent(model, TOOLS)", None, True),       # not a literal list: unknown
+    ("create_agent(model, [*base, extra])", None, True),
+    ("create_agent(*args)", None, False),
+    ("create_agent(model, **kwargs)", None, False),
+])
+def test_factory_tool_lists(call, refs, given):
+    (site,) = _sites(f"from langchain.agents import create_agent\nagent = {call}\n")
+    assert (site.tool_refs, site.tools_given) == (refs, given)
+
+
+@pytest.mark.parametrize("imports, call", [
+    ("from langchain.agents import create_agent as make", "make(model, [t])"),
+    ("import langgraph.prebuilt", "langgraph.prebuilt.create_react_agent(model, [t])"),
+    ("import langgraph.prebuilt as lp", "lp.create_react_agent(model, [t])"),
+    ("from langgraph import prebuilt", "prebuilt.create_react_agent(model, [t])"),
+    ("from langgraph.prebuilt.chat_agent_executor import create_react_agent", "create_react_agent(model, [t])"),
+    ("from langchain.agents import create_tool_calling_agent", "create_tool_calling_agent(llm, [t], prompt)"),
+])
+def test_factory_import_forms(imports, call):
+    (site,) = _sites(f"{imports}\nagent = {call}\n")
+    assert site.tool_refs == ("t",)
+
+
+@pytest.mark.parametrize("source", [
+    "def create_agent(): ...\nagent = create_agent()\n",                         # a project's own helper
+    "from myapp.factory import create_agent\nagent = create_agent(model, [t])\n",
+    "from langchain.tools import create_agent\nagent = create_agent(model, [t])\n",  # wrong module
+    "import other as lp\nagent = lp.create_react_agent(model, [t])\n",
+])
+def test_unimported_or_foreign_factories_are_not_agents(source):
+    assert _sites(source) == []
+
+
+def test_factory_inside_a_loop_and_in_an_agent_function():
+    sites = _sites(
+        "from langchain.agents import create_agent\n"
+        "agents = [create_agent(m, [t]) for m in models]\n"
+        "@agent\n"
+        "def writer():\n"
+        "    return create_agent(model, [pen])\n"
+    )
+    assert [(s.name, s.in_loop, s.tool_refs) for s in sites] == [(None, True, ("t",)), ("writer", False, ("pen",))]

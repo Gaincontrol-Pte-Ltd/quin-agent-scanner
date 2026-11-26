@@ -14,6 +14,18 @@ _MODEL_KEYWORDS = ("model", "llm", "model_client")
 _AGENT_BASES = frozenset({"Role", "BaseAgent", "AssistantAgent", "ConversableAgent", "UserProxyAgent"})
 # Constructors that create an agent even without a literal name; other ``...agent(...)`` calls need one.
 _ANONYMOUS_CONSTRUCTORS = frozenset({"Agent", "AssistantAgent", "UserProxyAgent", "ConversableAgent", "GroupChatManager"})
+# Factories that build an agent from a model and a tool list (#85): LangChain v1 ``create_agent``, LangGraph's prebuilt
+# ``create_react_agent`` and the classic LangChain builders. Their agents are usually unnamed, so they count only when
+# imported from these modules: a project's own ``create_agent()`` helper is not one. Tools are ``tools=`` or the second
+# positional argument, the model ``model=`` or the first.
+_AGENT_FACTORIES: dict[str, tuple[str, ...]] = {
+    "create_agent": ("langchain.agents",),
+    "create_react_agent": ("langgraph.prebuilt", "langchain.agents"),
+    "create_tool_calling_agent": ("langchain.agents",),
+    "create_openai_tools_agent": ("langchain.agents",),
+    "create_openai_functions_agent": ("langchain.agents",),
+    "create_structured_chat_agent": ("langchain.agents",),
+}
 # Calls whose first string argument is a file the instructions are read from.
 _FILE_READERS = frozenset({"open", "Path", "read_text", "load_prompt"})
 
@@ -147,22 +159,33 @@ def _tool_reference(node: ast.expr) -> str | None:
     return None
 
 
-def tool_refs_of(call: ast.Call, missing: tuple[str, ...] | None) -> tuple[str, ...] | None:
+def tool_refs_of(call: ast.Call, missing: tuple[str, ...] | None, positional: int | None = None) -> tuple[str, ...] | None:
     """Names in an explicit ``tools=[...]`` (``tools=None`` gives ``()``); ``missing`` when there is no ``tools=`` or ``**``.
 
-    None (not statically known) when the value is not a literal list, or any element is a ``*spread`` or cannot be named:
-    a partial list would claim tools are absent that may be passed.
+    With ``positional``, a tool list passed as that positional argument counts like ``tools=``. None (not statically
+    known) when the value is not a literal list, or any element is a ``*spread`` or cannot be named: a partial list would
+    claim tools are absent that may be passed.
     """
     kw = next((k for k in call.keywords if k.arg == "tools"), None)
-    if kw is None:
-        # ``**kwargs`` may pass tools implicitly.
-        return None if any(k.arg is None for k in call.keywords) else missing
-    if isinstance(kw.value, ast.Constant) and kw.value.value is None:
+    if kw is not None:
+        return _tool_list(kw.value)
+    if positional is not None and len(call.args) > positional:
+        if any(isinstance(a, ast.Starred) for a in call.args[: positional + 1]):
+            return None
+        return _tool_list(call.args[positional])
+    if any(isinstance(a, ast.Starred) for a in call.args) and positional is not None:
+        return None
+    # ``**kwargs`` may pass tools implicitly.
+    return None if any(k.arg is None for k in call.keywords) else missing
+
+
+def _tool_list(value: ast.expr) -> tuple[str, ...] | None:
+    if isinstance(value, ast.Constant) and value.value is None:
         return ()
-    if not isinstance(kw.value, (ast.List, ast.Tuple, ast.Set)):
+    if not isinstance(value, (ast.List, ast.Tuple, ast.Set)):
         return None
     refs = []
-    for element in kw.value.elts:
+    for element in value.elts:
         ref = None if isinstance(element, ast.Starred) else _tool_reference(element)
         if ref is None or not ref.strip():
             return None
@@ -172,6 +195,32 @@ def tool_refs_of(call: ast.Call, missing: tuple[str, ...] | None) -> tuple[str, 
 
 def _passes_tools(call: ast.Call) -> bool:
     return any(kw.arg == "tools" for kw in call.keywords)
+
+
+def _imported_factories(tree: ast.Module) -> tuple[dict[str, str], dict[str, str]]:
+    """Local names bound to an agent factory (``{local: factory}``) and module aliases (``{alias: module}``)."""
+    factories: dict[str, str] = {}
+    modules: dict[str, str] = {}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom) and node.module and not node.level:
+            for alias in node.names:
+                homes = _AGENT_FACTORIES.get(alias.name)
+                if homes and _within(node.module, homes):
+                    factories[alias.asname or alias.name] = alias.name
+                elif any(_within(f"{node.module}.{alias.name}", homes) for homes in _AGENT_FACTORIES.values()):
+                    modules[alias.asname or alias.name] = f"{node.module}.{alias.name}"
+        elif isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.asname:
+                    modules[alias.asname] = alias.name
+                else:  # ``import langgraph.prebuilt`` binds ``langgraph``
+                    top = alias.name.split(".")[0]
+                    modules[top] = top
+    return factories, modules
+
+
+def _within(module: str, homes: tuple[str, ...]) -> bool:
+    return any(module == home or module.startswith(home + ".") for home in homes)
 
 
 def _agent_functions(tree: ast.Module) -> dict[str, int]:
@@ -200,10 +249,14 @@ def _agent_classes(tree: ast.Module) -> dict[str, int]:
 
 
 class _Collector(ast.NodeVisitor):
-    def __init__(self, path: str, classes: dict[str, int], functions: dict[str, int]) -> None:
+    def __init__(
+        self, path: str, classes: dict[str, int], functions: dict[str, int],
+        factories: tuple[dict[str, str], dict[str, str]] = ({}, {}),
+    ) -> None:
         self.path = path
         self.classes = classes
         self.functions = functions
+        self.factories, self.modules = factories
         self.sites: list[AgentSite] = []
         self.functions_with_constructors: set[str] = set()
         self._loops = 0
@@ -273,11 +326,14 @@ class _Collector(ast.NodeVisitor):
             )
         if isinstance(node.func, ast.Name) and callee in self.functions:
             return AgentSite(role="instance", kind="decorator", name=callee, **common)
+        factory = self._factory(node.func)
         lowered = callee.lower()
-        if lowered != "groupchatmanager" and not lowered.endswith("agent"):
+        if factory is None and lowered != "groupchatmanager" and not lowered.endswith("agent"):
             return None
         name = agent_name(node, callee)
         instructions = instructions_of(node)
+        if factory is not None:
+            return self._factory_site(node, name, instructions, common)
         enclosing = next((f for f in reversed(self._enclosing) if f), None)
         if enclosing:
             self.functions_with_constructors.add(enclosing)
@@ -290,6 +346,39 @@ class _Collector(ast.NodeVisitor):
             role="both", kind="constructor", name=name, instructions=instructions,
             model_expr=model_of(node), tool_refs=tool_refs_of(node, missing=None if passes_config else ()),
             tools_given=_passes_tools(node), **common,
+        )
+
+    def _factory(self, func: ast.expr) -> str | None:
+        """The agent factory a call's callee refers to, through the file's imports, or None."""
+        if isinstance(func, ast.Name):
+            return self.factories.get(func.id)
+        if isinstance(func, ast.Attribute):
+            base = _dotted(func.value)
+            if base:
+                head, _, rest = base.partition(".")
+                module = self.modules.get(head)
+                full = f"{module}.{rest}" if module and rest else module
+                homes = _AGENT_FACTORIES.get(func.attr)
+                if full and homes and _within(full, homes):
+                    return func.attr
+        return None
+
+    def _factory_site(self, node: ast.Call, name: str | None, instructions: InstructionsRef, common: dict) -> AgentSite:
+        enclosing = next((f for f in reversed(self._enclosing) if f), None)
+        if enclosing:
+            self.functions_with_constructors.add(enclosing)
+            name = name or enclosing
+        if instructions == NO_INSTRUCTIONS:
+            prompt = next((kw.value for kw in node.keywords if kw.arg == "prompt"), None)
+            if prompt is not None:
+                instructions = _instructions_ref(prompt)
+        model = model_of(node)
+        if model is None and node.args and not isinstance(node.args[0], ast.Starred):
+            model = _expression(node.args[0])
+        tool_refs = tool_refs_of(node, missing=(), positional=1)
+        return AgentSite(
+            role="both", kind="constructor", name=name, instructions=instructions, model_expr=model,
+            tool_refs=tool_refs, tools_given=_passes_tools(node) or len(node.args) > 1, **common,
         )
 
 
@@ -307,7 +396,7 @@ def agent_sites(tree: ast.Module, path: str) -> list[AgentSite]:
 def _all_sites(tree: ast.Module, path: str) -> list[AgentSite]:
     classes = _agent_classes(tree)
     functions = _agent_functions(tree)
-    collector = _Collector(path, classes, functions)
+    collector = _Collector(path, classes, functions, _imported_factories(tree))
     collector.visit(tree)
     sites = list(collector.sites)
     sites += [

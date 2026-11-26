@@ -51,7 +51,11 @@ tools and models it is given.
 | `quin:identity` | agents | `strong` (literal name in code), `weak` (no literal name) |
 | `quin:tool-type` | tools | `tool_definition`, `external_service`, `skill`, `mcp_tool` |
 | `quin:transport` | MCP servers | `stdio`, `http`, `sse`, `unknown` |
-| `quin:source-file` | MCP servers | file the server is configured in |
+| `quin:source-file` | MCP servers | file the server is configured in, or implemented in |
+| `quin:mcp-source` | MCP servers implemented in the repository | `code` (absent for servers named in a client config file) |
+| `quin:scope` | implemented MCP servers | `production`, `test`, `example` (services have no CycloneDX `scope`) |
+| `quin:line`, `quin:language`, `quin:sdk` | implemented MCP servers | where the server is created, `python` / `typescript` / `javascript`, and the package its class comes from |
+| `quin:tools` | implemented MCP servers | the tool names it registers, sorted and comma-separated; each is also an `mcp_tool` component |
 | `quin:endpoint-kind` | endpoints | `hosted_provider`, `local`, `private`, `remote`, `unknown`; a comma-separated list (sorted) when one host has endpoints of several kinds, e.g. `hosted_provider,remote` |
 
 ## What is left out, and why
