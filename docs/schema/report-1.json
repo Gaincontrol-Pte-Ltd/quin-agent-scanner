@@ -22,6 +22,11 @@
     "agents": {"type": "array", "items": {"$ref": "#/$defs/agent"}},
     "tool_usages": {"type": "array", "items": {"$ref": "#/$defs/toolUsage"}},
     "risk_signals": {"type": "array", "items": {"$ref": "#/$defs/riskSignal"}},
+    "controls": {
+      "type": "object",
+      "description": "Controls named by risk signals in this report, keyed by control ID, with informative regulatory references (schema 1.1).",
+      "additionalProperties": {"$ref": "#/$defs/controlEntry"}
+    },
     "mcp_servers": {"type": "array", "items": {"$ref": "#/$defs/mcpServer"}},
     "infra": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/infra"}]},
     "vulnerabilities": {"type": "array", "items": {"$ref": "#/$defs/vulnerability"}},
@@ -40,6 +45,24 @@
   },
   "additionalProperties": true,
   "$defs": {
+    "controlEntry": {
+      "type": "object",
+      "required": ["name", "regulatory_refs"],
+      "properties": {
+        "name": {"type": "string"},
+        "regulatory_refs": {"type": "array", "items": {"$ref": "#/$defs/regulatoryRef"}}
+      }
+    },
+    "regulatoryRef": {
+      "type": "object",
+      "required": ["framework", "id", "title", "url"],
+      "properties": {
+        "framework": {"type": "string", "description": "eu-ai-act | iso-42001 | nist-ai-rmf"},
+        "id": {"type": "string"},
+        "title": {"type": "string"},
+        "url": {"type": "string"}
+      }
+    },
     "severity": {"type": "string", "enum": ["critical", "high", "medium", "low", "info"]},
     "finding": {
       "type": "object",

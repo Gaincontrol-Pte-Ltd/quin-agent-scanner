@@ -3,6 +3,7 @@
 <!--
   GENERATED FILE — DO NOT EDIT BY HAND.
   Source of truth: src/quin_scanner/rules/risk_taxonomy.yaml
+                   src/quin_scanner/rules/regulatory_mapping.yaml
   Regenerate:       python scripts/generate_risk_framework_docs.py
   Drift check:      python scripts/generate_risk_framework_docs.py --check
 -->
@@ -16,6 +17,7 @@ evidence grounded in:
 - OWASP MCP Top 10
 - OWASP MAESTRO multi-agent threat model
 - Databricks AI Security Framework (DASF) v3.0
+- Regulatory crosswalk (informative): EU AI Act, ISO/IEC 42001, NIST AI RMF — see [Regulatory crosswalk](#regulatory-crosswalk)
 
 Scanner reports deep-link into this file. Each control label in a Quin HTML
 report (e.g. `C003: Access Control & Least Privilege`) links to the matching
@@ -92,6 +94,11 @@ recommended controls, and every control lists the threats it helps mitigate.
 - {{ p }}
 {%- endfor %}
 
+**Regulatory references (informative).**
+{% for fw in frameworks %}{% set refs = refs_for_control(control.id) | selectattr("framework", "equalto", fw.id) | list %}
+- {{ fw.name }}: {% if refs %}{% for r in refs %}[{{ r.id }}]({{ r.url }}) {{ r.title }}{% if not loop.last %}; {% endif %}{% endfor %}{% else %}—{% endif %}
+{%- endfor %}
+
 **References.**
 {% for ref in control.external_refs %}
 - [{{ ref.title }}]({{ ref.url }}){% if ref.local %} — local copy: [`{{ ref.local }}`]({{ _rel(ref.local) }}){% endif %}
@@ -100,9 +107,29 @@ recommended controls, and every control lists the threats it helps mitigate.
 ---
 {% endfor %}
 
+<a id="regulatory-crosswalk"></a>
+## Regulatory crosswalk
+
+{{ regulatory_disclaimer }}
+
+Frameworks:
+{% for fw in frameworks %}
+- [{{ fw.name }}]({{ fw.url }}) — {{ fw.version }}
+{%- endfor %}
+
+| Control |{% for fw in frameworks %} {{ fw.name }} |{% endfor %}
+|---|{% for fw in frameworks %}---|{% endfor %}
+{% for control in controls -%}
+| [{{ control.id }}](#{{ control.id | lower }}) {{ control.name }} |{% for fw in frameworks %}{% set ids = refs_for_control(control.id) | selectattr("framework", "equalto", fw.id) | map(attribute="id") | list %} {{ ids | join(", ") if ids else "—" }} |{% endfor %}
+{% endfor %}
+Source of truth: `src/quin_scanner/rules/regulatory_mapping.yaml`.
+
+---
+
 ## Maintenance notes
 
-This file is regenerated from `src/quin_scanner/rules/risk_taxonomy.yaml`.
+This file is regenerated from `src/quin_scanner/rules/risk_taxonomy.yaml` and
+`src/quin_scanner/rules/regulatory_mapping.yaml`.
 
 - Edit prose, references, and KRIs in the YAML, then run
   `python scripts/generate_risk_framework_docs.py` to refresh this file.
@@ -111,3 +138,4 @@ This file is regenerated from `src/quin_scanner/rules/risk_taxonomy.yaml`.
 - Anchors are stable: `#t001`..`#t014` for threats and `#c001`..`#c014` for
   controls. External links (including the HTML scan report) depend on those
   anchors — do not rename them without coordinating a downstream migration.
+- The regulatory crosswalk comes from src/quin_scanner/rules/regulatory_mapping.yaml; tests/test_regulatory.py validates it.

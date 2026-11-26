@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Iterable
 from typing import Any
 
 from quin_scanner.models import EvidenceRef, RiskIndicator, ScanReport, Vulnerability
@@ -26,6 +27,34 @@ def _slugify(text: str, max_words: int = 6) -> str:
     words = re.findall(r"[A-Za-z0-9]+", text)[:max_words]
     slug = "-".join(w.lower() for w in words)
     return slug or "risk-signal"
+
+
+_SUPPLY_CHAIN_CONTROL = "C004"
+
+
+def _with_regulatory(rule: dict[str, Any], control_labels: Iterable[str]) -> dict[str, Any]:
+    """Add informative regulatory framework tags and clause help text for the rule's controls (nothing when none map)."""
+    from quin_scanner.regulatory import frameworks, refs_for_label
+
+    refs, seen = [], set()
+    for label in control_labels:
+        for ref in refs_for_label(label):
+            if (ref.framework, ref.id) not in seen:
+                seen.add((ref.framework, ref.id))
+                refs.append(ref)
+    if not refs:
+        return rule
+    # Framework-level tags only: GitHub code scanning rejects rules with more than 20 tags.
+    parts, tags = [], []
+    for fw in frameworks():
+        wanted = {ref.id for ref in refs if ref.framework == fw.id}
+        ids = [clause.id for clause in fw.clauses if clause.id in wanted]  # catalogue order
+        if ids:
+            parts.append(f"{fw.name} {', '.join(ids)}")
+            tags.append(fw.id)
+    rule["properties"] = {"tags": tags}
+    rule["help"] = {"text": "Relevant to (informative): " + "; ".join(parts) + "."}
+    return rule
 
 
 def _rule_id(indicator: RiskIndicator) -> str:
@@ -135,7 +164,7 @@ def _rule_from_vulnerability(vuln: Vulnerability) -> dict[str, Any]:
     }
     if vuln.source_url:
         rule["helpUri"] = vuln.source_url
-    return rule
+    return _with_regulatory(rule, [_SUPPLY_CHAIN_CONTROL])
 
 
 def to_sarif(report: ScanReport) -> str:
@@ -159,10 +188,15 @@ def to_sarif(report: ScanReport) -> str:
     results = [_result_from_indicator(indicator, agent_name) for indicator, agent_name in indicators]
 
     rules_by_id: dict[str, dict[str, Any]] = {}
+    labels_by_rule: dict[str, list[str]] = {}
     for indicator, _ in indicators:
         rule_id = _rule_id(indicator)
         if rule_id not in rules_by_id:
             rules_by_id[rule_id] = _rule_from_indicator(indicator, threats_by_id)
+        labels_by_rule.setdefault(rule_id, []).extend(indicator.recommended_controls)
+    for rule_id, labels in labels_by_rule.items():
+        threat = threats_by_id.get(rule_id)  # threat rules use the threat's controls, others the signals' own
+        _with_regulatory(rules_by_id[rule_id], threat.recommended_controls if threat else labels)
 
     vuln_location = _vulnerability_location(report)
     for vuln in report.vulnerabilities:
