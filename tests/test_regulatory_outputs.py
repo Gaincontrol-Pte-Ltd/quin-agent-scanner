@@ -162,7 +162,8 @@ var D = {controls: {
     {framework: "nist-ai-rmf", id: "MANAGE 2.4", title: "Mechanisms"}]}}};
 process.stdout.write(JSON.stringify([regChips("C003: Access Control"), regChips("C999"), regChips("nope")]));
 """
-        out = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True).stdout
+        # Node writes UTF-8; without an explicit encoding Windows decodes it with the console code page.
+        out = subprocess.run(["node", "-e", script], check=True, capture_output=True, encoding="utf-8").stdout
         chips, unknown, nolabel = json.loads(out)
         assert "EU Art. 14, Art. 26" in chips
         assert "ISO A.9.2" in chips
