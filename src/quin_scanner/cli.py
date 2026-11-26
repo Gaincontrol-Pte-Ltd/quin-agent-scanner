@@ -290,7 +290,7 @@ def cli() -> None:
 
 @cli.command()
 @click.argument("target")
-@click.option("--output", "-o", default="html", type=_OUTPUT_CHOICES, show_default=True, help="Output format")
+@click.option("--output", "--format", "-o", default="html", type=_OUTPUT_CHOICES, show_default=True, help="Output format")
 @click.option("--output-file", "-f", default=None, help="Write output to a specific file ('-' for stdout)")
 @click.option("--output-dir", "-d", default="./report", show_default=True, help="Write output to this directory (auto-names the file)")
 @click.option(
@@ -440,7 +440,7 @@ def scan(
 
 @cli.command("scan-batch")
 @click.argument("targets_file", type=click.Path(exists=True))
-@click.option("--output", "-o", default="html", type=_BATCH_OUTPUT_CHOICES, show_default=True, help="Output format")
+@click.option("--output", "--format", "-o", default="html", type=_BATCH_OUTPUT_CHOICES, show_default=True, help="Output format")
 @click.option("--output-dir", "-d", default="./report", show_default=True, help="Directory for per-repo output files")
 @click.option(
     "--llm-provider", default=None,
@@ -564,7 +564,7 @@ def scan_batch(
 
 @cli.command("scan-org")
 @click.argument("org_name")
-@click.option("--output", "-o", type=_BATCH_OUTPUT_CHOICES, default="html", show_default=True, help="Output format")
+@click.option("--output", "--format", "-o", type=_BATCH_OUTPUT_CHOICES, default="html", show_default=True, help="Output format")
 @click.option("--output-dir", "-d", default="./report", type=click.Path(), show_default=True, help="Directory for per-repo output files")
 @click.option("--github-token", envvar="GITHUB_TOKEN", default=None, help="GitHub PAT (overrides GITHUB_TOKEN env var)")
 @click.option("--skip-archived", is_flag=True, default=False, help="Skip archived repositories")
@@ -790,7 +790,7 @@ def skills() -> None:
 @skills.command("scan")
 @click.argument("target")
 @click.option(
-    "--output", "-o", default="terminal", type=_FormatChoice(["terminal", "json", "sarif"], target_option="-f"),
+    "--output", "--format", "-o", default="terminal", type=_FormatChoice(["terminal", "json", "sarif"], target_option="-f"),
     show_default=True, help="Output format",
 )
 @click.option("--output-file", "-f", default=None, help="Write output to a file instead of stdout")

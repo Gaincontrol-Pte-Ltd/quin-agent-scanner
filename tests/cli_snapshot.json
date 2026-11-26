@@ -184,6 +184,7 @@
         "name": "output",
         "opts": [
           "--output",
+          "--format",
           "-o"
         ],
         "required": false,
@@ -403,6 +404,7 @@
         "name": "output",
         "opts": [
           "--output",
+          "--format",
           "-o"
         ],
         "required": false,
@@ -569,6 +571,7 @@
         "name": "output",
         "opts": [
           "--output",
+          "--format",
           "-o"
         ],
         "required": false,
@@ -931,6 +934,7 @@
         "name": "output",
         "opts": [
           "--output",
+          "--format",
           "-o"
         ],
         "required": false,

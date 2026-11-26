@@ -1344,13 +1344,18 @@ window.__REPORT_DATA__ = {{REPORT_DATA_JSON}};
     if(!mcps.length&&!mcpTools.length){
       $("mcp-table-wrap").innerHTML='<div class="empty">No MCP servers detected.</div>';
     }else{
-      var mcpRows=mcps.map(function(m){return{tool_name:m.name,tool_type:"mcp_server",source_file:m.source_file,transport:m.transport}});
-      mcpTools.forEach(function(t){mcpRows.push({tool_name:t.tool_name,tool_type:"mcp_tool",source_file:t.source_file,transport:""})});
+      /* origin: "code" = implemented in this repository (schema 1.1), else configured in an MCP client config file */
+      var mcpRows=mcps.map(function(m){var code=m.source==="code";return{tool_name:m.name,tool_type:"mcp_server",origin:code?"implemented":"configured",source_file:m.source_file,line_number:code?m.line:null,transport:code?"":m.transport,scope:code?m.scope:"",tools_count:code?(m.tools||[]).length:null}});
+      mcpTools.forEach(function(t){mcpRows.push({tool_name:t.tool_name,tool_type:"mcp_tool",origin:"",source_file:t.source_file,line_number:t.line_number,transport:"",scope:t.scope||"",tools_count:null})});
+      var dash='<span style="color:var(--color-muted)">&mdash;</span>';
       new TableEngine("mcp-table-wrap",[
         {key:"tool_name",label:"Name",render:function(r){return '<span class="cell-mono">'+esc(r.tool_name)+'</span>'}},
-        {key:"tool_type",label:"Type",render:function(r){return r.transport?'<span class="pill pill--amber">MCP Server</span>':'<span class="pill pill--amber">MCP Tool</span>'}},
-        {key:"transport",label:"Transport",render:function(r){return r.transport?esc(r.transport):'<span style="color:var(--color-muted)">&mdash;</span>'}},
-        {key:"source_file",label:"Source File",render:function(r){return '<span class="cell-mono" title="'+esc(r.source_file)+'">'+esc(truncPath(r.source_file,3))+'</span>'}}
+        {key:"tool_type",label:"Type",render:function(r){return r.tool_type==="mcp_server"?'<span class="pill pill--amber">MCP Server</span>':'<span class="pill pill--amber">MCP Tool</span>'}},
+        {key:"origin",label:"Origin",render:function(r){if(!r.origin)return dash;return r.origin==="implemented"?'<span class="pill pill--indigo" title="Implemented in this repository">Implemented</span>':'<span class="pill pill--gray" title="Named in an MCP client config file">Configured</span>'}},
+        {key:"transport",label:"Transport",render:function(r){return r.transport?esc(r.transport):dash}},
+        {key:"tools_count",label:"Tools",render:function(r){return r.tools_count!=null?'<span class="cell-mono">'+esc(String(r.tools_count))+'</span>':dash}},
+        {key:"scope",label:"Scope",render:function(r){return r.scope?esc(r.scope):dash}},
+        {key:"source_file",label:"Source File",render:function(r){var loc=r.source_file+(r.line_number!=null?":"+r.line_number:"");return '<span class="cell-mono" title="'+esc(loc)+'">'+esc(truncPath(r.source_file,3)+(r.line_number!=null?":"+r.line_number:""))+'</span>'}}
       ],mcpRows,50);
     }
   })();

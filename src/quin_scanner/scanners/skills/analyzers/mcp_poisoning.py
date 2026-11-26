@@ -26,6 +26,10 @@ _TOOL_CALLS = {"Tool", "tool", "add_tool", "registerTool", "register_tool", "Fie
 _JS_DESCRIPTION = re.compile(
     r"description\s*:\s*([\"'`])(?P<d>(?:(?!\1)[\s\S]){10,2000})\1"
 )
+# ``server.tool("name", "description", ...)``: the TypeScript SDK's positional description.
+_JS_POSITIONAL_DESCRIPTION = re.compile(
+    r"\.tool\s*\(\s*([\"'`])[^\"'`\n]{1,200}\1\s*,\s*([\"'`])(?P<d>(?:(?!\2)[\s\S]){10,2000})\2"
+)
 _BROAD_ARGS = {"/", "~", "$HOME", "${HOME}", "C:\\", "C:/"}
 _INJECTION_CATEGORIES = {"prompt_injection", "hidden_content"}
 
@@ -57,8 +61,9 @@ def _python_descriptions(f: SkillFile) -> Iterator[tuple[str, int]]:
 
 
 def _js_descriptions(f: SkillFile) -> Iterator[tuple[str, int]]:
-    for m in _JS_DESCRIPTION.finditer(f.text):
-        yield m.group("d"), line_of(f.text, m.start())
+    for pattern in (_JS_DESCRIPTION, _JS_POSITIONAL_DESCRIPTION):
+        for m in pattern.finditer(f.text):
+            yield m.group("d"), line_of(f.text, m.start())
 
 
 def _json_descriptions(obj: object, in_tool: bool = False) -> Iterator[str]:

@@ -495,7 +495,14 @@
   "confidence": 0.99,
   "framework": "Microsoft Agent Framework 1.23.0",
   "is_ai_application": true,
-  "mcp_servers": [],
+  "mcp_servers": [
+    "agent-framework-hosting-mcp-manual-sample",
+    "agent-framework-hosting-mcp-sample",
+    "agent-framework-hosting-mcp-session-sample",
+    "agent-framework-hosting-mcp-workflow-sample",
+    "agent-framework-hosting-mcpserver-sample",
+    "mcp-progressive-disclosure-demo"
+  ],
   "models": [
     "anthropic:claude-sonnet-4-5-20250929",
     "mistral:codestral-embed",
@@ -518,5 +525,5 @@
     "unknown:phi-4-mini"
   ],
   "risk_signals": {},
-  "tools": 246
+  "tools": 247
 }

@@ -36,6 +36,14 @@ export interface MCPServer {
   name: string;
   transport: string;
   source_file: string;
+  // Report schema 1.1+: "config" (named in an MCP client config file) or "code" (implemented in the repository).
+  source?: 'config' | 'code';
+  // Only when source is "code":
+  line?: number | null;
+  scope?: string;
+  language?: string;
+  sdk?: string;
+  tools?: string[];
 }
 
 export interface ModelUsage {

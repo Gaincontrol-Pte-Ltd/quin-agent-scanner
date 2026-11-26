@@ -87,7 +87,7 @@ Arguments: `TARGET`
 
 | Option | Type | Default | Environment variable | Description |
 |---|---|---|---|---|
-| `--output`, `-o` | `json` \| `yaml` \| `html` \| `sarif` \| `cyclonedx` | `html` |  | Output format |
+| `--output`, `--format`, `-o` | `json` \| `yaml` \| `html` \| `sarif` \| `cyclonedx` | `html` |  | Output format |
 | `--output-file`, `-f` | text |  |  | Write output to a specific file ('-' for stdout) |
 | `--output-dir`, `-d` | text | `./report` |  | Write output to this directory (auto-names the file) |
 | `--llm-provider` | text |  |  | LLM provider for agent intent analysis (openai\|anthropic\|google\|ollama\|openai-compatible) |
@@ -132,7 +132,7 @@ Arguments: `TARGETS_FILE`
 
 | Option | Type | Default | Environment variable | Description |
 |---|---|---|---|---|
-| `--output`, `-o` | `json` \| `yaml` \| `html` \| `sarif` \| `cyclonedx` | `html` |  | Output format |
+| `--output`, `--format`, `-o` | `json` \| `yaml` \| `html` \| `sarif` \| `cyclonedx` | `html` |  | Output format |
 | `--output-dir`, `-d` | text | `./report` |  | Directory for per-repo output files |
 | `--llm-provider` | text |  |  | LLM provider for agent intent analysis (openai\|anthropic\|google\|ollama\|openai-compatible) |
 | `--llm-model` | text |  |  | Override the default model for the provider |
@@ -173,7 +173,7 @@ Arguments: `ORG_NAME`
 
 | Option | Type | Default | Environment variable | Description |
 |---|---|---|---|---|
-| `--output`, `-o` | `json` \| `yaml` \| `html` \| `sarif` \| `cyclonedx` | `html` |  | Output format |
+| `--output`, `--format`, `-o` | `json` \| `yaml` \| `html` \| `sarif` \| `cyclonedx` | `html` |  | Output format |
 | `--output-dir`, `-d` | path | `./report` |  | Directory for per-repo output files |
 | `--github-token` | text |  | `GITHUB_TOKEN` | GitHub PAT (overrides GITHUB_TOKEN env var) |
 | `--skip-archived` | flag | off |  | Skip archived repositories |
@@ -262,7 +262,7 @@ Arguments: `TARGET`
 
 | Option | Type | Default | Environment variable | Description |
 |---|---|---|---|---|
-| `--output`, `-o` | `terminal` \| `json` \| `sarif` | `terminal` |  | Output format |
+| `--output`, `--format`, `-o` | `terminal` \| `json` \| `sarif` | `terminal` |  | Output format |
 | `--output-file`, `-f` | text |  |  | Write output to a file instead of stdout |
 | `--fail-on` | `caution` \| `high_risk` | `high_risk` |  | Exit 1 when any skill's verdict is at or above this level |
 | `--llm-provider` | text |  |  | Enable LLM review with this provider (openai\|anthropic\|google\|ollama\|openai-compatible) |

@@ -14,9 +14,22 @@
   "framework": "unknown",
   "is_ai_application": true,
   "mcp_servers": [
-    "mcp-docs"
+    "mcp-docs",
+    "mcp-fetch",
+    "mcp-git",
+    "mcp-servers/everything",
+    "mcp-time",
+    "memory-server",
+    "s",
+    "s",
+    "s",
+    "s",
+    "s",
+    "s",
+    "secure-filesystem-server",
+    "sequential-thinking-server"
   ],
   "models": [],
   "risk_signals": {},
-  "tools": 0
+  "tools": 63
 }

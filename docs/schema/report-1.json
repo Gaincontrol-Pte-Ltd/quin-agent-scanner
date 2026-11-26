@@ -169,7 +169,13 @@
       "properties": {
         "name": {"type": "string"},
         "transport": {"type": "string"},
-        "source_file": {"type": "string"}
+        "source_file": {"type": "string"},
+        "source": {"type": "string", "description": "config (named in an MCP client config file) or code (implemented in the repository); absent in older reports, which list config entries only."},
+        "line": {"type": ["integer", "null"], "description": "Line of the server's constructor; source code only."},
+        "scope": {"type": "string", "description": "production, test or example; source code only."},
+        "language": {"type": "string", "description": "python, typescript or javascript; source code only."},
+        "sdk": {"type": "string", "description": "Package the server class is imported from (mcp, fastmcp, @modelcontextprotocol/sdk, @modelcontextprotocol/server); source code only."},
+        "tools": {"type": "array", "items": {"type": "string"}, "description": "Names of the tools registered on the server, sorted; source code only. Each is also a tool usage of type mcp_tool."}
       }
     },
     "infra": {

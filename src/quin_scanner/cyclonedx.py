@@ -278,10 +278,25 @@ def _agents(
 
 def _services(report: ScanReport, refs: _Refs, graph: dict[str, set[str]]) -> list[dict[str, Any]]:
     services: list[dict[str, Any]] = []
-    for server in sorted(report.mcp_servers, key=lambda s: (s.name, s.transport, s.source_file)):
+    for server in sorted(
+        report.mcp_servers, key=lambda s: (s.name, s.transport, s.source_file, s.source, s.line or 0, s.scope)
+    ):
         values = {"transport": server.transport}
         if server.source_file:
             values["source_file"] = server.source_file
+        if server.source == "code":
+            # An MCP server implemented in the repository (schema 1.1). CycloneDX services have no scope field, so
+            # scope (production / test / example) is a property, as are the SDK and the tools it registers.
+            values["mcp_source"] = "code"
+            values["scope"] = server.scope
+            if server.line:
+                values["line"] = str(server.line)
+            if server.language:
+                values["language"] = server.language
+            if server.sdk:
+                values["sdk"] = server.sdk
+            if server.tools:
+                values["tools"] = ",".join(sorted(server.tools))
         ref = refs.take(f"service:mcp:{server.name}")
         services.append({"bom-ref": ref, "name": server.name or ref,
                          "properties": _properties(**values)})
