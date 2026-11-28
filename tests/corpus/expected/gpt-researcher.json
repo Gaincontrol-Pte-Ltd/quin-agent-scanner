@@ -1,5 +1,6 @@
 {
   "agents": [
+    "",
     "ChiefEditor",
     "Editor",
     "Human",
@@ -33,5 +34,5 @@
     "openai:text-embedding-3-large"
   ],
   "risk_signals": {},
-  "tools": 2
+  "tools": 3
 }

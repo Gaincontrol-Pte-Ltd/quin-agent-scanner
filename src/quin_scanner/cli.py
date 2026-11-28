@@ -58,15 +58,18 @@ def _prepare_output_file(path: str, exit_code: int) -> None:
         sys.exit(exit_code)
 
 
+_FILE_EXTENSIONS = {"cyclonedx": "cdx.json"}
+
+
 def _output_filename(target: str, fmt: str) -> str:
-    """Build an output filename: <repo-name>_<YYYYMMDD_HHMMSS>.<fmt>"""
+    """Build an output filename: <repo-name>_<YYYYMMDD_HHMMSS>.<ext>"""
     # The last path component of the target, whichever separator it uses ("/" in URLs and POSIX paths,
     # "\\" in Windows paths), reduced to characters that are valid in a file name on every OS.
     clean = re.sub(r"[\\/]+$", "", target).removesuffix(".git")
     name = re.split(r"[\\/]", clean)[-1]
     name = re.sub(r"[^A-Za-z0-9._-]+", "_", name).strip("._") or "report"
     ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-    return f"{name}_{ts}.{fmt}"
+    return f"{name}_{ts}.{_FILE_EXTENSIONS.get(fmt, fmt)}"
 
 def _flags_used(
     cfg: ScannerConfig,
@@ -138,6 +141,18 @@ def skill_summary_lines(report) -> list[str]:
     if report.metadata.get("skills_baseline"):
         lines.append(baseline_summary(report.metadata["skills_baseline"]))
     return lines
+
+
+def _bom_note(report, fmt: str) -> None:
+    """Say how many web-search vulnerabilities the BOM leaves out (it carries OSV results only)."""
+    if fmt != "cyclonedx":
+        return
+    from quin_scanner.cyclonedx import omitted_vulnerability_count
+
+    omitted = omitted_vulnerability_count(report)
+    if omitted:
+        noun = "vulnerability" if omitted == 1 else "vulnerabilities"
+        click.echo(f"{omitted} web-search {noun} omitted from the BOM (OSV only)", err=True)
 
 
 def _open_target(target: str, **kwargs):
@@ -225,15 +240,15 @@ class _FormatChoice(click.Choice):
         return Path(value).suffix.lower() in _FORMAT_BY_SUFFIX or "/" in value or "\\" in value
 
     def _hint(self, value: str) -> str:
-        fmt = _FORMAT_BY_SUFFIX.get(Path(value).suffix.lower())
+        fmt = "cyclonedx" if value.lower().endswith(".cdx.json") else _FORMAT_BY_SUFFIX.get(Path(value).suffix.lower())
         format_part = f"-o {fmt} " if fmt in self.choices else ""
         if self.target_option == "-d":
             return f"these commands write one file per target into a folder: use {format_part}-d DIR"
         return f"to write to a file, use {format_part}-f {value}"
 
 
-_OUTPUT_CHOICES = _FormatChoice(["json", "yaml", "html", "sarif"], target_option="-f")
-_BATCH_OUTPUT_CHOICES = _FormatChoice(["json", "yaml", "html", "sarif"], target_option="-d")
+_OUTPUT_CHOICES = _FormatChoice(["json", "yaml", "html", "sarif", "cyclonedx"], target_option="-f")
+_BATCH_OUTPUT_CHOICES = _FormatChoice(["json", "yaml", "html", "sarif", "cyclonedx"], target_option="-d")
 
 
 @click.group(context_settings={"help_option_names": ["-h", "--help"]})
@@ -275,7 +290,7 @@ def cli() -> None:
 
 @cli.command()
 @click.argument("target")
-@click.option("--output", "-o", default="html", type=_OUTPUT_CHOICES, show_default=True, help="Output format")
+@click.option("--output", "--format", "-o", default="html", type=_OUTPUT_CHOICES, show_default=True, help="Output format")
 @click.option("--output-file", "-f", default=None, help="Write output to a specific file ('-' for stdout)")
 @click.option("--output-dir", "-d", default="./report", show_default=True, help="Write output to this directory (auto-names the file)")
 @click.option(
@@ -399,15 +414,17 @@ def scan(
         if output_file == STDOUT:
             _echo_report(rendered)
         elif output_file:
-            ReportGenerator.write_to_file(report, output_file, output)
+            Path(output_file).write_text(rendered, encoding="utf-8", newline="\n")
             click.echo(f"Report written to {output_file}", err=True)
         elif output_dir:
             Path(output_dir).mkdir(parents=True, exist_ok=True)
             out_path = Path(output_dir) / _output_filename(target, output)
-            ReportGenerator.write_to_file(report, str(out_path), output)
+            out_path.write_text(rendered, encoding="utf-8", newline="\n")
             click.echo(f"Report written to {out_path}", err=True)
         else:
             _echo_report(rendered)
+
+        _bom_note(report, output)
 
         for line in skill_summary_lines(report):
             click.echo(line, err=True)
@@ -423,7 +440,7 @@ def scan(
 
 @cli.command("scan-batch")
 @click.argument("targets_file", type=click.Path(exists=True))
-@click.option("--output", "-o", default="html", type=_BATCH_OUTPUT_CHOICES, show_default=True, help="Output format")
+@click.option("--output", "--format", "-o", default="html", type=_BATCH_OUTPUT_CHOICES, show_default=True, help="Output format")
 @click.option("--output-dir", "-d", default="./report", show_default=True, help="Directory for per-repo output files")
 @click.option(
     "--llm-provider", default=None,
@@ -531,8 +548,14 @@ def scan_batch(
                 accessor.cleanup()
 
         out_path = Path(output_dir) / _output_filename(target, output)
-        ReportGenerator.write_to_file(report, str(out_path), output)
+        try:
+            ReportGenerator.write_to_file(report, str(out_path), output)
+        except Exception as e:
+            click.echo(f"  ERROR: {e}", err=True)
+            failed.append(target)
+            continue
         click.echo(f"  -> {out_path}", err=True)
+        _bom_note(report, output)
 
     if failed:
         click.echo(f"{len(failed)} of {len(targets)} targets failed: {', '.join(failed)}", err=True)
@@ -541,7 +564,7 @@ def scan_batch(
 
 @cli.command("scan-org")
 @click.argument("org_name")
-@click.option("--output", "-o", type=_BATCH_OUTPUT_CHOICES, default="html", show_default=True, help="Output format")
+@click.option("--output", "--format", "-o", type=_BATCH_OUTPUT_CHOICES, default="html", show_default=True, help="Output format")
 @click.option("--output-dir", "-d", default="./report", type=click.Path(), show_default=True, help="Directory for per-repo output files")
 @click.option("--github-token", envvar="GITHUB_TOKEN", default=None, help="GitHub PAT (overrides GITHUB_TOKEN env var)")
 @click.option("--skip-archived", is_flag=True, default=False, help="Skip archived repositories")
@@ -671,8 +694,14 @@ def scan_org(
                 accessor.cleanup()
 
         out_path = Path(output_dir) / _output_filename(repo.full_name, output)
-        ReportGenerator.write_to_file(report, str(out_path), output)
+        try:
+            ReportGenerator.write_to_file(report, str(out_path), output)
+        except Exception as e:
+            click.echo(f"  ERROR: {e}", err=True)
+            failed.append(repo.full_name)
+            continue
         click.echo(f"  -> {out_path}", err=True)
+        _bom_note(report, output)
         reports.append({"repo": repo.full_name, "is_ai_application": report.is_ai_application, "confidence": report.confidence})
 
     import json
@@ -761,7 +790,7 @@ def skills() -> None:
 @skills.command("scan")
 @click.argument("target")
 @click.option(
-    "--output", "-o", default="terminal", type=_FormatChoice(["terminal", "json", "sarif"], target_option="-f"),
+    "--output", "--format", "-o", default="terminal", type=_FormatChoice(["terminal", "json", "sarif"], target_option="-f"),
     show_default=True, help="Output format",
 )
 @click.option("--output-file", "-f", default=None, help="Write output to a file instead of stdout")

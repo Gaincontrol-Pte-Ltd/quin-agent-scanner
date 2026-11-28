@@ -15,6 +15,11 @@ _ECOSYSTEM_DIRS = {".claude": "claude", ".codex": "codex", ".opencode": "opencod
 _MCP_MARKERS = (
     "@mcp.tool", "FastMCP(", "McpServer(", "server.tool(", ".registerTool(",
     '"inputSchema"', "mcp.server",
+    # TypeScript server files, including low-level ``new Server(...)`` ones that use none of the markers above. The
+    # ``@modelcontextprotocol/server`` package is matched with its closing quote or a subpath, so the names of
+    # published servers in a config (``@modelcontextprotocol/server-filesystem``) do not count.
+    "@modelcontextprotocol/sdk/server", '@modelcontextprotocol/server"', "@modelcontextprotocol/server'",
+    "@modelcontextprotocol/server/",
 )
 _MCP_SUFFIXES = {".py", ".js", ".mjs", ".cjs", ".ts", ".json"}
 _MCP_MAX_FILES_READ = 2000

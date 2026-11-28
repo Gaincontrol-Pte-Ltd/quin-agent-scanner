@@ -34,6 +34,14 @@ def repo(tmp_path):
         (root / sub / ".mcp.json").write_text('{"mcpServers": {"s%s": {"command": "npx", "args": ["srv"]}}}' % sub, encoding="utf-8")
         (root / sub / "deploy.yaml").write_text("apiVersion: apps/v1\nkind: Deployment\nspec:\n  template:\n    spec:\n      containers:\n      - name: llm\n        image: vllm/vllm-openai\n", encoding="utf-8")
     (root / "app.py").write_text("from openai import OpenAI\nclient = OpenAI()\n", encoding="utf-8")
+    (root / "agents").mkdir()
+    for name in ("planner", "researcher", "writer", "critic", "editor", "router"):
+        (root / "agents" / f"{name}.py").write_text(
+            "from framework import Agent, tool\n@tool\ndef search():\n    return 1\n"
+            f"{name} = Agent(name='{name}', instructions='Be {name}.', tools=[search])\n"
+            "shared = Agent(name='shared', instructions='Same.', tools=[search])\n",
+            encoding="utf-8",
+        )
     return root
 
 
@@ -41,3 +49,16 @@ def test_artifact_order_does_not_depend_on_the_hash_seed(tmp_path, repo):
     orders = {seed: _artifact_order(_scan(repo, tmp_path / f"r{seed}.json", seed)) for seed in ("1", "2", "3", "4", "5")}
     assert len({json.dumps(o) for o in orders.values()}) == 1, "the artifact order changes with PYTHONHASHSEED"
     assert len(orders["1"]) > 12  # the workflow files did produce artifacts
+
+
+def _inventory(report: dict) -> str:
+    return json.dumps([report["agents"], report["tool_usages"], report["agent_tool_relationships"]], sort_keys=True)
+
+
+def test_inventory_does_not_depend_on_the_hash_seed(tmp_path, repo):
+    reports = {seed: _scan(repo, tmp_path / f"i{seed}.json", seed) for seed in ("1", "2", "3")}
+    assert len({_inventory(r) for r in reports.values()}) == 1, "the inventory changes with PYTHONHASHSEED"
+    shared = next(a for a in reports["1"]["agents"] if a["name"] == "shared")
+    assert len(shared["instances"]) == 6
+    assert {t["id"] for t in reports["1"]["tool_usages"]} == {f"tool:search@agents/{n}.py" for n in
+                                                             ("planner", "researcher", "writer", "critic", "editor", "router")}

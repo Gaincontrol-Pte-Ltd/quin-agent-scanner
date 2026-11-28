@@ -184,6 +184,7 @@
         "name": "output",
         "opts": [
           "--output",
+          "--format",
           "-o"
         ],
         "required": false,
@@ -192,7 +193,8 @@
             "json",
             "yaml",
             "html",
-            "sarif"
+            "sarif",
+            "cyclonedx"
           ]
         }
       },
@@ -402,6 +404,7 @@
         "name": "output",
         "opts": [
           "--output",
+          "--format",
           "-o"
         ],
         "required": false,
@@ -410,7 +413,8 @@
             "json",
             "yaml",
             "html",
-            "sarif"
+            "sarif",
+            "cyclonedx"
           ]
         }
       },
@@ -567,6 +571,7 @@
         "name": "output",
         "opts": [
           "--output",
+          "--format",
           "-o"
         ],
         "required": false,
@@ -575,7 +580,8 @@
             "json",
             "yaml",
             "html",
-            "sarif"
+            "sarif",
+            "cyclonedx"
           ]
         }
       },
@@ -928,6 +934,7 @@
         "name": "output",
         "opts": [
           "--output",
+          "--format",
           "-o"
         ],
         "required": false,

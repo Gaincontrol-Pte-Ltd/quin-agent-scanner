@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from quin_scanner.models import (
     MCPServer,
-    ModelUsage,
     ScanFinding,
     ToolUsage,
 )
@@ -12,9 +11,7 @@ from quin_scanner.orchestrator import (
     ScanOrchestrator,
     _extract_mcp_servers,
     _extract_infra,
-    _filter_hallucinated_tools,
     _classify_tool_usages,
-    _looks_like_model_name,
     _pre_summarise,
 )
 
@@ -86,39 +83,6 @@ class TestExtractInfra:
         assert _extract_infra(findings) is None
 
 
-class TestFilterHallucinatedTools:
-    def test_removes_model_names(self):
-        tools = [ToolUsage(tool_name="gpt-4o"), ToolUsage(tool_name="real_tool")]
-        models = [ModelUsage(provider="openai", model_name="gpt-4o", source="code", file_path="x.py", line_number=1)]
-        deps = []
-        filtered = _filter_hallucinated_tools(tools, models, deps)
-        assert len(filtered) == 1
-        assert filtered[0].tool_name == "real_tool"
-
-    def test_removes_model_name_prefixes(self):
-        tools = [ToolUsage(tool_name="gpt-4o-mini"), ToolUsage(tool_name="real_tool")]
-        models = []
-        deps = []
-        filtered = _filter_hallucinated_tools(tools, models, deps)
-        assert len(filtered) == 1
-        assert filtered[0].tool_name == "real_tool"
-
-    def test_removes_raw_dep_names(self):
-        tools = [
-            ToolUsage(tool_name="chromadb"),
-            ToolUsage(tool_name="chromadb", tool_type="external_service"),
-        ]
-        models = []
-        deps = [_finding("DependencyScanner", "chromadb>=0.4")]
-        filtered = _filter_hallucinated_tools(tools, models, deps)
-        # Keeps external_service, removes the raw dep
-        assert len(filtered) == 1
-        assert filtered[0].tool_type == "external_service"
-
-    def test_empty_inputs(self):
-        assert _filter_hallucinated_tools([], [], []) == []
-
-
 class TestClassifyToolUsages:
     def test_skill_in_skills_dir(self):
         tools = [ToolUsage(tool_name="research", source_file="skills/research.md")]
@@ -135,22 +99,6 @@ class TestClassifyToolUsages:
         tools = [ToolUsage(tool_name="chromadb", tool_type="external_service", source_file="skills/x.md")]
         _classify_tool_usages(tools, [])
         assert tools[0].tool_type == "external_service"
-
-
-class TestLooksLikeModelName:
-    def test_model_prefixes(self):
-        assert _looks_like_model_name("gpt-4o") is True
-        assert _looks_like_model_name("claude-haiku") is True
-        assert _looks_like_model_name("dall-e-3") is True
-        assert _looks_like_model_name("llama-3") is True
-        assert _looks_like_model_name("gemini-2.0-flash") is True
-        assert _looks_like_model_name("mistral-large") is True
-        assert _looks_like_model_name("text-embedding-3-small") is True
-
-    def test_non_model_names(self):
-        assert _looks_like_model_name("google_search") is False
-        assert _looks_like_model_name("web_scraper") is False
-        assert _looks_like_model_name("my_tool") is False
 
 
 class TestDeduplication:

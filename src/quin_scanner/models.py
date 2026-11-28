@@ -82,6 +82,42 @@ class ClassificationResult:
 
 
 @dataclass
+class InstanceTool:
+    """A tool passed to one agent instance, linked to its definition when one was found."""
+    name: str
+    tool_id: str | None = None
+    resolved: bool = False
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"name": self.name, "tool_id": self.tool_id, "resolved": self.resolved}
+
+
+@dataclass
+class AgentInstance:
+    """A place in the code that creates an agent, with what is passed there."""
+    id: str
+    file: str
+    line: int | None
+    scope: str = "production"            # "production" | "test" | "example"
+    multiplicity: str = "one"            # "many" when created inside a loop or comprehension
+    model: str | None = None             # redacted literal or reference ("env:MODEL", "var:settings.llm")
+    tools: list[InstanceTool] = field(default_factory=list)
+    tools_known: bool = True             # False when the tools are not statically known (e.g. tools=get_tools())
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "id": self.id,
+            "file": self.file,
+            "line": self.line,
+            "scope": self.scope,
+            "multiplicity": self.multiplicity,
+            "model": self.model,
+            "tools": [t.to_dict() for t in self.tools],
+            "tools_known": self.tools_known,
+        }
+
+
+@dataclass
 class AgentProfile:
     name: str
     agent_type: str                      # "supervisor" | "utility" | "worker" | "unknown"
@@ -89,8 +125,14 @@ class AgentProfile:
     capabilities: list[str] = field(default_factory=list)
     risk_signals: list[RiskIndicator] = field(default_factory=list)
     skills: list[str] = field(default_factory=list)
-    tools: list[str] = field(default_factory=list)
-    source_file: str = ""
+    tools: list[str] = field(default_factory=list)   # union of the instances' tools
+    source_file: str = ""                            # the definition site
+    id: str = ""                                     # "agent:<name>", "agent:<name>@<path>", "agent:@<path>#<n>"
+    identity: str = "strong"                         # "strong" (literal name) | "weak"
+    scope: str = "production"                        # production if any instance is, else test, else example
+    flags: list[str] = field(default_factory=list)   # name_collision, tool_divergence, model_divergence, ambiguous_instance
+    provenance: dict[str, str] = field(default_factory=dict)   # field name -> "static" | "llm"
+    instances: list[AgentInstance] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -102,6 +144,12 @@ class AgentProfile:
             "skills": self.skills,
             "tools": self.tools,
             "source_file": self.source_file,
+            "id": self.id,
+            "identity": self.identity,
+            "scope": self.scope,
+            "flags": self.flags,
+            "provenance": self.provenance,
+            "instances": [i.to_dict() for i in self.instances],
         }
 
 
@@ -115,6 +163,9 @@ class AgentToolRelationship:
     tool_source_file: str = ""
     tool_line_number: int | None = None
     evidence: str = "explicit_tools_argument"
+    agent_id: str = ""
+    instance_id: str = ""
+    tool_id: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -125,6 +176,9 @@ class AgentToolRelationship:
             "tool_source_file": self.tool_source_file,
             "tool_line_number": self.tool_line_number,
             "evidence": self.evidence,
+            "agent_id": self.agent_id,
+            "instance_id": self.instance_id,
+            "tool_id": self.tool_id,
         }
 
 
@@ -133,13 +187,30 @@ class MCPServer:
     name: str
     transport: str = "unknown"           # "stdio" | "http" | "sse" | "unknown"
     source_file: str = ""
+    source: str = "config"               # "config": named in a client config file; "code": implemented in the repository
+    # Only for source "code" (and only serialised then):
+    line: int | None = None
+    scope: str = "production"            # "production" | "test" | "example"
+    language: str = ""                   # "python" | "typescript" | "javascript"
+    sdk: str = ""                        # the package the server class comes from: "mcp", "fastmcp", "@modelcontextprotocol/sdk", ...
+    tools: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        data: dict[str, Any] = {
             "name": self.name,
             "transport": self.transport,
             "source_file": self.source_file,
+            "source": self.source,
         }
+        if self.source == "code":
+            data.update({
+                "line": self.line,
+                "scope": self.scope,
+                "language": self.language,
+                "sdk": self.sdk,
+                "tools": list(self.tools),
+            })
+        return data
 
 
 @dataclass
@@ -163,6 +234,8 @@ class ToolUsage:
     service_category: str = ""           # only for external_service: "web_search", "web_browsing", etc.
     source_file: str = ""
     line_number: int | None = None
+    id: str = ""                         # "tool:<name>", or "tool:<name>@<path>" when two files define the name
+    scope: str = "production"
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -171,7 +244,29 @@ class ToolUsage:
             "service_category": self.service_category,
             "source_file": self.source_file,
             "line_number": self.line_number,
+            "id": self.id,
+            "scope": self.scope,
         }
+
+
+@dataclass
+class LLMInferredItem:
+    """An agent or tool the LLM suggested that has no static evidence: reported, never part of the inventory."""
+    name: str
+    evidence: str = ""
+    file: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"name": self.name, "evidence": self.evidence, "file": self.file}
+
+
+@dataclass
+class AgentEnrichment:
+    """What the LLM may add to a verified agent, merged by its ID."""
+    agent_type: str = "unknown"
+    goal: str = ""
+    capabilities: list[str] = field(default_factory=list)
+    risk_signals: list[RiskIndicator] = field(default_factory=list)
 
 
 @dataclass
@@ -180,8 +275,10 @@ class SynthesisResult:
     is_ai_application: bool
     framework: str
     summary: str
-    agents: list[AgentProfile] = field(default_factory=list)
-    tool_usages: list[ToolUsage] = field(default_factory=list)
+    enrichment: dict[str, AgentEnrichment] = field(default_factory=dict)    # agent id → fields
+    tool_enrichment: dict[str, str] = field(default_factory=dict)           # tool id → service_category
+    suggested_agents: list[LLMInferredItem] = field(default_factory=list)
+    suggested_tools: list[LLMInferredItem] = field(default_factory=list)
     risk_signals: list[RiskIndicator] = field(default_factory=list)  # repo-level risks
     confidence_adjustment: float = 0.0   # -0.1 to +0.1, applied to static confidence
 
@@ -203,6 +300,12 @@ class AgentIntentSummary:
             "capabilities": self.capabilities,
             "risk_signals": self.risk_signals,
         }
+
+
+def _controls_catalog(labels: list[str]) -> dict[str, Any]:
+    from quin_scanner.regulatory import controls_catalog  # local import: avoids a cycle with risk_taxonomy/regulatory
+
+    return controls_catalog(labels)
 
 
 def _make_agent_id(prompt_location: str) -> str:
@@ -401,6 +504,8 @@ class ScanReport:
     # Existing fields
     model_usages: list[ModelUsage] = field(default_factory=list)
     agent_tool_relationships: list[AgentToolRelationship] = field(default_factory=list)
+    llm_inferred_agents: list[LLMInferredItem] = field(default_factory=list)
+    llm_inferred_tools: list[LLMInferredItem] = field(default_factory=list)
     inventory: list[dict[str, Any]] = field(default_factory=list)
     coverage: dict[str, Any] = field(default_factory=dict)
     llm_endpoints: list[EndpointUsage] = field(default_factory=list)
@@ -417,6 +522,16 @@ class ScanReport:
             d["governance"] = self.governance.to_dict()
         return d
 
+    def _control_labels(self) -> list[str]:
+        """Control labels named by repo- and agent-level risk signals, in report order."""
+        labels = [label for signal in self.risk_signals for label in signal.recommended_controls]
+        for agent in self.agents:
+            labels.extend(
+                label for signal in agent.risk_signals if isinstance(signal, RiskIndicator)
+                for label in signal.recommended_controls
+            )
+        return labels
+
     def _base_dict(self) -> dict[str, Any]:
         return {
             "schema_version": REPORT_SCHEMA_VERSION,
@@ -430,12 +545,15 @@ class ScanReport:
             "agents": [a.to_dict() for a in self.agents],
             "tool_usages": [t.to_dict() for t in self.tool_usages],
             "risk_signals": [r.to_dict() for r in self.risk_signals],
+            "controls": _controls_catalog(self._control_labels()),
             "mcp_servers": [m.to_dict() for m in self.mcp_servers],
             "infra": self.infra.to_dict() if self.infra else None,
             "vulnerabilities": [v.to_dict() for v in self.vulnerabilities],
             "artifacts": [f.to_dict() for f in self.artifacts],
             "model_usages": [m.to_dict() for m in self.model_usages],
             "agent_tool_relationships": [r.to_dict() for r in self.agent_tool_relationships],
+            "llm_inferred_agents": [i.to_dict() for i in self.llm_inferred_agents],
+            "llm_inferred_tools": [i.to_dict() for i in self.llm_inferred_tools],
             "inventory": self.inventory,
             "coverage": self.coverage,
             "llm_endpoints": [e.to_dict() for e in self.llm_endpoints],

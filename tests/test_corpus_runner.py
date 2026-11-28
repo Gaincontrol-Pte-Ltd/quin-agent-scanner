@@ -134,3 +134,47 @@ def test_skills_diff_reports_severity_changes_even_when_rule_counts_are_equal():
     assert "s/a: severity critical 1 -> 0" in text
     assert "s/a: severity low 0 -> 1" in text
     assert "s/a: verdict CAUTION -> SAFE" in text
+
+
+_AGENTS_ENTRY = {"name": "fake-agents", "kind": "agents", "source": {"path": "tests/fixtures/none"}}
+_AGENTS_DATA = {
+    "framework": "unknown", "is_ai_application": True, "confidence": 0.9, "capability_tags": [], "agents": [],
+    "model_usages": [], "mcp_servers": [], "tool_usages": [], "risk_signals": [], "artifacts": [],
+}
+
+
+def _fake_agents_run(monkeypatch, tmp_path, bom_problems, snapshot):
+    monkeypatch.setattr(run_corpus, "EXPECTED", tmp_path)
+    monkeypatch.setattr(run_corpus, "load_manifest", lambda: [_AGENTS_ENTRY])
+    monkeypatch.setattr(run_corpus, "fetch", lambda entry, cache, latest: (tmp_path, "in-repo"))
+    monkeypatch.setattr(run_corpus, "scan", lambda entry, target: _AGENTS_DATA)
+    monkeypatch.setattr(run_corpus, "check_bom", lambda entry, target: bom_problems)
+    (tmp_path / "fake-agents.json").write_text(run_corpus._dump(snapshot), encoding="utf-8")
+
+
+def test_an_invalid_bom_is_not_also_reported_ok(tmp_path, monkeypatch, capsys):
+    _fake_agents_run(monkeypatch, tmp_path, ["$.components[0]: bad"], run_corpus.summarize("agents", _AGENTS_DATA))
+    assert run_corpus.main(["--check"]) == 1
+    out = capsys.readouterr()
+    assert "INVALID fake-agents" in out.out and "ok      fake-agents" not in out.out
+    assert "invalid CycloneDX BOM" in out.err
+
+
+def test_changed_snapshot_and_invalid_bom_are_both_reported(tmp_path, monkeypatch, capsys):
+    _fake_agents_run(monkeypatch, tmp_path, ["$.components[0]: bad"], {**run_corpus.summarize("agents", _AGENTS_DATA), "tools": 7})
+    assert run_corpus.main(["--check"]) == 1
+    out = capsys.readouterr()
+    assert "INVALID fake-agents" in out.out and "CHANGED fake-agents" in out.out
+    assert "invalid CycloneDX BOM" in out.err and "--update" in out.err
+
+
+def test_a_crashing_bom_export_is_an_invalid_bom_not_an_infrastructure_error(tmp_path, monkeypatch):
+    import subprocess
+
+    def crash(*args, **kwargs):
+        return subprocess.CompletedProcess(args, 1, stdout="", stderr="Traceback ...\nKeyError: 'boom'\n")
+
+    monkeypatch.setattr(run_corpus.subprocess, "run", crash)
+    problems = run_corpus.check_bom(_AGENTS_ENTRY, tmp_path)
+    assert len(problems) == 1
+    assert "BOM export failed (exit 1)" in problems[0] and "KeyError: 'boom'" in problems[0]

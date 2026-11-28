@@ -7,21 +7,19 @@ import shutil
 import stat
 import sys
 import tempfile
+import threading
 import time
 import urllib.error
 import urllib.request
+import weakref
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 from pathlib import Path, PurePath
+from urllib.parse import quote
 
-from quin_scanner import _http
+from quin_scanner import _github_archive, _http
 
 _WINDOWS_PATH = re.compile(r"^(?:[A-Za-z]:[\\/]|\\\\)")
-
-# The owner/repo shorthand fetches every file with its own HTTP request. From about this many files on, that is
-# slow enough (pallets/flask, 236 files: 37 s against 3 s for a clone) to be worth a pointer to the URL form.
-_SLOW_SHORTHAND_FILES = 150
-
 
 def to_repo_path(path: PurePath) -> str:
     """A repo-relative path as a string with forward slashes on every OS."""
@@ -208,7 +206,14 @@ class LocalRepoAccessor(RepoAccessor):
 
 
 class GitHubMCPAccessor(RepoAccessor):
-    """Reads files from a public or private GitHub repository via the GitHub REST API.
+    """Reads files from a public or private GitHub repository via the GitHub REST API (the owner/repo shorthand).
+
+    The repository is downloaded once as a tarball (``/repos/{owner}/{repo}/tarball/{ref}``) and extracted into a
+    temporary directory; the file list still comes from the Git Trees API, at the commit the archive was made from,
+    so the same files are considered as before. If the archive cannot be used (an HTTP error, too large, unsafe or
+    unreadable), files are read one request at a time from raw.githubusercontent.com, as they were before 1.1, and
+    one line on stderr says so. A file the archive lacks (``export-ignore``) or that cannot be written on this
+    filesystem is read with its own request as well.
 
     Authentication: set GITHUB_TOKEN environment variable to avoid rate limits and
     access private repositories. Without a token, unauthenticated requests are limited
@@ -225,6 +230,13 @@ class GitHubMCPAccessor(RepoAccessor):
         self._token: str | None = github_token or os.environ.get("GITHUB_TOKEN")
         # Lazily populated on first list_files() call
         self._file_list: list[str] | None = None
+        # The commit (or, without an archive, the branch) that the tree and every file are read at.
+        self._ref: str = branch
+        self._archive_lock = threading.Lock()
+        self._archive_tried = False
+        self._archive_files: dict[str, Path] = {}
+        self._temp_dir: Path | None = None
+        self._finalizer: weakref.finalize | None = None
 
     # ------------------------------------------------------------------
     # RepoAccessor interface
@@ -232,13 +244,21 @@ class GitHubMCPAccessor(RepoAccessor):
 
     def list_files(self, glob_pattern: str = "**/*") -> list[str]:
         if self._file_list is None:
+            self._load_archive()
             self._file_list = self._fetch_tree()
         return list(self._file_list)
 
     def read_file(self, path: str) -> str:
-        url = f"{self._RAW_BASE}/{self.owner}/{self.repo}/{self.branch}/{path}"
+        self._load_archive()
+        local = self._archive_files.get(path)
+        if local is not None:
+            try:
+                # Bytes decoded as the raw request did: no newline translation, invalid UTF-8 replaced.
+                return local.read_bytes().decode("utf-8", errors="replace")
+            except OSError:
+                pass  # removed by cleanup() or unreadable: read it from GitHub instead
         try:
-            return self._get_text(url)
+            return self._get_text(self._raw_url(path))
         except urllib.error.HTTPError as exc:
             raise FileNotFoundError(
                 f"GitHub: {self.owner}/{self.repo}/{path} → HTTP {exc.code}"
@@ -247,10 +267,11 @@ class GitHubMCPAccessor(RepoAccessor):
     def file_exists(self, path: str) -> bool:
         if self._file_list is not None:
             return path in self._file_list
+        if path in self._archive_files:
+            return True
         # Avoid fetching the full tree just for a single exists() check
-        url = f"{self._RAW_BASE}/{self.owner}/{self.repo}/{self.branch}/{path}"
         try:
-            self._get_text(url)
+            self._get_text(self._raw_url(path))
             return True
         except (urllib.error.HTTPError, urllib.error.URLError):
             return False
@@ -258,15 +279,73 @@ class GitHubMCPAccessor(RepoAccessor):
     def repo_identifier(self) -> str:
         return f"{self.owner}/{self.repo}"
 
+    def cleanup(self) -> None:
+        """Remove the extracted archive. Later reads, if any, go to GitHub one file at a time."""
+        with self._archive_lock:
+            self._archive_files = {}
+            if self._finalizer is not None:
+                self._finalizer()  # runs _remove_quietly once and detaches
+                self._finalizer = None
+            self._temp_dir = None
+
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
+
+    def _raw_url(self, path: str) -> str:
+        return f"{self._RAW_BASE}/{self.owner}/{self.repo}/{quote(self._ref, safe='/')}/{quote(path, safe='/')}"
+
+    def _load_archive(self) -> None:
+        """Download and extract the repository once; on any failure, leave the per-file path in place."""
+        with self._archive_lock:
+            if self._archive_tried:
+                return
+            self._archive_tried = True
+            name = f"{self.owner}/{self.repo}"
+            temp_dir = Path(tempfile.mkdtemp(prefix="quin_github_"))
+            # Removed by cleanup(), and at the latest when this accessor is collected or the interpreter exits.
+            self._finalizer = weakref.finalize(self, _remove_quietly, temp_dir)
+            self._temp_dir = temp_dir
+            started = time.monotonic()
+            sys.stderr.write(f"Downloading {name} ({self.branch}) as one archive...\n")
+            sys.stderr.flush()
+            try:
+                archive = temp_dir / "repo.tar.gz"
+                url = _github_archive.tarball_url(self._API_BASE, self.owner, self.repo, self.branch)
+                _retry_with_backoff(
+                    lambda: _github_archive.download(url, self._headers(), archive),
+                    max_retries=2,
+                )
+                extracted = _github_archive.extract(archive, temp_dir / "tree")
+                archive.unlink()
+            except BaseException as exc:
+                self._finalizer()
+                self._finalizer = None
+                self._temp_dir = None
+                if not isinstance(exc, Exception):
+                    raise  # Ctrl-C and the like: stop, with the temp directory already removed
+                if isinstance(exc, urllib.error.HTTPError) and exc.code == 404:
+                    return  # no such repository or branch: the tree request below reports it as before
+                sys.stderr.write(
+                    f"Note: could not download {name} as one archive ({_short_reason(exc)}); "
+                    "reading its files one request at a time instead.\n"
+                )
+                sys.stderr.flush()
+                return
+            self._archive_files = extracted.files
+            if extracted.commit_sha:
+                self._ref = extracted.commit_sha
+            sys.stderr.write(
+                f"Extracted {len(extracted.files)} files ({extracted.total_bytes / (1024 * 1024):.1f} MB) "
+                f"in {time.monotonic() - started:.1f} s.\n"
+            )
+            sys.stderr.flush()
 
     def _fetch_tree(self) -> list[str]:
         """Return all blob paths in the repo using the Git Trees API (recursive)."""
         url = (
             f"{self._API_BASE}/repos/{self.owner}/{self.repo}"
-            f"/git/trees/{self.branch}?recursive=1"
+            f"/git/trees/{self._ref}?recursive=1"
         )
         try:
             data = self._get_json(url)
@@ -285,14 +364,7 @@ class GitHubMCPAccessor(RepoAccessor):
                 RuntimeWarning,
                 stacklevel=3,
             )
-        paths = [item["path"] for item in data.get("tree", []) if item["type"] == "blob"]
-        if len(paths) >= _SLOW_SHORTHAND_FILES:
-            sys.stderr.write(
-                f"Note: {self.owner}/{self.repo} has {len(paths)} files, and the owner/repo shorthand fetches them "
-                f"one at a time, which is slow at this size. https://github.com/{self.owner}/{self.repo} "
-                "clones once and is much faster.\n"
-            )
-        return paths
+        return [item["path"] for item in data.get("tree", []) if item["type"] == "blob"]
 
     def _headers(self) -> dict[str, str]:
         h: dict[str, str] = {
@@ -316,6 +388,19 @@ class GitHubMCPAccessor(RepoAccessor):
             with _http.urlopen(req, timeout=30) as resp:
                 return resp.read().decode("utf-8", errors="replace")
         return _retry_with_backoff(_do)
+
+
+def _remove_quietly(path: Path) -> None:
+    try:
+        remove_tree(path)
+    except OSError:
+        pass
+
+
+def _short_reason(exc: BaseException) -> str:
+    if isinstance(exc, urllib.error.HTTPError):
+        return f"HTTP {exc.code}"
+    return str(exc) or type(exc).__name__
 
 
 class GitCloneAccessor(RepoAccessor):

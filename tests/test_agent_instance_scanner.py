@@ -4,8 +4,11 @@ from __future__ import annotations
 import pytest
 
 from quin_scanner.file_index import FileIndex
+from quin_scanner.inventory import python_sites
+from quin_scanner.inventory.evidence import NO_INSTRUCTIONS, InstructionsRef
 from quin_scanner.repo_accessor import LocalRepoAccessor
 from quin_scanner.scanners.agent_instance_scanner import AgentInstanceScanner
+from quin_scanner.scanners.base import EvidenceProducer
 
 
 def _names(tmp_path, source: str, filename: str = "agents.py") -> list[str]:
@@ -147,3 +150,227 @@ def test_agents_yaml_and_flow_dag_keep_their_own_parsers(tmp_path):
     index = FileIndex(accessor)
     index.build()
     assert [f.match_text for f in AgentInstanceScanner().scan(accessor, index)] == ["planner"]
+
+
+# --- typed evidence for the inventory ---------------------------------------------------------------------------
+
+
+def _evidence(tmp_path, files: dict[str, str]):
+    for rel, text in files.items():
+        target = tmp_path / rel
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(text, encoding="utf-8")
+    accessor = LocalRepoAccessor(tmp_path)
+    index = FileIndex(accessor)
+    index.build()
+    scanner = AgentInstanceScanner()
+    findings = scanner.scan(accessor, index)
+    return findings, scanner.evidence()
+
+
+def test_scanner_is_an_evidence_producer():
+    assert isinstance(AgentInstanceScanner(), EvidenceProducer)
+
+
+def test_python_evidence_carries_instance_details(tmp_path):
+    findings, sites = _evidence(tmp_path, {"app.py": 'a = Agent(name="r", instructions="x", tools=[s])\n'})
+    assert [f.match_text for f in findings] == ["r"]
+    (site,) = sites
+    assert (site.name, site.file_path, site.tool_refs) == ("r", "app.py", ("s",))
+
+
+def test_test_files_give_evidence_but_no_findings(tmp_path):
+    findings, sites = _evidence(tmp_path, {"tests/test_app.py": 'a = Agent(name="r")\n'})
+    assert findings == []
+    assert [(s.name, s.file_path) for s in sites] == [("r", "tests/test_app.py")]
+
+
+def test_crew_yaml_entries_are_config_definitions(tmp_path):
+    _, sites = _evidence(tmp_path, {"config/agents.yaml": "researcher:\n  role: Senior Researcher\n  goal: g\n"})
+    (site,) = sites
+    assert (site.role, site.kind, site.name, site.instructions) == (
+        "definition", "config_entry", "Senior Researcher", InstructionsRef("config", "researcher"),
+    )
+
+
+def test_adk_root_agent_details(tmp_path):
+    source = (
+        "name: root\nmodel: gemini-2.0-flash\ninstruction: Help.\n"
+        "tools:\n  - name: google_search\nsub_agents:\n  - name: helper\n"
+    )
+    _, sites = _evidence(tmp_path, {"root_agent.yaml": source})
+    helper, root = sorted(sites, key=lambda s: s.name)
+    assert (root.model_expr, root.tool_refs, root.instructions) == (
+        "gemini-2.0-flash", ("google_search",), InstructionsRef.literal("Help."),
+    )
+    assert helper.tool_refs is None
+
+
+def test_unparseable_python_falls_back_to_regex_sites(tmp_path):
+    _, sites = _evidence(tmp_path, {"bad.py": 'agent = Agent(name="ok",\nthis is not python (\n'})
+    assert [(s.name, s.tool_refs, s.instructions) for s in sites] == [("ok", None, NO_INSTRUCTIONS)]
+
+
+def test_typescript_evidence(tmp_path):
+    _, sites = _evidence(tmp_path, {"a.ts": 'const a = new Agent({ name: "triage", tools: [x] });\n'})
+    assert [(s.name, s.tool_refs) for s in sites] == [("triage", ("x",))]
+
+
+def test_workflow_graph_and_markdown_specs(tmp_path):
+    _, sites = _evidence(tmp_path, {"flow.yaml": WORKFLOW, "agents/research.md": "# Research Agent\n**Role:** Researcher\n"})
+    assert sorted((s.kind, s.name) for s in sites) == [
+        ("config_entry", "Research Agent"),
+        ("graph_node", "Programmer Code Review"),
+        ("graph_node", "Reviewer"),
+    ]
+
+
+def test_evidence_failure_never_costs_a_file_its_findings(tmp_path, monkeypatch):
+    def boom(tree, path):
+        raise RuntimeError("evidence extraction failed")
+
+    monkeypatch.setattr(python_sites, "agent_sites", boom)
+    findings, sites = _evidence(tmp_path, {"app.py": 'a = Agent(name="r")\n'})
+    assert [f.match_text for f in findings] == ["r"]
+    assert sites == []
+
+
+# --- review fixes: guarded config sites, redaction, JS spans, site origins -----------------------------------------
+
+ANT = "sk-ant-api03-" + "A1b2C3d4" * 4
+GHP = "ghp_" + "a1B2c3D4" * 5
+
+
+def test_surrogate_in_adk_instruction_keeps_findings(tmp_path):
+    source = 'name: surro\ninstruction: "\\ud800 hi"\nsub_agents:\n  - name: kid\n'
+    findings, _ = _evidence(tmp_path, {"root_agent.yaml": source})
+    assert sorted(f.match_text for f in findings) == ["kid", "surro"]
+
+
+def test_surrogate_in_workflow_role_keeps_findings(tmp_path):
+    source = (
+        "graph:\n  nodes:\n    - id: Rev\n      type: agent\n      config:\n        role: \"\\ud800\"\n"
+        "    - id: Two\n      type: agent\n"
+    )
+    findings, _ = _evidence(tmp_path, {"flow.yaml": source})
+    assert sorted(f.match_text for f in findings) == ["Rev", "Two"]
+
+
+def test_config_site_failure_never_costs_findings(tmp_path, monkeypatch):
+    from quin_scanner.inventory import evidence as ev
+
+    def boom(site):
+        raise RuntimeError("x")
+
+    monkeypatch.setattr("quin_scanner.scanners.agent_instance_scanner.clean_site", boom)
+    findings, sites = _evidence(tmp_path, {"config/agents.yaml": "a:\n  role: R\nb:\n  role: S\n"})
+    assert len(findings) == 2 and sites == []
+
+
+def test_config_sites_are_redacted(tmp_path):
+    files = {
+        "config/agents.yaml": f"r:\n  role: {ANT}\n  tools:\n    - {GHP}\n",
+        "root_agent.yaml": f"name: adk\nmodel: {ANT}\n",
+        "agents/x.md": f"# Agent: {GHP}\n",
+    }
+    _, sites = _evidence(tmp_path, files)
+    blob = repr(sites)
+    assert "sk-ant-api03" not in blob and "ghp_" not in blob and "[REDACTED]" in blob
+
+
+def test_js_nested_name_is_not_a_phantom_agent(tmp_path):
+    _, sites = _evidence(tmp_path, {"a.ts": 'const a = new Agent({ model: {name: "gpt"}, name: "real" });\n'})
+    assert [s.name for s in sites] == ["real"]
+
+
+def test_js_call_split_across_lines_is_one_site(tmp_path):
+    _, sites = _evidence(tmp_path, {"a.ts": 'new\n  Agent({ name: "splitline" })\n'})
+    assert [(s.name, s.line) for s in sites] == [("splitline", 1)]
+
+
+def test_regex_fallback_sites_carry_their_origin(tmp_path):
+    source = (
+        'x = Agent(name="ctor")\n@agent\ndef deco():\n    pass\nclass Plan(Role):\n    pass\n(\n'
+    )
+    _, sites = _evidence(tmp_path, {"bad.py": source})
+    got = {s.name: (s.role, s.kind) for s in sites}
+    assert got == {
+        "ctor": ("both", "constructor"),
+        "deco": ("definition", "decorator"),
+        "Plan": ("definition", "subclass"),
+    }
+
+
+def test_js_agents_sharing_a_line_with_a_parsed_call_are_not_hidden(tmp_path):
+    source = (
+        'const x = new Agent({name:"a"}); const y = new AssistantAgent("bee", {});\n'
+        'const z = new Agent({\n  name: "c",\n});  const w = new UserProxyAgent("dee");\n'
+    )
+    findings, sites = _evidence(tmp_path, {"a.ts": source})
+    assert sorted(f.match_text for f in findings) == ["a", "bee", "c", "dee"]
+    assert sorted(s.name for s in sites) == ["a", "bee", "c", "dee"]
+
+
+def test_tool_ref_failure_never_costs_findings(tmp_path, monkeypatch):
+    def boom(value):
+        raise RuntimeError("x")
+
+    monkeypatch.setattr("quin_scanner.scanners.agent_instance_scanner._literal_tool_refs", boom)
+    files = {"config/agents.yaml": "a:\n  tools: [t]\n", "root_agent.yaml": "name: adk\ntools: [t]\n"}
+    findings, sites = _evidence(tmp_path, files)
+    assert sorted(f.match_text for f in findings) == ["a", "adk"]
+    assert sites == []
+
+
+def test_yaml_config_sites_record_whether_a_tools_key_is_present(tmp_path):
+    _, sites = _evidence(tmp_path, {"config/agents.yaml": "a:\n  role: A\n  tools: TOOLS\nb:\n  role: B\n"})
+    assert sorted((s.name, s.tool_refs, s.tools_given) for s in sites) == [("A", None, True), ("B", None, False)]
+
+
+# --- final review: evidence names are normalised --------------------------------------------------------------------
+
+
+def test_block_scalar_and_quoted_yaml_names_are_normalised(tmp_path):
+    source = (
+        "planner:\n  role: >\n    Activity Planner\n  goal: g\n"
+        "strategist:\n  role: >\n    \"Senior Communications Strategist\"\n  goal: g\n"
+        "spaced:\n  role: \"  Lead   \\t Analyst \"\n  tools:\n    - \"'search tool'\"\n    - \"  web\\n\"\n"
+        "blank:\n  role: \"''\"\n"
+    )
+    findings, sites = _evidence(tmp_path, {"config/agents.yaml": source})
+    # findings are unchanged: match_text keeps the raw YAML value
+    assert "Activity Planner\n" in [f.match_text for f in findings]
+    got = {s.instructions.value: (s.name, s.tool_refs) for s in sites}
+    assert got == {
+        "planner": ("Activity Planner", None),
+        "strategist": ("Senior Communications Strategist", None),
+        "spaced": ("Lead Analyst", ("search tool", "web")),
+        "blank": (None, None),
+    }
+
+
+def test_clean_site_normalises_every_name_it_carries():
+    from quin_scanner.inventory.evidence import AgentSite, clean_name, clean_site
+
+    site = clean_site(AgentSite(role="both", kind="constructor", name=" 'x  y' ", file_path="a.py", line=1,
+                                tool_refs=('"t1"', " t2\n", "''")))
+    assert (site.name, site.tool_refs) == ("x y", ("t1", "t2"))
+    assert clean_name("\"a'") == "\"a'"   # unmatched quotes are kept
+    assert clean_name("''") is None and clean_name("  ") is None and clean_name(None) is None
+
+
+def test_js_regex_findings_in_comments_and_strings_get_no_fallback_site(tmp_path):
+    source = (
+        '// const a = new Agent({ name: "ghost", tools: [x] });\n'
+        "const s = `new Agent({ name: \"inStr\" })`;\n"
+        'const b = new AssistantAgent("bee");\n'
+    )
+    findings, sites = _evidence(tmp_path, {"c.ts": source})
+    assert sorted(f.match_text for f in findings) == ["bee", "ghost", "inStr"]   # findings unchanged
+    assert [s.name for s in sites] == ["bee"]
+
+
+def test_two_yaml_keys_with_one_display_name_each_get_a_site(tmp_path):
+    findings, sites = _evidence(tmp_path, {"config/agents.yaml": "a:\n  role: Writer\nb:\n  role: Writer\n"})
+    assert [f.match_text for f in findings] == ["Writer"]   # findings dedupe as before
+    assert sorted((s.name, s.instructions.value) for s in sites) == [("Writer", "a"), ("Writer", "b")]
